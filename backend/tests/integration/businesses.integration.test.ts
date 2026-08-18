@@ -8,8 +8,10 @@ import { createInitialOwner } from "../../src/cli/bootstrap-owner.js";
 import type { Env } from "../../src/config/env.js";
 import { PostgresBusinessesRepository } from "../../src/modules/businesses/businesses.repository.js";
 import type { Business } from "../../src/modules/businesses/businesses.types.js";
+import type { Category } from "../../src/modules/categories/categories.types.js";
 import type { Customer } from "../../src/modules/customers/customers.types.js";
 import { PostgresMembershipsRepository } from "../../src/modules/memberships/memberships.repository.js";
+import type { Product } from "../../src/modules/products/products.types.js";
 import { PostgresUsersRepository } from "../../src/modules/users/users.repository.js";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
@@ -230,6 +232,133 @@ test(
       payload: { email: null },
     });
     assert.equal(removeLastContactResponse.statusCode, 400);
+
+    const createCategoryResponse = await app.inject({
+      method: "POST",
+      url: `/businesses/${seedBusinessId}/categories`,
+      headers: { cookie },
+      payload: { name: "  Instagram  " },
+    });
+    assert.equal(createCategoryResponse.statusCode, 201);
+    const category = createCategoryResponse.json<Category>();
+    assert.equal(category.name, "Instagram");
+
+    const duplicateCategoryResponse = await app.inject({
+      method: "POST",
+      url: `/businesses/${seedBusinessId}/categories`,
+      headers: { cookie },
+      payload: { name: "INSTAGRAM" },
+    });
+    assert.equal(duplicateCategoryResponse.statusCode, 409);
+
+    const otherBusinessCategoryResponse = await app.inject({
+      method: "POST",
+      url: `/businesses/${createdId}/categories`,
+      headers: { cookie },
+      payload: { name: "Instagram" },
+    });
+    assert.equal(otherBusinessCategoryResponse.statusCode, 201);
+
+    const listCategoriesResponse = await app.inject({
+      method: "GET",
+      url: `/businesses/${seedBusinessId}/categories?limit=10&offset=0&status=active`,
+      headers: { cookie },
+    });
+    assert.equal(listCategoriesResponse.statusCode, 200);
+    assert.ok(
+      listCategoriesResponse
+        .json<Category[]>()
+        .some((listedCategory) => listedCategory.id === category.id),
+    );
+
+    const wrongBusinessCategoryResponse = await app.inject({
+      method: "GET",
+      url: `/businesses/${createdId}/categories/${category.id}`,
+      headers: { cookie },
+    });
+    assert.equal(wrongBusinessCategoryResponse.statusCode, 404);
+
+    const updateCategoryResponse = await app.inject({
+      method: "PATCH",
+      url: `/businesses/${seedBusinessId}/categories/${category.id}`,
+      headers: { cookie },
+      payload: { status: "inactive" },
+    });
+    assert.equal(updateCategoryResponse.statusCode, 200);
+    assert.equal(updateCategoryResponse.json<Category>().status, "inactive");
+
+    const createProductResponse = await app.inject({
+      method: "POST",
+      url: `/businesses/${seedBusinessId}/products`,
+      headers: { cookie },
+      payload: {
+        categoryId: category.id,
+        name: "  Seguidores Instagram Premium  ",
+        description: "  Servicio premium  ",
+        type: "service",
+        sku: " ig-follow-premium ",
+        minQuantity: 100,
+        maxQuantity: 10_000,
+      },
+    });
+    assert.equal(createProductResponse.statusCode, 201);
+    const product = createProductResponse.json<Product>();
+    assert.equal(product.name, "Seguidores Instagram Premium");
+    assert.equal(product.sku, "IG-FOLLOW-PREMIUM");
+    assert.equal(product.categoryId, category.id);
+
+    const duplicateSkuResponse = await app.inject({
+      method: "POST",
+      url: `/businesses/${seedBusinessId}/products`,
+      headers: { cookie },
+      payload: { name: "Duplicate", type: "service", sku: "IG-FOLLOW-PREMIUM" },
+    });
+    assert.equal(duplicateSkuResponse.statusCode, 409);
+
+    const otherBusinessProductResponse = await app.inject({
+      method: "POST",
+      url: `/businesses/${createdId}/products`,
+      headers: { cookie },
+      payload: { name: "Other Business", type: "service", sku: "IG-FOLLOW-PREMIUM" },
+    });
+    assert.equal(otherBusinessProductResponse.statusCode, 201);
+
+    const crossBusinessCategoryResponse = await app.inject({
+      method: "POST",
+      url: `/businesses/${createdId}/products`,
+      headers: { cookie },
+      payload: { categoryId: category.id, name: "Invalid Category", type: "service" },
+    });
+    assert.equal(crossBusinessCategoryResponse.statusCode, 404);
+
+    const listProductsResponse = await app.inject({
+      method: "GET",
+      url: `/businesses/${seedBusinessId}/products?limit=10&offset=0&type=service`,
+      headers: { cookie },
+    });
+    assert.equal(listProductsResponse.statusCode, 200);
+    assert.ok(
+      listProductsResponse
+        .json<Product[]>()
+        .some((listedProduct) => listedProduct.id === product.id),
+    );
+
+    const wrongBusinessProductResponse = await app.inject({
+      method: "GET",
+      url: `/businesses/${createdId}/products/${product.id}`,
+      headers: { cookie },
+    });
+    assert.equal(wrongBusinessProductResponse.statusCode, 404);
+
+    const updateProductResponse = await app.inject({
+      method: "PATCH",
+      url: `/businesses/${seedBusinessId}/products/${product.id}`,
+      headers: { cookie },
+      payload: { categoryId: null, status: "inactive", maxQuantity: 20_000 },
+    });
+    assert.equal(updateProductResponse.statusCode, 200);
+    assert.equal(updateProductResponse.json<Product>().categoryId, null);
+    assert.equal(updateProductResponse.json<Product>().status, "inactive");
 
     const meResponse = await app.inject({
       method: "GET",

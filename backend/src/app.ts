@@ -7,8 +7,13 @@ import { createLoggerOptions } from "./core/logger/logger.js";
 import { authPlugin } from "./modules/auth/auth.plugin.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { businessesRoutes } from "./modules/businesses/businesses.routes.js";
+import { categoriesRoutes } from "./modules/categories/categories.routes.js";
 import { customersRoutes } from "./modules/customers/customers.routes.js";
 import { healthRoutes } from "./modules/health/health.routes.js";
+import { ordersRoutes } from "./modules/orders/orders.routes.js";
+import { pricingRoutes } from "./modules/pricing/pricing.routes.js";
+import { productsRoutes } from "./modules/products/products.routes.js";
+import { quotesRoutes } from "./modules/quotes/quotes.routes.js";
 
 export async function buildApp(config: Env): Promise<FastifyInstance> {
   const app = Fastify({
@@ -30,6 +35,11 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   await app.register(authRoutes, { prefix: "/auth", config });
   await app.register(businessesRoutes, { prefix: "/businesses" });
   await app.register(customersRoutes);
+  await app.register(categoriesRoutes);
+  await app.register(productsRoutes);
+  await app.register(pricingRoutes);
+  await app.register(quotesRoutes);
+  await app.register(ordersRoutes);
 
   return app;
 }
