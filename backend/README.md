@@ -2,7 +2,7 @@
 
 Backend comercial modular con Fastify, configuración validada, PostgreSQL, migraciones versionadas, autenticación por sesión y administración mínima de negocios.
 
-No incluye todavía pagos ni proveedores externos.
+Incluye Payments Core independiente de proveedores. Mercado Pago y los demás adaptadores externos aún no están implementados.
 
 ## Requisitos
 
@@ -105,6 +105,21 @@ Los quotes se crean y consultan bajo `/businesses/:businessId/quotes`. Cada quot
 El flujo comercial actual es `Product → Pricing → Quote → Order`. Un Order se crea convirtiendo atómicamente un Quote válido mediante `POST /businesses/:businessId/orders`; el Order y su Item copian el snapshot del Quote sin consultar el producto ni recalcular Pricing. Cada Quote puede convertirse una sola vez.
 
 Los roles `owner`, `admin` y `operator` pueden crear y leer Orders. Solo `owner` y `admin` pueden cancelar explícitamente un Order en estado `pending_payment`. Los Orders nacen siempre como `pending_payment`; no existe un endpoint para marcarlos manualmente como pagados.
+
+## Payments Core
+
+El flujo comercial llega ahora a `Order → Payment → PaymentProvider`. Payments copia monto, moneda y customer desde el Order y nunca acepta esos datos desde el caller. Los roles `owner`, `admin` y `operator` pueden crear intentos y consultarlos mediante:
+
+```text
+POST /businesses/:businessId/orders/:orderId/payments
+GET  /businesses/:businessId/payments
+GET  /businesses/:businessId/payments/:paymentId
+GET  /businesses/:businessId/orders/:orderId/payments
+```
+
+La creación admite el header opcional `Idempotency-Key`. Solo una actualización confirmada por un `PaymentProvider` puede aprobar un Payment y cambiar atómicamente su Order de `pending_payment` a `paid`; no existe una ruta de aprobación manual.
+
+El registro de providers de producción está vacío en esta etapa. Por eso una creación devuelve `PAYMENT_PROVIDER_NOT_AVAILABLE` hasta que se implemente y registre un adaptador real. Mercado Pago, webhooks, refunds y chargebacks quedan fuera de Payments Core.
 
 ## Docker Compose
 

@@ -11,6 +11,7 @@ import { categoriesRoutes } from "./modules/categories/categories.routes.js";
 import { customersRoutes } from "./modules/customers/customers.routes.js";
 import { healthRoutes } from "./modules/health/health.routes.js";
 import { ordersRoutes } from "./modules/orders/orders.routes.js";
+import { paymentsRoutes } from "./modules/payments/payments.routes.js";
 import { pricingRoutes } from "./modules/pricing/pricing.routes.js";
 import { productsRoutes } from "./modules/products/products.routes.js";
 import { quotesRoutes } from "./modules/quotes/quotes.routes.js";
@@ -40,6 +41,7 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   await app.register(pricingRoutes);
   await app.register(quotesRoutes);
   await app.register(ordersRoutes);
+  await app.register(paymentsRoutes);
 
   return app;
 }

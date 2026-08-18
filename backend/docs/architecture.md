@@ -64,6 +64,7 @@ El dominio depende del contrato, no del proveedor concreto. Cambiar una API exte
 - `modules/pricing`: reglas `fixed` o `unit` business-scoped, con dinero entero y rangos activos no ambiguos.
 - `modules/quotes`: snapshots comerciales inmutables del producto y el cálculo de precio ofrecido.
 - `modules/orders`: conversión transaccional de Quotes en ventas comprometidas con Items históricos.
+- `modules/payments`: intentos de pago business-scoped, idempotencia y aprobación atómica del Order mediante un contrato de provider genérico.
 
 ```text
 Product
@@ -73,11 +74,19 @@ Pricing
 Quote
   ↓
 Order
+  ↓
+Payment
+  ↓
+PaymentProvider
 ```
 
 Los montos monetarios se persisten como enteros `bigint` y solo se exponen dentro del rango entero seguro de la API. Los quotes conservan sus valores históricos; la expiración efectiva se calcula al leer sin producir escrituras inesperadas.
 
 La conversión de un Quote bloquea su fila y crea el Order, su Item y el estado `converted` dentro de una sola transacción. Orders no consulta Pricing ni exige que el Product actual siga activo: utiliza exclusivamente el snapshot comercial aceptado.
+
+Payments copia `amount`, `currency` y customer desde el Order. La llamada al provider ocurre después de confirmar el Payment local y nunca dentro de una transacción PostgreSQL. Una aprobación bloquea Payment y Order, valida que sus snapshots monetarios coincidan y realiza `Payment → approved` junto con `Order: pending_payment → paid` en una sola transacción.
+
+El contrato `PaymentProvider` y su registry pertenecen al dominio Payments; el runtime no registra todavía ningún adaptador real. Mercado Pago, sus webhooks y cualquier otro proveedor externo se implementarán posteriormente sin introducir detalles del proveedor en Orders o Payments Core.
 
 ## Autenticación y autorización
 

@@ -15,6 +15,7 @@ const expectedTables = [
   "customers",
   "order_items",
   "orders",
+  "payments",
   "product_prices",
   "products",
   "quotes",
@@ -27,6 +28,8 @@ const expectedConstraints = new Map([
   ["orders_quote_business_fk", "f"],
   ["orders_quote_id_unique", "u"],
   ["orders_totals_equal", "c"],
+  ["payments_order_business_fk", "f"],
+  ["payments_approved_at_valid", "c"],
   ["product_prices_active_range_exclusion", "x"],
   ["products_business_id_id_unique", "u"],
   ["quotes_business_id_id_unique", "u"],
@@ -51,7 +54,7 @@ test(
     const migrationResult = await db.query<{ count: number }>(
       "SELECT count(*)::integer AS count FROM pgmigrations",
     );
-    assert.equal(migrationResult.rows[0]?.count, 6);
+    assert.equal(migrationResult.rows[0]?.count, 7);
 
     const tableResult = await db.query<{ table_name: string }>(
       `SELECT table_name
@@ -78,6 +81,17 @@ test(
       assert.equal(constraint.contype, expectedConstraints.get(constraint.conname));
     }
 
+    const paymentIndexes = await db.query<{ indexname: string }>(
+      `SELECT indexname FROM pg_indexes
+       WHERE schemaname = 'public' AND indexname = ANY($1::text[])`,
+      [[
+        "payments_provider_identity_unique",
+        "payments_approved_order_unique",
+        "payments_business_idempotency_unique",
+      ]],
+    );
+    assert.equal(paymentIndexes.rows.length, 3);
+
     const moneyResult = await db.query<{ table_name: string; column_name: string }>(
       `SELECT table_name, column_name
        FROM information_schema.columns
@@ -89,9 +103,10 @@ test(
            ('quotes', 'total_price'),
            ('orders', 'subtotal'),
            ('orders', 'total'),
-           ('order_items', 'total_price')
+           ('order_items', 'total_price'),
+           ('payments', 'amount')
          )`,
     );
-    assert.equal(moneyResult.rows.length, 6);
+    assert.equal(moneyResult.rows.length, 7);
   },
 );
