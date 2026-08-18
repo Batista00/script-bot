@@ -49,6 +49,16 @@ Las pruebas de integración PostgreSQL están separadas en `tests/integration/`.
 
 GitHub Actions levanta PostgreSQL 16 en una base efímera exclusiva de CI, aplica todas las migraciones y ejecuta estas integraciones con `TEST_DATABASE_URL`. El mismo job valida instalación congelada, typecheck y build.
 
+## Clave de integraciones
+
+Las credenciales de integraciones se cifran con AES-256-GCM mediante una clave maestra base64 de 32 bytes. Genera una clave nueva con Node.js y guárdala únicamente en el gestor seguro del entorno:
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+```
+
+Configura el resultado como `INTEGRATIONS_ENCRYPTION_KEY`. La variable queda vacía en `.env.example`; el backend nunca genera una clave silenciosamente ni la guarda en PostgreSQL. Si una operación necesita cifrar o descifrar y la clave no está configurada, falla explícitamente.
+
 ## Autenticación y primer owner
 
 Las sesiones son tokens opacos enviados únicamente en la cookie `bot_whatsap_session`. La base guarda su hash SHA-256, nunca el token original. La cookie es `HttpOnly`, `SameSite=Lax`, usa `Secure` en producción y expira según `AUTH_SESSION_TTL_HOURS`.
@@ -120,6 +130,19 @@ GET  /businesses/:businessId/orders/:orderId/payments
 La creación admite el header opcional `Idempotency-Key`. Solo una actualización confirmada por un `PaymentProvider` puede aprobar un Payment y cambiar atómicamente su Order de `pending_payment` a `paid`; no existe una ruta de aprobación manual.
 
 El registro de providers de producción está vacío en esta etapa. Por eso una creación devuelve `PAYMENT_PROVIDER_NOT_AVAILABLE` hasta que se implemente y registre un adaptador real. Mercado Pago, webhooks, refunds y chargebacks quedan fuera de Payments Core.
+
+## Integrations Core
+
+Las configuraciones provider-agnostic pertenecen a cada Business. `config` conserva únicamente opciones no secretas y `credentials_encrypted` almacena el objeto de credenciales cifrado; ninguna respuesta HTTP expone secretos ni ciphertext.
+
+```text
+POST  /businesses/:businessId/integrations
+GET   /businesses/:businessId/integrations
+GET   /businesses/:businessId/integrations/:integrationId
+PATCH /businesses/:businessId/integrations/:integrationId
+```
+
+Solo `owner` y `admin` pueden administrar integraciones. El acceso interno `getActiveIntegration(businessId, providerKey)` entrega configuración y credenciales descifradas a futuros adapters, pero no está publicado como endpoint. Mercado Pago, SMM Raja y Evolution todavía no están implementados.
 
 ## Docker Compose
 

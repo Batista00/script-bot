@@ -9,6 +9,7 @@ const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
 const expectedTables = [
   "auth_sessions",
+  "business_integrations",
   "business_memberships",
   "businesses",
   "categories",
@@ -24,6 +25,8 @@ const expectedTables = [
 
 const expectedConstraints = new Map([
   ["customers_business_id_id_unique", "u"],
+  ["business_integrations_business_provider_unique", "u"],
+  ["business_integrations_config_object", "c"],
   ["order_items_order_business_fk", "f"],
   ["orders_quote_business_fk", "f"],
   ["orders_quote_id_unique", "u"],
@@ -54,7 +57,7 @@ test(
     const migrationResult = await db.query<{ count: number }>(
       "SELECT count(*)::integer AS count FROM pgmigrations",
     );
-    assert.equal(migrationResult.rows[0]?.count, 7);
+    assert.equal(migrationResult.rows[0]?.count, 8);
 
     const tableResult = await db.query<{ table_name: string }>(
       `SELECT table_name

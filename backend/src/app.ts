@@ -10,6 +10,7 @@ import { businessesRoutes } from "./modules/businesses/businesses.routes.js";
 import { categoriesRoutes } from "./modules/categories/categories.routes.js";
 import { customersRoutes } from "./modules/customers/customers.routes.js";
 import { healthRoutes } from "./modules/health/health.routes.js";
+import { integrationsRoutes } from "./modules/integrations/integrations.routes.js";
 import { ordersRoutes } from "./modules/orders/orders.routes.js";
 import { paymentsRoutes } from "./modules/payments/payments.routes.js";
 import { pricingRoutes } from "./modules/pricing/pricing.routes.js";
@@ -33,6 +34,7 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   });
   await app.register(authPlugin, { config });
   await app.register(healthRoutes);
+  await app.register(integrationsRoutes, { config });
   await app.register(authRoutes, { prefix: "/auth", config });
   await app.register(businessesRoutes, { prefix: "/businesses" });
   await app.register(customersRoutes);

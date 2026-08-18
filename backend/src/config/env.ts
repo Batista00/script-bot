@@ -12,6 +12,13 @@ const envSchema = z.object({
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
   AUTH_SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(24 * 30).default(24 * 7),
+  INTEGRATIONS_ENCRYPTION_KEY: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.string().regex(
+      /^[A-Za-z0-9+/]{43}=$/,
+      "INTEGRATIONS_ENCRYPTION_KEY must be a base64-encoded 32-byte key",
+    ).optional(),
+  ),
 });
 
 export type Env = z.infer<typeof envSchema>;

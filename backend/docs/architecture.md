@@ -65,6 +65,7 @@ El dominio depende del contrato, no del proveedor concreto. Cambiar una API exte
 - `modules/quotes`: snapshots comerciales inmutables del producto y el cálculo de precio ofrecido.
 - `modules/orders`: conversión transaccional de Quotes en ventas comprometidas con Items históricos.
 - `modules/payments`: intentos de pago business-scoped, idempotencia y aprobación atómica del Order mediante un contrato de provider genérico.
+- `modules/integrations`: configuración provider-agnostic por negocio y credenciales cifradas para futuros adapters.
 
 ```text
 Product
@@ -87,6 +88,8 @@ La conversión de un Quote bloquea su fila y crea el Order, su Item y el estado 
 Payments copia `amount`, `currency` y customer desde el Order. La llamada al provider ocurre después de confirmar el Payment local y nunca dentro de una transacción PostgreSQL. Una aprobación bloquea Payment y Order, valida que sus snapshots monetarios coincidan y realiza `Payment → approved` junto con `Order: pending_payment → paid` en una sola transacción.
 
 El contrato `PaymentProvider` y su registry pertenecen al dominio Payments; el runtime no registra todavía ningún adaptador real. Mercado Pago, sus webhooks y cualquier otro proveedor externo se implementarán posteriormente sin introducir detalles del proveedor en Orders o Payments Core.
+
+Integrations Core separa `config` no secreta de credenciales cifradas con AES-256-GCM. La clave maestra proviene exclusivamente del entorno y el ciphertext se autentica con el contexto Business/provider. Las APIs públicas nunca descifran ni serializan credenciales; el acceso descifrado existe solo como contrato interno para adapters futuros.
 
 ## Autenticación y autorización
 
