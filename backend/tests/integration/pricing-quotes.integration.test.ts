@@ -10,6 +10,7 @@ import { PostgresCustomersRepository } from "../../src/modules/customers/custome
 import { PriceCalculatorService } from "../../src/modules/pricing/price-calculator.service.js";
 import { PostgresPricingRepository } from "../../src/modules/pricing/pricing.repository.js";
 import { PricingService } from "../../src/modules/pricing/pricing.service.js";
+import { PriceRangeConflictError } from "../../src/modules/pricing/pricing.types.js";
 import { PostgresProductsRepository } from "../../src/modules/products/products.repository.js";
 import { PostgresQuotesRepository } from "../../src/modules/quotes/quotes.repository.js";
 import { QuotesService } from "../../src/modules/quotes/quotes.service.js";
@@ -94,6 +95,24 @@ test(
     });
     assert.equal(fixed.fixedPrice, 15_990);
     assert.equal(unit.unitPrice, 3);
+    await assert.rejects(
+      prices.create(businessA.id, product.id, {
+        pricingType: "fixed",
+        currency: "CLP",
+        fixedPrice: 20_000,
+        unitPrice: null,
+        minQuantity: 100,
+        maxQuantity: 1000,
+        status: "active",
+      }),
+      (error: unknown) => error instanceof PriceRangeConflictError,
+    );
+
+    await pricing.create(businessA.id, product.id, {
+      pricingType: "fixed",
+      currency: "EUR",
+      fixedPrice: Number.MAX_SAFE_INTEGER,
+    });
 
     const fixedQuote = await quotes.create(businessA.id, {
       productId: product.id,
@@ -106,9 +125,15 @@ test(
       quantity: 5000,
       currency: "USD",
     });
+    const maximumSafeQuote = await quotes.create(businessA.id, {
+      productId: product.id,
+      quantity: 100,
+      currency: "EUR",
+    });
     assert.equal(fixedQuote.totalPrice, 15_990);
     assert.equal(unitQuote.totalPrice, 15_000);
     assert.equal(unitQuote.unitPrice, 3);
+    assert.equal(maximumSafeQuote.totalPrice, Number.MAX_SAFE_INTEGER);
 
     await products.update(businessA.id, product.id, {
       categoryId: null,

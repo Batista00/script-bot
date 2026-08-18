@@ -47,6 +47,8 @@ pnpm bootstrap:owner
 
 Las pruebas de integración PostgreSQL están separadas en `tests/integration/`. Se ejecutan dentro de `pnpm test`, pero quedan marcadas como omitidas si no se define una base exclusiva mediante `TEST_DATABASE_URL`.
 
+GitHub Actions levanta PostgreSQL 16 en una base efímera exclusiva de CI, aplica todas las migraciones y ejecuta estas integraciones con `TEST_DATABASE_URL`. El mismo job valida instalación congelada, typecheck y build.
+
 ## Autenticación y primer owner
 
 Las sesiones son tokens opacos enviados únicamente en la cookie `bot_whatsap_session`. La base guarda su hash SHA-256, nunca el token original. La cookie es `HttpOnly`, `SameSite=Lax`, usa `Secure` en producción y expira según `AUTH_SESSION_TTL_HOURS`.
