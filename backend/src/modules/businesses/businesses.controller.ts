@@ -14,12 +14,16 @@ export class BusinessesController {
     request: FastifyRequest<{ Body: CreateBusinessInput }>,
     reply: FastifyReply,
   ): Promise<FastifyReply> => {
-    const business = await this.service.create(request.body);
+    const user = request.authenticatedUser;
+    if (!user) throw new Error("Authenticated user is missing after auth guard");
+    const business = await this.service.create(request.body, user.id);
     return reply.status(201).send(business);
   };
 
-  list = async (_request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> => {
-    const businesses = await this.service.list();
+  list = async (request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> => {
+    const user = request.authenticatedUser;
+    if (!user) throw new Error("Authenticated user is missing after auth guard");
+    const businesses = await this.service.list(user.id);
     return reply.status(200).send(businesses);
   };
 
@@ -39,4 +43,3 @@ export class BusinessesController {
     return reply.status(200).send(business);
   };
 }
-

@@ -12,9 +12,9 @@ test("loadEnv applies safe defaults and parses PORT", () => {
   assert.equal(env.NODE_ENV, "development");
   assert.equal(env.PORT, 4321);
   assert.equal(env.LOG_LEVEL, "info");
+  assert.equal(env.AUTH_SESSION_TTL_HOURS, 168);
 });
 
 test("loadEnv rejects a non-PostgreSQL database URL", () => {
   assert.throws(() => loadEnv({ DATABASE_URL: "https://example.com/database" }));
 });
-

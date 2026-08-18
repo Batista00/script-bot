@@ -6,6 +6,7 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER:-bot}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-bot_whatsapp}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      AUTH_SESSION_TTL_HOURS: ${AUTH_SESSION_TTL_HOURS:-168}
     ports:
       - "${PORT:-3000}:3000"
     depends_on:
@@ -30,4 +31,3 @@ services:
 
 volumes:
   postgres_data:
-

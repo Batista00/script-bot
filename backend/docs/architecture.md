@@ -55,6 +55,25 @@ El dominio depende del contrato, no del proveedor concreto. Cambiar una API exte
 - `core/logger`: configuración del logger de Fastify.
 - `modules/health`: endpoint pequeño de disponibilidad del proceso.
 - `modules/businesses`: primera entidad comercial y raíz de propiedad de datos.
+- `modules/users`: identidad y credenciales con hash Argon2id.
+- `modules/auth`: sesiones opacas, cookie HTTP y guards reutilizables.
+- `modules/memberships`: relación entre usuarios y negocios con roles `owner`, `admin` y `operator`.
+
+## Autenticación y autorización
+
+```text
+cookie opaca
+  ↓ SHA-256
+auth_sessions
+  ↓
+usuario autenticado
+  ↓
+business_memberships
+  ↓
+rol sobre el negocio
+```
+
+La contraseña se verifica con Argon2id y nunca sale del módulo de autenticación. El token de sesión solo existe en el cliente; PostgreSQL conserva su hash y vencimiento. Los guards distinguen autenticación, pertenencia al negocio y rol permitido. Crear un negocio y asignar su owner es una operación transaccional.
 
 ## Propiedad de datos por negocio
 

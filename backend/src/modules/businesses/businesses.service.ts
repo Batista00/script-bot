@@ -1,4 +1,8 @@
+import type { Pool } from "pg";
+
+import { withTransaction } from "../../core/database/database.js";
 import { AppError } from "../../core/errors/app-error.js";
+import type { MembershipsRepository } from "../memberships/memberships.types.js";
 import {
   businessStatuses,
   type Business,
@@ -24,14 +28,22 @@ function normalizeName(name: string): string {
 }
 
 export class BusinessesService {
-  constructor(private readonly repository: BusinessesRepository) {}
+  constructor(
+    private readonly repository: BusinessesRepository,
+    private readonly memberships: MembershipsRepository,
+    private readonly db: Pool,
+  ) {}
 
-  create(input: CreateBusinessInput): Promise<Business> {
-    return this.repository.create(normalizeName(input.name));
+  create(input: CreateBusinessInput, userId: string): Promise<Business> {
+    return withTransaction(this.db, async (client) => {
+      const business = await this.repository.create(normalizeName(input.name), client);
+      await this.memberships.create(business.id, userId, "owner", client);
+      return business;
+    });
   }
 
-  list(): Promise<Business[]> {
-    return this.repository.list();
+  list(userId: string): Promise<Business[]> {
+    return this.repository.listForUser(userId);
   }
 
   async getById(id: string): Promise<Business> {
@@ -69,4 +81,3 @@ export class BusinessesService {
     return business;
   }
 }
-

@@ -1,4 +1,6 @@
-import type { Pool, QueryResultRow } from "pg";
+import type { QueryResultRow } from "pg";
+
+import type { DatabaseExecutor } from "../../core/database/database.js";
 
 import type {
   Business,
@@ -32,10 +34,10 @@ function mapBusiness(row: BusinessRow): Business {
 const returningColumns = "id, name, status, created_at, updated_at";
 
 export class PostgresBusinessesRepository implements BusinessesRepository {
-  constructor(private readonly db: Pool) {}
+  constructor(private readonly db: DatabaseExecutor) {}
 
-  async create(name: string): Promise<Business> {
-    const result = await this.db.query<BusinessRow>(
+  async create(name: string, executor: DatabaseExecutor = this.db): Promise<Business> {
+    const result = await executor.query<BusinessRow>(
       `INSERT INTO businesses (name)
        VALUES ($1)
        RETURNING ${returningColumns}`,
@@ -50,18 +52,27 @@ export class PostgresBusinessesRepository implements BusinessesRepository {
     return mapBusiness(row);
   }
 
-  async list(): Promise<Business[]> {
-    const result = await this.db.query<BusinessRow>(
-      `SELECT ${returningColumns}
-       FROM businesses
-       ORDER BY created_at ASC, id ASC`,
+  async listForUser(
+    userId: string,
+    executor: DatabaseExecutor = this.db,
+  ): Promise<Business[]> {
+    const result = await executor.query<BusinessRow>(
+      `SELECT b.id, b.name, b.status, b.created_at, b.updated_at
+       FROM businesses b
+       INNER JOIN business_memberships bm ON bm.business_id = b.id
+       WHERE bm.user_id = $1
+       ORDER BY b.created_at ASC, b.id ASC`,
+      [userId],
     );
 
     return result.rows.map(mapBusiness);
   }
 
-  async findById(id: string): Promise<Business | null> {
-    const result = await this.db.query<BusinessRow>(
+  async findById(
+    id: string,
+    executor: DatabaseExecutor = this.db,
+  ): Promise<Business | null> {
+    const result = await executor.query<BusinessRow>(
       `SELECT ${returningColumns}
        FROM businesses
        WHERE id = $1`,
@@ -72,8 +83,12 @@ export class PostgresBusinessesRepository implements BusinessesRepository {
     return row ? mapBusiness(row) : null;
   }
 
-  async update(id: string, input: UpdateBusinessInput): Promise<Business | null> {
-    const result = await this.db.query<BusinessRow>(
+  async update(
+    id: string,
+    input: UpdateBusinessInput,
+    executor: DatabaseExecutor = this.db,
+  ): Promise<Business | null> {
+    const result = await executor.query<BusinessRow>(
       `UPDATE businesses
        SET name = COALESCE($2, name),
            status = COALESCE($3::business_status, status),
@@ -87,4 +102,3 @@ export class PostgresBusinessesRepository implements BusinessesRepository {
     return row ? mapBusiness(row) : null;
   }
 }
-

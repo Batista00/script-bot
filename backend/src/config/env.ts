@@ -11,6 +11,7 @@ const envSchema = z.object({
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
+  AUTH_SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(24 * 30).default(24 * 7),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -18,4 +19,3 @@ export type Env = z.infer<typeof envSchema>;
 export function loadEnv(input: NodeJS.ProcessEnv = process.env): Env {
   return envSchema.parse(input);
 }
-

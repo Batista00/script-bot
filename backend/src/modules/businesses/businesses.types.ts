@@ -20,9 +20,14 @@ export interface UpdateBusinessInput {
 }
 
 export interface BusinessesRepository {
-  create(name: string): Promise<Business>;
-  list(): Promise<Business[]>;
-  findById(id: string): Promise<Business | null>;
-  update(id: string, input: UpdateBusinessInput): Promise<Business | null>;
+  create(name: string, executor?: DatabaseExecutor): Promise<Business>;
+  listForUser(userId: string, executor?: DatabaseExecutor): Promise<Business[]>;
+  findById(id: string, executor?: DatabaseExecutor): Promise<Business | null>;
+  update(
+    id: string,
+    input: UpdateBusinessInput,
+    executor?: DatabaseExecutor,
+  ): Promise<Business | null>;
 }
+import type { DatabaseExecutor } from "../../core/database/database.js";
 
