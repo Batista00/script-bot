@@ -1,0 +1,163 @@
+{
+  "version": "6.1",
+  "id": "tb3medgvthiitgx90cm3bq",
+  "name": "LAB - JSON BASE 09 - IMPORT GENERADO",
+  "events": [
+    {
+      "id": "evtjm032uqscukrusnrfdl7",
+      "outgoingEdgeId": "edgddrq588p2jmxw6c7ez1c",
+      "graphCoordinates": {
+        "x": 0,
+        "y": 0
+      },
+      "type": "start"
+    }
+  ],
+  "groups": [
+    {
+      "id": "grpwt4ymsqbgiys4rmw5wnm",
+      "title": "Menú generado",
+      "graphCoordinates": {
+        "x": 300,
+        "y": 0
+      },
+      "blocks": [
+        {
+          "id": "blk54bq41nyjcuyg2wq5696",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rteaoefc9qes9fxk6hzlt4",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Este bot fue generado fuera de Typebot e importado como JSON."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk42httoa5yik8xk1oknu3",
+          "type": "choice input",
+          "items": [
+            {
+              "id": "itm2xig6nnjhj7kvenw0h2p",
+              "outgoingEdgeId": "edgj0i9rn1oi590fv30p8l4",
+              "content": "Opción A"
+            },
+            {
+              "id": "itmrvcw0ug0p4zovdrtq3kd",
+              "outgoingEdgeId": "edg32cx18qen5avj5f415ur",
+              "content": "Opción B"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "grpgecfblh06hpazii1yiym",
+      "title": "Rama A",
+      "graphCoordinates": {
+        "x": 700,
+        "y": -100
+      },
+      "blocks": [
+        {
+          "id": "blkqfxf1iyr2ljmp70ssp2m",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rtulhnsx5vuu1rxjlpxpnq",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Elegiste la Opción A"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "grpn4k766bboow4okt29465",
+      "title": "Rama B",
+      "graphCoordinates": {
+        "x": 700,
+        "y": 180
+      },
+      "blocks": [
+        {
+          "id": "blk0nbecvs10jswy3wta7iv",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rt7b60wsk1ybu9nlaweyxz",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Elegiste la Opción B"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "edgddrq588p2jmxw6c7ez1c",
+      "from": {
+        "eventId": "evtjm032uqscukrusnrfdl7"
+      },
+      "to": {
+        "groupId": "grpwt4ymsqbgiys4rmw5wnm"
+      }
+    },
+    {
+      "id": "edgj0i9rn1oi590fv30p8l4",
+      "from": {
+        "blockId": "blk42httoa5yik8xk1oknu3",
+        "itemId": "itm2xig6nnjhj7kvenw0h2p"
+      },
+      "to": {
+        "groupId": "grpgecfblh06hpazii1yiym"
+      }
+    },
+    {
+      "id": "edg32cx18qen5avj5f415ur",
+      "from": {
+        "blockId": "blk42httoa5yik8xk1oknu3",
+        "itemId": "itmrvcw0ug0p4zovdrtq3kd"
+      },
+      "to": {
+        "groupId": "grpn4k766bboow4okt29465"
+      }
+    }
+  ],
+  "variables": [],
+  "theme": {},
+  "selectedThemeTemplateId": null,
+  "settings": {},
+  "createdAt": "2026-08-17T17:17:25.627130Z",
+  "updatedAt": "2026-08-17T17:17:25.627130Z",
+  "icon": null,
+  "folderId": null,
+  "publicId": null,
+  "customDomain": null,
+  "workspaceId": "cmske6ll700001fqf7yll9l1r",
+  "resultsTablePreferences": null,
+  "isArchived": false,
+  "isClosed": false,
+  "whatsAppCredentialsId": null,
+  "riskLevel": null,
+  "spaceId": null
+}
