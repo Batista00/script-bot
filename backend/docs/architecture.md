@@ -58,6 +58,7 @@ El dominio depende del contrato, no del proveedor concreto. Cambiar una API exte
 - `modules/users`: identidad y credenciales con hash Argon2id.
 - `modules/auth`: sesiones opacas, cookie HTTP y guards reutilizables.
 - `modules/memberships`: relación entre usuarios y negocios con roles `owner`, `admin` y `operator`.
+- `modules/customers`: contactos pertenecientes a un negocio, independientes del canal o proveedor externo.
 
 ## Autenticación y autorización
 

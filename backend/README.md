@@ -2,7 +2,7 @@
 
 Backend comercial modular con Fastify, configuración validada, PostgreSQL, migraciones versionadas, autenticación por sesión y administración mínima de negocios.
 
-No incluye todavía catálogo, clientes, pedidos, pagos ni proveedores externos.
+No incluye todavía catálogo, pedidos, pagos ni proveedores externos.
 
 ## Requisitos
 
@@ -70,6 +70,19 @@ pnpm bootstrap:owner
 El script crea el negocio, el usuario y su membresía `owner` en una sola transacción. Si ya existe cualquier usuario, se rechaza porque el sistema se considera inicializado. No guardes esos valores reales en `.env` ni en el repositorio.
 
 Todos los endpoints `/businesses` requieren sesión. El listado contiene solo negocios asociados al usuario; consultar uno exige membresía; editarlo exige rol `owner` o `admin`. Al crear un negocio, el usuario autenticado obtiene el rol `owner` dentro de la misma transacción.
+
+## Customers
+
+Los customers siempre pertenecen a un negocio y no dependen de proveedores externos. Los roles `owner`, `admin` y `operator` del negocio pueden crear, listar, consultar y actualizar mediante:
+
+```text
+POST  /businesses/:businessId/customers
+GET   /businesses/:businessId/customers
+GET   /businesses/:businessId/customers/:customerId
+PATCH /businesses/:businessId/customers/:customerId
+```
+
+Cada customer requiere teléfono o email. El listado admite `limit`, `offset` y filtros exactos opcionales `phone` y `email`. Para desactivar se actualiza `status` a `inactive`; no existe eliminación física.
 
 ## Docker Compose
 

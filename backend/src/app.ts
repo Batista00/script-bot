@@ -7,6 +7,7 @@ import { createLoggerOptions } from "./core/logger/logger.js";
 import { authPlugin } from "./modules/auth/auth.plugin.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { businessesRoutes } from "./modules/businesses/businesses.routes.js";
+import { customersRoutes } from "./modules/customers/customers.routes.js";
 import { healthRoutes } from "./modules/health/health.routes.js";
 
 export async function buildApp(config: Env): Promise<FastifyInstance> {
@@ -28,6 +29,7 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   await app.register(healthRoutes);
   await app.register(authRoutes, { prefix: "/auth", config });
   await app.register(businessesRoutes, { prefix: "/businesses" });
+  await app.register(customersRoutes);
 
   return app;
 }

@@ -19,16 +19,17 @@ export function requireBusinessMembership(
 ): preHandlerHookHandler {
   return async (request) => {
     const user = request.authenticatedUser;
-    const params = request.params as { id?: unknown };
+    const params = request.params as { id?: unknown; businessId?: unknown };
+    const businessId = typeof params.businessId === "string" ? params.businessId : params.id;
 
     if (!user) {
       throw new AppError("Authentication required", 401, "AUTHENTICATION_REQUIRED");
     }
-    if (typeof params.id !== "string") {
+    if (typeof businessId !== "string") {
       throw new AppError("Business not found", 404, "BUSINESS_NOT_FOUND");
     }
 
-    const membership = await memberships.findByBusinessAndUser(params.id, user.id);
+    const membership = await memberships.findByBusinessAndUser(businessId, user.id);
     if (!membership) throw new AppError("Business not found", 404, "BUSINESS_NOT_FOUND");
     request.businessMembership = membership;
   };
@@ -43,4 +44,3 @@ export function requireBusinessRole(allowedRoles: readonly BusinessRole[]): preH
     }
   };
 }
-

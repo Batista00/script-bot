@@ -8,6 +8,7 @@ import { createInitialOwner } from "../../src/cli/bootstrap-owner.js";
 import type { Env } from "../../src/config/env.js";
 import { PostgresBusinessesRepository } from "../../src/modules/businesses/businesses.repository.js";
 import type { Business } from "../../src/modules/businesses/businesses.types.js";
+import type { Customer } from "../../src/modules/customers/customers.types.js";
 import { PostgresMembershipsRepository } from "../../src/modules/memberships/memberships.repository.js";
 import { PostgresUsersRepository } from "../../src/modules/users/users.repository.js";
 
@@ -144,6 +145,91 @@ test(
     assert.equal(updateResponse.statusCode, 200);
     assert.equal(updateResponse.json<Business>().name, "Integration Test Updated");
     assert.equal(updateResponse.json<Business>().status, "inactive");
+
+    const customerPhone = "+56 9 1234 5678";
+    const createCustomerResponse = await app.inject({
+      method: "POST",
+      url: `/businesses/${seedBusinessId}/customers`,
+      headers: { cookie },
+      payload: {
+        name: "  Integration Customer  ",
+        phone: customerPhone,
+        email: "  CUSTOMER@Example.COM  ",
+      },
+    });
+    assert.equal(createCustomerResponse.statusCode, 201);
+    const customer = createCustomerResponse.json<Customer>();
+    assert.equal(customer.name, "Integration Customer");
+    assert.equal(customer.phone, "+56912345678");
+    assert.equal(customer.email, "customer@example.com");
+
+    const duplicatePhoneResponse = await app.inject({
+      method: "POST",
+      url: `/businesses/${seedBusinessId}/customers`,
+      headers: { cookie },
+      payload: { phone: customerPhone },
+    });
+    assert.equal(duplicatePhoneResponse.statusCode, 409);
+
+    const duplicateEmailResponse = await app.inject({
+      method: "POST",
+      url: `/businesses/${seedBusinessId}/customers`,
+      headers: { cookie },
+      payload: { email: "CUSTOMER@EXAMPLE.COM" },
+    });
+    assert.equal(duplicateEmailResponse.statusCode, 409);
+
+    const otherBusinessCustomerResponse = await app.inject({
+      method: "POST",
+      url: `/businesses/${createdId}/customers`,
+      headers: { cookie },
+      payload: { phone: customerPhone },
+    });
+    assert.equal(otherBusinessCustomerResponse.statusCode, 201);
+
+    const listCustomersResponse = await app.inject({
+      method: "GET",
+      url: `/businesses/${seedBusinessId}/customers?limit=10&offset=0`,
+      headers: { cookie },
+    });
+    assert.equal(listCustomersResponse.statusCode, 200);
+    assert.ok(
+      listCustomersResponse
+        .json<Customer[]>()
+        .some((listedCustomer) => listedCustomer.id === customer.id),
+    );
+
+    const getCustomerResponse = await app.inject({
+      method: "GET",
+      url: `/businesses/${seedBusinessId}/customers/${customer.id}`,
+      headers: { cookie },
+    });
+    assert.equal(getCustomerResponse.statusCode, 200);
+
+    const wrongBusinessResponse = await app.inject({
+      method: "GET",
+      url: `/businesses/${createdId}/customers/${customer.id}`,
+      headers: { cookie },
+    });
+    assert.equal(wrongBusinessResponse.statusCode, 404);
+
+    const updateCustomerResponse = await app.inject({
+      method: "PATCH",
+      url: `/businesses/${seedBusinessId}/customers/${customer.id}`,
+      headers: { cookie },
+      payload: { phone: null, status: "inactive" },
+    });
+    assert.equal(updateCustomerResponse.statusCode, 200);
+    assert.equal(updateCustomerResponse.json<Customer>().phone, null);
+    assert.equal(updateCustomerResponse.json<Customer>().status, "inactive");
+
+    const removeLastContactResponse = await app.inject({
+      method: "PATCH",
+      url: `/businesses/${seedBusinessId}/customers/${customer.id}`,
+      headers: { cookie },
+      payload: { email: null },
+    });
+    assert.equal(removeLastContactResponse.statusCode, 400);
 
     const meResponse = await app.inject({
       method: "GET",
