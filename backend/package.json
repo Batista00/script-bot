@@ -12,11 +12,11 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/src/server.js",
-    "test": "tsc -p tsconfig.json && node --test dist/tests/env.test.js dist/tests/health.test.js dist/tests/businesses.test.js dist/tests/auth.test.js dist/tests/integration/businesses.integration.test.js",
+    "test": "tsc -p tsconfig.json && node --test dist/tests/env.test.js dist/tests/health.test.js dist/tests/businesses.test.js dist/tests/auth.test.js dist/tests/bootstrap-owner.test.js dist/tests/integration/businesses.integration.test.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "migrate": "node-pg-migrate up --migrations-dir migrations",
     "migrate:down": "node-pg-migrate down --migrations-dir migrations",
-    "bootstrap:owner": "node dist/src/cli/bootstrap-owner.js"
+    "bootstrap:owner": "node dist/src/cli/bootstrap-owner.command.js"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",

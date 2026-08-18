@@ -36,6 +36,7 @@ function usersStub(user: UserWithPasswordHash | null): UsersRepository {
   return {
     create: async () => userBase,
     findByEmail: async () => user,
+    hasAnyUsers: async () => user !== null,
   };
 }
 

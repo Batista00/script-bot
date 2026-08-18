@@ -57,17 +57,17 @@ Endpoints:
 - `GET /auth/me`: devuelve el usuario y sus negocios con rol, sin hashes.
 - `POST /auth/logout`: invalida la sesión actual y limpia la cookie.
 
-No existe registro público. Después de aplicar las migraciones, crea el primer owner de un negocio existente mediante variables de entorno temporales:
+No existe registro público. Después de aplicar las migraciones, crea el primer negocio y su owner mediante variables de entorno temporales:
 
 ```bash
-BOOTSTRAP_BUSINESS_ID="uuid-del-negocio" \
+BOOTSTRAP_BUSINESS_NAME="Nombre del negocio" \
 BOOTSTRAP_OWNER_NAME="Nombre Owner" \
 BOOTSTRAP_OWNER_EMAIL="owner@example.com" \
 BOOTSTRAP_OWNER_PASSWORD="una-clave-segura" \
 pnpm bootstrap:owner
 ```
 
-El script rechaza negocios inexistentes y correos ya registrados, y crea el usuario y su membresía `owner` en una sola transacción. No guardes esos valores reales en `.env` ni en el repositorio.
+El script crea el negocio, el usuario y su membresía `owner` en una sola transacción. Si ya existe cualquier usuario, se rechaza porque el sistema se considera inicializado. No guardes esos valores reales en `.env` ni en el repositorio.
 
 Todos los endpoints `/businesses` requieren sesión. El listado contiene solo negocios asociados al usuario; consultar uno exige membresía; editarlo exige rol `owner` o `admin`. Al crear un negocio, el usuario autenticado obtiene el rol `owner` dentro de la misma transacción.
 

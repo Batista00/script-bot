@@ -1,58 +1,64 @@
-import { z } from "zod";
+import type { Pool } from "pg";
 
-import { loadEnv } from "../config/env.js";
-import { createDatabasePool, withTransaction } from "../core/database/database.js";
+import { withTransaction } from "../core/database/database.js";
 import { hashPassword } from "../modules/auth/auth.crypto.js";
-import { PostgresBusinessesRepository } from "../modules/businesses/businesses.repository.js";
-import { PostgresMembershipsRepository } from "../modules/memberships/memberships.repository.js";
-import { PostgresUsersRepository } from "../modules/users/users.repository.js";
+import type {
+  Business,
+  BusinessesRepository,
+} from "../modules/businesses/businesses.types.js";
+import type {
+  BusinessMembership,
+  MembershipsRepository,
+} from "../modules/memberships/memberships.types.js";
+import type { User, UsersRepository } from "../modules/users/users.types.js";
 
-const bootstrapSchema = z.object({
-  BOOTSTRAP_BUSINESS_ID: z.string().uuid(),
-  BOOTSTRAP_OWNER_NAME: z.string().trim().min(1).max(120),
-  BOOTSTRAP_OWNER_EMAIL: z.string().trim().toLowerCase().email().max(254),
-  BOOTSTRAP_OWNER_PASSWORD: z.string().min(12).max(128),
-});
-
-async function bootstrapOwner(): Promise<void> {
-  const config = loadEnv();
-  const input = bootstrapSchema.parse(process.env);
-  const passwordHash = await hashPassword(input.BOOTSTRAP_OWNER_PASSWORD);
-  const db = createDatabasePool(config.DATABASE_URL);
-  const businesses = new PostgresBusinessesRepository(db);
-  const users = new PostgresUsersRepository(db);
-  const memberships = new PostgresMembershipsRepository(db);
-
-  try {
-    const user = await withTransaction(db, async (client) => {
-      const business = await businesses.findById(input.BOOTSTRAP_BUSINESS_ID, client);
-      if (!business) throw new Error("Bootstrap business does not exist");
-
-      const existingUser = await users.findByEmail(input.BOOTSTRAP_OWNER_EMAIL, client);
-      if (existingUser) throw new Error("Bootstrap owner email already exists");
-
-      const createdUser = await users.create(
-        {
-          email: input.BOOTSTRAP_OWNER_EMAIL,
-          name: input.BOOTSTRAP_OWNER_NAME,
-          passwordHash,
-        },
-        client,
-      );
-      await memberships.create(business.id, createdUser.id, "owner", client);
-      return createdUser;
-    });
-
-    console.info(
-      `Owner created: user=${user.id} email=${user.email} business=${input.BOOTSTRAP_BUSINESS_ID}`,
-    );
-  } finally {
-    await db.end();
-  }
+export interface BootstrapOwnerInput {
+  businessName: string;
+  ownerName: string;
+  ownerEmail: string;
+  ownerPassword: string;
 }
 
-bootstrapOwner().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : "Unknown bootstrap error";
-  console.error(`Owner bootstrap failed: ${message}`);
-  process.exitCode = 1;
-});
+export interface BootstrapOwnerRepositories {
+  businesses: BusinessesRepository;
+  users: UsersRepository;
+  memberships: MembershipsRepository;
+}
+
+export interface BootstrapOwnerResult {
+  business: Business;
+  user: User;
+  membership: BusinessMembership;
+}
+
+export async function createInitialOwner(
+  db: Pool,
+  repositories: BootstrapOwnerRepositories,
+  input: BootstrapOwnerInput,
+): Promise<BootstrapOwnerResult> {
+  const passwordHash = await hashPassword(input.ownerPassword);
+
+  return withTransaction(db, async (client) => {
+    if (await repositories.users.hasAnyUsers(client)) {
+      throw new Error("Bootstrap refused: system already initialized");
+    }
+
+    const business = await repositories.businesses.create(input.businessName, client);
+    const user = await repositories.users.create(
+      {
+        email: input.ownerEmail,
+        name: input.ownerName,
+        passwordHash,
+      },
+      client,
+    );
+    const membership = await repositories.memberships.create(
+      business.id,
+      user.id,
+      "owner",
+      client,
+    );
+
+    return { business, user, membership };
+  });
+}

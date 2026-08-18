@@ -4,9 +4,8 @@ import { test } from "node:test";
 import { runner } from "node-pg-migrate";
 
 import { buildApp } from "../../src/app.js";
+import { createInitialOwner } from "../../src/cli/bootstrap-owner.js";
 import type { Env } from "../../src/config/env.js";
-import { withTransaction } from "../../src/core/database/database.js";
-import { hashPassword } from "../../src/modules/auth/auth.crypto.js";
 import { PostgresBusinessesRepository } from "../../src/modules/businesses/businesses.repository.js";
 import type { Business } from "../../src/modules/businesses/businesses.types.js";
 import { PostgresMembershipsRepository } from "../../src/modules/memberships/memberships.repository.js";
@@ -15,7 +14,7 @@ import { PostgresUsersRepository } from "../../src/modules/users/users.repositor
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
 test(
-  "businesses CRUD against PostgreSQL",
+  "bootstrap and businesses flow against PostgreSQL",
   { skip: testDatabaseUrl ? false : "TEST_DATABASE_URL is not configured" },
   async (t) => {
     if (!testDatabaseUrl) return;
@@ -60,17 +59,43 @@ test(
     const unique = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const email = `integration-${unique}@example.com`;
     const password = "integration-password";
-    const passwordHash = await hashPassword(password);
-    await withTransaction(app.db, async (client) => {
-      const seedBusiness = await businesses.create(`Seed ${unique}`, client);
-      seedBusinessId = seedBusiness.id;
-      const user = await users.create(
-        { email, name: "Integration Owner", passwordHash },
-        client,
-      );
-      userId = user.id;
-      await memberships.create(seedBusiness.id, user.id, "owner", client);
-    });
+    const bootstrap = await createInitialOwner(
+      app.db,
+      { businesses, users, memberships },
+      {
+        businessName: `Seed ${unique}`,
+        ownerName: "Integration Owner",
+        ownerEmail: email,
+        ownerPassword: password,
+      },
+    );
+    seedBusinessId = bootstrap.business.id;
+    userId = bootstrap.user.id;
+    assert.equal(bootstrap.membership.role, "owner");
+
+    const businessesBeforeRetry = await app.db.query<{ count: string }>(
+      "SELECT count(*)::text AS count FROM businesses",
+    );
+    await assert.rejects(
+      createInitialOwner(
+        app.db,
+        { businesses, users, memberships },
+        {
+          businessName: `Rejected ${unique}`,
+          ownerName: "Another Owner",
+          ownerEmail: `another-${email}`,
+          ownerPassword: password,
+        },
+      ),
+      new Error("Bootstrap refused: system already initialized"),
+    );
+    const businessesAfterRetry = await app.db.query<{ count: string }>(
+      "SELECT count(*)::text AS count FROM businesses",
+    );
+    assert.equal(
+      businessesAfterRetry.rows[0]?.count,
+      businessesBeforeRetry.rows[0]?.count,
+    );
 
     const loginResponse = await app.inject({
       method: "POST",

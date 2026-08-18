@@ -19,6 +19,10 @@ interface UserRow extends QueryResultRow {
   updated_at: Date | string;
 }
 
+interface UsersExistRow extends QueryResultRow {
+  exists: boolean;
+}
+
 function toIsoString(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
@@ -67,5 +71,12 @@ export class PostgresUsersRepository implements UsersRepository {
 
     return row ? mapUserWithPassword(row) : null;
   }
-}
 
+  async hasAnyUsers(executor = this.db): Promise<boolean> {
+    const result = await executor.query<UsersExistRow>(
+      "SELECT EXISTS (SELECT 1 FROM users LIMIT 1) AS exists",
+    );
+
+    return result.rows[0]?.exists ?? false;
+  }
+}

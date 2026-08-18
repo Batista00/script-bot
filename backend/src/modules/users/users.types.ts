@@ -26,5 +26,5 @@ export interface CreateUserInput {
 export interface UsersRepository {
   create(input: CreateUserInput, executor?: DatabaseExecutor): Promise<User>;
   findByEmail(email: string, executor?: DatabaseExecutor): Promise<UserWithPasswordHash | null>;
+  hasAnyUsers(executor?: DatabaseExecutor): Promise<boolean>;
 }
-
