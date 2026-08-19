@@ -162,6 +162,9 @@ function validateProduction(values, errors) {
       publicUrl.search || publicUrl.hash || publicUrl.pathname !== "/")) {
     errors.push("PUBLIC_API_BASE_URL must be an HTTPS origin without credentials, path, query, or fragment");
   }
+  if (publicUrl && publicUrl.origin !== "https://api.pablete.xyz") {
+    errors.push("PUBLIC_API_BASE_URL must be https://api.pablete.xyz for this deployment");
+  }
 
   for (const key of values.keys()) {
     if (key.startsWith("BOOTSTRAP_") || key === "BACKEND_TOKEN" || key === "BOT_BACKEND_TOKEN") {
@@ -172,10 +175,13 @@ function validateProduction(values, errors) {
 
 function validateExample(values, errors) {
   for (const key of [
-    "DATABASE_URL", "INTEGRATIONS_ENCRYPTION_KEY", "PUBLIC_API_BASE_URL",
+    "DATABASE_URL", "INTEGRATIONS_ENCRYPTION_KEY",
     "POSTGRES_PASSWORD", "BACKEND_HOST_PORT",
   ]) {
     if ((values.get(key) ?? "") !== "") errors.push(`${key} must be empty in the example file`);
+  }
+  if (values.get("PUBLIC_API_BASE_URL") !== "https://api.pablete.xyz") {
+    errors.push("PUBLIC_API_BASE_URL must use the planned public API origin in the example file");
   }
 }
 

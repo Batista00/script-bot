@@ -55,4 +55,4 @@ pnpm build
 
 ## Deployment conceptual
 
-Dominio previsto: `https://admin.pablete.xyz`. Nginx deberá servir `admin/dist`, aplicar fallback SPA a `index.html` y proxificar `/api/` al loopback del backend eliminando el prefijo. La configuración real requiere inventariar la VPS, puerto, rutas y certificados; este repositorio no aplica SSH, DNS, Nginx ni despliegues.
+Dominio previsto: `https://admin.pablete.xyz`. Nginx deberá servir `admin/dist`, aplicar fallback SPA a `index.html` y proxificar `/api/` al loopback del backend eliminando el prefijo. Las plantillas versionadas están en `deploy/nginx/`; requieren reemplazar el puerto y la ruta con valores inventariados, validar `nginx -t` y reutilizar el mecanismo TLS existente. El repositorio no contiene secretos productivos.

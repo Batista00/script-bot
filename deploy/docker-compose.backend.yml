@@ -18,6 +18,11 @@ services:
     networks:
       - bot_whatsapp_backend
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   backend:
     build:
@@ -58,6 +63,11 @@ services:
     networks:
       - bot_whatsapp_backend
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   bot_whatsapp_postgres_data:
