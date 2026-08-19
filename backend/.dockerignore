@@ -1,5 +1,13 @@
 node_modules
 dist
 .env
+.env.*
+!.env.example
+coverage
+logs
 *.log
-
+backups
+*.dump
+*.dump.gz
+*.sql.gz
+.git

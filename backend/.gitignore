@@ -1,5 +1,9 @@
 node_modules/
 dist/
 .env
+.env.production
 *.log
-
+backups/
+*.dump
+*.dump.gz
+*.sql.gz

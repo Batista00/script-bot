@@ -2,6 +2,12 @@ node_modules/
 .pnpm-store/
 dist/
 .env
+.env.production
+deploy/.env.production
 coverage/
 logs/
 *.log
+backups/
+*.dump
+*.dump.gz
+*.sql.gz

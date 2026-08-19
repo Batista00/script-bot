@@ -1,0 +1,69 @@
+name: bot-whatsap-backend
+
+services:
+  backend-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in deploy/.env.production}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in deploy/.env.production}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in deploy/.env.production}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    volumes:
+      - bot_whatsapp_postgres_data:/var/lib/postgresql/data
+    networks:
+      - bot_whatsapp_backend
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: ${NODE_ENV:?Set NODE_ENV in deploy/.env.production}
+      PORT: ${PORT:?Set PORT in deploy/.env.production}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in deploy/.env.production}
+      LOG_LEVEL: ${LOG_LEVEL:?Set LOG_LEVEL in deploy/.env.production}
+      AUTH_SESSION_TTL_HOURS: ${AUTH_SESSION_TTL_HOURS:?Set AUTH_SESSION_TTL_HOURS in deploy/.env.production}
+      INTEGRATIONS_ENCRYPTION_KEY: ${INTEGRATIONS_ENCRYPTION_KEY:?Set INTEGRATIONS_ENCRYPTION_KEY in deploy/.env.production}
+      PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:?Set PUBLIC_API_BASE_URL in deploy/.env.production}
+    command:
+      - sh
+      - -c
+      - >-
+        node node_modules/node-pg-migrate/bin/node-pg-migrate.js up --migrations-dir migrations
+        && exec node dist/src/server.js
+    depends_on:
+      backend-postgres:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_BIND_ADDRESS:?Set BACKEND_BIND_ADDRESS in deploy/.env.production}:${BACKEND_HOST_PORT:?Set BACKEND_HOST_PORT after VPS inventory}:${PORT:?Set PORT in deploy/.env.production}"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch("http://127.0.0.1:" + process.env.PORT + "/health")
+          .then((response) => { if (!response.ok) process.exit(1); })
+          .catch(() => process.exit(1))
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - bot_whatsapp_backend
+    restart: unless-stopped
+
+volumes:
+  bot_whatsapp_postgres_data:
+    name: bot_whatsapp_postgres_data
+
+networks:
+  bot_whatsapp_backend:
+    name: bot_whatsapp_backend
+    driver: bridge
