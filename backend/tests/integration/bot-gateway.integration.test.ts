@@ -103,7 +103,7 @@ test(
       payload: { productId: productB.id, quantity: 10, currency: "CLP", customerId },
     });
     assert.equal(foreignProductQuote.statusCode, 404);
-    assert.equal(foreignProductQuote.json().error.code, "PRODUCT_NOT_FOUND");
+    assert.equal(foreignProductQuote.json().error.code, "PRODUCT_NOT_AVAILABLE");
 
     const quoteResponse = await app.inject({
       method: "POST", url: "/bot/v1/quotes", headers: auth,
