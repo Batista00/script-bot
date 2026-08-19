@@ -10,6 +10,7 @@ import {
   type DispatchOrderItem,
   type DispatchProviderContext,
   type Fulfillment,
+  type FulfillmentListOptions,
   FulfillmentOrderItemUniqueError,
   type FulfillmentsRepository,
   type FulfillmentStatus,
@@ -104,6 +105,13 @@ export class MemoryFulfillmentsRepository implements FulfillmentsRepository {
   async listByOrder(businessId: string, orderId: string): Promise<Fulfillment[]> {
     return this.fulfillments.filter((value) => value.businessId === businessId &&
       value.orderId === orderId).map(clone);
+  }
+  async list(businessId: string, options: FulfillmentListOptions): Promise<Fulfillment[]> {
+    return this.fulfillments
+      .filter((value) => value.businessId === businessId &&
+        (options.status === undefined || value.status === options.status))
+      .slice(options.offset, options.offset + options.limit)
+      .map(clone);
   }
 
   async markSubmitting(

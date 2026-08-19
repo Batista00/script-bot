@@ -1,8 +1,12 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 
 import { FulfillmentsService } from "./fulfillments.service.js";
-import type { DispatchFulfillmentInput } from "./fulfillments.types.js";
+import type {
+  DispatchFulfillmentInput,
+  FulfillmentListQuery,
+} from "./fulfillments.types.js";
 
+export interface FulfillmentBusinessParams { businessId: string }
 export interface FulfillmentOrderParams { businessId: string; orderId: string }
 export interface FulfillmentIdParams { businessId: string; fulfillmentId: string }
 
@@ -29,6 +33,21 @@ export class FulfillmentsController {
       request.params.businessId,
       request.params.orderId,
     );
+    return reply.status(200).send(fulfillments);
+  };
+
+  list = async (
+    request: FastifyRequest<{
+      Params: FulfillmentBusinessParams;
+      Querystring: FulfillmentListQuery;
+    }>,
+    reply: FastifyReply,
+  ): Promise<FastifyReply> => {
+    const fulfillments = await this.service.list(request.params.businessId, {
+      limit: request.query.limit === undefined ? 50 : Number(request.query.limit),
+      offset: request.query.offset === undefined ? 0 : Number(request.query.offset),
+      ...(request.query.status === undefined ? {} : { status: request.query.status }),
+    });
     return reply.status(200).send(fulfillments);
   };
 

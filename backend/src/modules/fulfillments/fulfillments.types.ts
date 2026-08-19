@@ -43,6 +43,20 @@ export interface DispatchFulfillmentInput {
   input: JsonObject;
 }
 
+export interface FulfillmentListOptions {
+  limit: number;
+  offset: number;
+  status?: FulfillmentStatus;
+}
+
+export interface FulfillmentListQuery {
+  limit?: string;
+  offset?: string;
+  status?: FulfillmentStatus;
+}
+
+export type FulfillmentListItem = Omit<Fulfillment, "inputData">;
+
 export interface DispatchOrderItem {
   orderItemId: string;
   productId: string;
@@ -111,6 +125,7 @@ export interface FulfillmentsRepository {
     executor: DatabaseExecutor,
   ): Promise<Fulfillment | null>;
   listByOrder(businessId: string, orderId: string): Promise<Fulfillment[]>;
+  list(businessId: string, options: FulfillmentListOptions): Promise<Fulfillment[]>;
   markSubmitting(
     businessId: string,
     fulfillmentId: string,

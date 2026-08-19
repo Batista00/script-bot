@@ -10,6 +10,7 @@ import {
   type DispatchOrderItem,
   type DispatchProviderContext,
   type Fulfillment,
+  type FulfillmentListOptions,
   FulfillmentOrderItemUniqueError,
   FulfillmentProviderOrderUniqueError,
   type FulfillmentsRepository,
@@ -242,6 +243,24 @@ export class PostgresFulfillmentsRepository implements FulfillmentsRepository {
       `SELECT ${columns} FROM fulfillments
        WHERE business_id = $1 AND order_id = $2 ORDER BY created_at, id`,
       [businessId, orderId],
+    );
+    return result.rows.map(mapFulfillment);
+  }
+
+  async list(businessId: string, options: FulfillmentListOptions): Promise<Fulfillment[]> {
+    const values: unknown[] = [businessId];
+    const filters = ["business_id = $1"];
+    if (options.status !== undefined) {
+      values.push(options.status);
+      filters.push(`status = $${values.length}`);
+    }
+    values.push(options.limit, options.offset);
+    const result = await this.db.query<FulfillmentRow>(
+      `SELECT ${columns} FROM fulfillments
+       WHERE ${filters.join(" AND ")}
+       ORDER BY created_at DESC, id DESC
+       LIMIT $${values.length - 1} OFFSET $${values.length}`,
+      values,
     );
     return result.rows.map(mapFulfillment);
   }

@@ -138,6 +138,11 @@ test(
     assert.equal(fulfillment.status, "submitted");
     assert.equal(fulfillment.integrationId, a.integrationId);
     assert.equal(fulfillment.providerServiceId, a.providerServiceId);
+    const visible = await service.list(a.businessId, { limit: 10, offset: 0 });
+    assert.equal(visible.length, 1);
+    assert.equal(visible[0]?.businessId, a.businessId);
+    assert.equal("inputData" in visible[0]!, false);
+    assert.deepEqual(await service.list(b.businessId, { limit: 10, offset: 0 }), []);
     assert.equal((await db.query<{ status: string }>(
       "SELECT status::text FROM orders WHERE id = $1", [completedOrder.orderId],
     )).rows[0]?.status, "processing");

@@ -18,6 +18,8 @@ import {
   type DispatchContext,
   type DispatchFulfillmentInput,
   type Fulfillment,
+  type FulfillmentListItem,
+  type FulfillmentListOptions,
   FulfillmentOrderItemUniqueError,
   type FulfillmentsRepository,
   type FulfillmentStatus,
@@ -230,6 +232,14 @@ export class FulfillmentsService {
 
   listByOrder(businessId: string, orderId: string): Promise<Fulfillment[]> {
     return this.repository.listByOrder(businessId, orderId);
+  }
+
+  async list(
+    businessId: string,
+    options: FulfillmentListOptions,
+  ): Promise<FulfillmentListItem[]> {
+    const fulfillments = await this.repository.list(businessId, options);
+    return fulfillments.map(({ inputData: _inputData, ...safe }) => safe);
   }
 
   async getById(businessId: string, fulfillmentId: string): Promise<Fulfillment> {

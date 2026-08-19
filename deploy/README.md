@@ -7,9 +7,9 @@ Estos artefactos preparan una única instancia del backend y un PostgreSQL 16 ex
 ```text
 Internet
   ↓ HTTPS
-Reverse proxy existente o futuro
-  ↓ 127.0.0.1:<puerto inventariado>
-backend (puerto interno configurable, normalmente 3000)
+Nginx existente
+  ├─ api.pablete.xyz → 127.0.0.1:<puerto inventariado> → backend
+  └─ admin.pablete.xyz → admin/dist + /api proxy al backend
   ↓ red bot_whatsapp_backend
 backend-postgres:5432
   ↓ volumen bot_whatsapp_postgres_data
@@ -92,7 +92,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 Completar además:
 
 - `BACKEND_HOST_PORT`: puerto libre confirmado por el inventario;
-- `PUBLIC_API_BASE_URL`: origen público final, por ejemplo `https://api.DOMINIO`, siempre HTTPS;
+- `PUBLIC_API_BASE_URL`: `https://api.pablete.xyz`, siempre HTTPS;
 - `DATABASE_URL`: debe usar `backend-postgres`, nunca `localhost` desde el container;
 - `PORT`: puerto interno del backend, normalmente `3000`.
 
@@ -159,27 +159,46 @@ Eliminar esas variables de la shell al terminar. El bootstrap se rechaza si el s
 Compose comprueba `GET /health` desde el propio container usando `fetch` de Node 24, sin instalar curl. Después del reverse proxy, comprobar también:
 
 ```bash
-curl -fsS https://api.DOMINIO/health
+curl -fsS https://api.pablete.xyz/health
 ```
 
 El backend escribe logs a stdout/stderr. Inicialmente pueden consultarse con `docker compose logs`; no se añade una plataforma de observabilidad ni límites de recursos rígidos en esta etapa.
 
 ## Reverse proxy y HTTPS
 
-El Compose base publica el backend únicamente en `127.0.0.1:BACKEND_HOST_PORT`, opción apropiada para Nginx, Caddy u otro proxy ejecutado en el host. El proxy debe dirigir el origen HTTPS público al puerto loopback seleccionado.
+El Compose base publica el backend únicamente en `127.0.0.1:BACKEND_HOST_PORT`. Nginx deberá dirigir `api.pablete.xyz` al puerto loopback seleccionado. El puerto no se elige hasta completar el inventario.
+
+Para `admin.pablete.xyz`, la configuración conceptual de Nginx es:
+
+```nginx
+root /ruta/inventariada/BOT-WHATSAP/admin/dist;
+index index.html;
+
+location / {
+  try_files $uri $uri/ /index.html;
+}
+
+location /api/ {
+  proxy_pass http://127.0.0.1:BACKEND_HOST_PORT/;
+  proxy_set_header Host $host;
+  proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+La barra final de `proxy_pass` elimina `/api/`: `/api/auth/login` llega como `/auth/login`. Es un diseño same-origin para conservar la cookie HttpOnly sin CORS. Este bloque es documentación; la ruta, el puerto y el TLS deben validarse antes de aplicarlo.
 
 Si el reverse proxy está en Docker —por ejemplo Traefik—, primero inventariar su red. Después se debe crear una configuración de deployment específica que conecte solo `backend` a esa red externa; PostgreSQL debe permanecer únicamente en `bot_whatsapp_backend`. No se presupone ni se crea esa red en este repositorio.
 
 La publicación final no puede ser HTTP-only. Mercado Pago necesita alcanzar:
 
 ```text
-https://api.DOMINIO/webhooks/mercado-pago/:integrationId
+https://api.pablete.xyz/webhooks/mercado-pago/:integrationId
 ```
 
 Typebot usará posteriormente:
 
 ```text
-https://api.DOMINIO/bot/v1/*
+https://api.pablete.xyz/bot/v1/*
 ```
 
 El token de Typebot pertenece al consumidor y no debe estar en el entorno del backend.
@@ -235,7 +254,7 @@ Con backup reciente y una sola réplica:
 git pull --ff-only
 docker compose --env-file deploy/.env.production -f deploy/docker-compose.backend.yml build backend
 docker compose --env-file deploy/.env.production -f deploy/docker-compose.backend.yml up -d backend
-curl -fsS https://api.DOMINIO/health
+curl -fsS https://api.pablete.xyz/health
 ```
 
 El nuevo container aplica migraciones antes de escuchar. Revisar logs y health después de cada actualización. No usar `docker compose down -v`: `-v` elimina el volumen persistente y puede destruir la base de datos.
@@ -253,3 +272,5 @@ Si el schema nuevo no es compatible con la versión anterior, detenerse y prepar
 - No se añaden límites rígidos de CPU/RAM; deben definirse después de medir la VPS y la carga.
 - No hay backups automáticos, cron, workers, queues, Redis, monitoring, CD ni rollback automático.
 - No se configuran credenciales reales de Mercado Pago, SMM Raja, Typebot o Evolution.
+- BOT WHATSAP no depende de Ticketz, sus containers, su base de datos ni su disponibilidad. Ticketz puede desaparecer sin afectar esta arquitectura.
+- `bot.pablete.xyz` (Typebot) y `evo.pablete.xyz` (Evolution API) permanecen instalaciones aparte; este deployment no las modifica ni las acopla al Panel.

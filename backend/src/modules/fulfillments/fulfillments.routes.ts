@@ -7,6 +7,7 @@ import {
 } from "../auth/auth.middleware.js";
 import {
   type FulfillmentIdParams,
+  type FulfillmentBusinessParams,
   type FulfillmentOrderParams,
   FulfillmentsController,
 } from "./fulfillments.controller.js";
@@ -14,11 +15,15 @@ import {
   dispatchFulfillmentSchema,
   getFulfillmentSchema,
   listFulfillmentsSchema,
+  listBusinessFulfillmentsSchema,
   retryFulfillmentSchema,
   syncFulfillmentStatusSchema,
 } from "./fulfillments.schema.js";
 import { FulfillmentsService } from "./fulfillments.service.js";
-import type { DispatchFulfillmentInput } from "./fulfillments.types.js";
+import type {
+  DispatchFulfillmentInput,
+  FulfillmentListQuery,
+} from "./fulfillments.types.js";
 
 interface FulfillmentsRoutesOptions { service: FulfillmentsService }
 
@@ -43,6 +48,11 @@ export const fulfillmentsRoutes: FastifyPluginAsync<FulfillmentsRoutesOptions> =
     "/businesses/:businessId/orders/:orderId/fulfillments",
     { schema: listFulfillmentsSchema, preHandler: operations },
     controller.listByOrder,
+  );
+  app.get<{ Params: FulfillmentBusinessParams; Querystring: FulfillmentListQuery }>(
+    "/businesses/:businessId/fulfillments",
+    { schema: listBusinessFulfillmentsSchema, preHandler: operations },
+    controller.list,
   );
   app.get<{ Params: FulfillmentIdParams }>(
     "/businesses/:businessId/fulfillments/:fulfillmentId",

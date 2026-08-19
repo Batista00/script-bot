@@ -143,6 +143,21 @@ test("dispatch snapshots provider context and uses OrderItem quantity", async ()
   assert.equal(stored.externalServiceId, "321");
 });
 
+test("global list is business-scoped, paginated, filtered, and omits input data", async () => {
+  const { repository, service } = setup();
+  const created = await service.dispatch(businessA, orderA, {
+    orderItemId: itemA, input: { link: "https://instagram.com/private" },
+  });
+  repository.fulfillments.push({
+    ...created, id: "c0c6e27e-b812-4ced-9453-7de4e8112121", businessId: businessB,
+  });
+  const visible = await service.list(businessA, { limit: 10, offset: 0, status: "submitted" });
+  assert.equal(visible.length, 1);
+  assert.equal(visible[0]?.businessId, businessA);
+  assert.equal("inputData" in visible[0]!, false);
+  assert.deepEqual(await service.list(businessA, { limit: 10, offset: 1 }), []);
+});
+
 test("input_data rejects secrets, reserved provider fields, depth, key count, and large values", async () => {
   const invalid = [
     { apiKey: "secret" }, { accessToken: "secret" }, { password: "secret" },

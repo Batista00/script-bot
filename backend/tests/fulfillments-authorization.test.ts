@@ -44,6 +44,10 @@ test("operator can read and sync fulfillments but cannot retry", async (t) => {
     method: "GET", url: `/businesses/${businessA}/orders/${orderA}/fulfillments`,
     headers: authHeaders,
   });
+  const globalList = await app.inject({
+    method: "GET", url: `/businesses/${businessA}/fulfillments?limit=25&offset=0`,
+    headers: authHeaders,
+  });
   const sync = await app.inject({
     method: "POST", url: `/businesses/${businessA}/fulfillments/${fulfillmentId}/sync-status`,
     headers: authHeaders,
@@ -53,6 +57,7 @@ test("operator can read and sync fulfillments but cannot retry", async (t) => {
     headers: authHeaders,
   });
   assert.equal(list.statusCode, 200);
+  assert.equal(globalList.statusCode, 200);
   assert.equal(sync.statusCode, 404);
   assert.equal(sync.json().error.code, "FULFILLMENT_NOT_FOUND");
   assert.equal(retry.statusCode, 403);

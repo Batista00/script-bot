@@ -45,6 +45,17 @@ const fulfillmentResponse = {
     updatedAt: { type: "string", format: "date-time" },
   },
 } as const;
+const fulfillmentListResponse = {
+  ...fulfillmentResponse,
+  required: fulfillmentResponse.required.filter((field) => field !== "inputData"),
+  properties: Object.fromEntries(
+    Object.entries(fulfillmentResponse.properties).filter(([field]) => field !== "inputData"),
+  ),
+} as const;
+const businessParams = {
+  type: "object", additionalProperties: false, required: ["businessId"],
+  properties: { businessId: uuid },
+} as const;
 const orderParams = {
   type: "object", additionalProperties: false, required: ["businessId", "orderId"],
   properties: { businessId: uuid, orderId: uuid },
@@ -74,6 +85,22 @@ export const dispatchFulfillmentSchema = {
 export const listFulfillmentsSchema = {
   params: orderParams,
   response: { 200: { type: "array", items: fulfillmentResponse }, ...commonErrors },
+} satisfies FastifySchema;
+
+export const listBusinessFulfillmentsSchema = {
+  params: businessParams,
+  querystring: {
+    type: "object", additionalProperties: false,
+    properties: {
+      limit: { type: "string", pattern: "^(?:[1-9]|[1-9][0-9]|100)$" },
+      offset: { type: "string", pattern: "^(?:0|[1-9][0-9]{0,5})$" },
+      status: fulfillmentResponse.properties.status,
+    },
+  },
+  response: {
+    200: { type: "array", items: fulfillmentListResponse },
+    ...commonErrors,
+  },
 } satisfies FastifySchema;
 
 export const getFulfillmentSchema = {

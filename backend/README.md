@@ -182,9 +182,12 @@ Endpoints disponibles para `owner`, `admin` y `operator`:
 ```text
 POST /businesses/:businessId/orders/:orderId/fulfillments
 GET  /businesses/:businessId/orders/:orderId/fulfillments
+GET  /businesses/:businessId/fulfillments
 GET  /businesses/:businessId/fulfillments/:fulfillmentId
 POST /businesses/:businessId/fulfillments/:fulfillmentId/sync-status
 ```
+
+El listado global admite `limit`, `offset` y `status`; está aislado por Business y omite `inputData` para ofrecer una vista administrativa segura.
 
 El retry explícito `POST /businesses/:businessId/fulfillments/:fulfillmentId/retry` está limitado a `owner` y `admin` y únicamente acepta Fulfillments `failed`. Como SMM Raja no documenta una idempotency key para `action=add`, un timeout o una respuesta imposible de interpretar después del POST produce `submission_unknown`: no existe retry automático y ese estado tampoco admite retry manual, porque podría duplicar la compra externa.
 
