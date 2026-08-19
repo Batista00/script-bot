@@ -135,7 +135,29 @@ GET   /businesses/:businessId/products/:productId/provider-mapping
 PATCH /businesses/:businessId/products/:productId/provider-mapping
 ```
 
-Solo puede existir un mapping activo por Product. `owner` y `admin` sincronizan y modifican mappings; `operator` tiene acceso de lectura. Esta etapa no crea pedidos, no consulta estados de pedidos y no calcula márgenes automáticamente en SMM Raja.
+Solo puede existir un mapping activo por Product. `owner` y `admin` sincronizan y modifican mappings; `operator` tiene acceso de lectura. El rate mayorista no se utiliza para recalcular Quotes, Orders ni Payments.
+
+## Fulfillment y órdenes SMM Raja
+
+Un `Fulfillment` representa la entrega externa de un único `OrderItem`; nunca sustituye al Order. Solo un Order `paid` puede despacharse. El backend resuelve internamente el mapping activo, guarda un snapshot de integración/servicio/provider y llama a `action=add` fuera de la transacción PostgreSQL. La confirmación cambia atómicamente el Fulfillment a `submitted` y el Order de `paid` a `processing`.
+
+```text
+Payment approved → Order paid → Fulfillment dispatch → SMM Raja order
+                 → status sync → Order completed / failed
+```
+
+Endpoints disponibles para `owner`, `admin` y `operator`:
+
+```text
+POST /businesses/:businessId/orders/:orderId/fulfillments
+GET  /businesses/:businessId/orders/:orderId/fulfillments
+GET  /businesses/:businessId/fulfillments/:fulfillmentId
+POST /businesses/:businessId/fulfillments/:fulfillmentId/sync-status
+```
+
+El retry explícito `POST /businesses/:businessId/fulfillments/:fulfillmentId/retry` está limitado a `owner` y `admin` y únicamente acepta Fulfillments `failed`. Como SMM Raja no documenta una idempotency key para `action=add`, un timeout o una respuesta imposible de interpretar después del POST produce `submission_unknown`: no existe retry automático y ese estado tampoco admite retry manual, porque podría duplicar la compra externa.
+
+`action=status` persiste el estado externo sanitizado y métricas válidas. Un estado desconocido no inventa una transición local. `Completed` finaliza el Order cuando todos sus Fulfillments terminaron; `Partial` o `Cancelled` lo dejan `failed` para atención operativa. No hay polling, workers ni dispatch automático en esta etapa.
 
 ## Pricing y Quotes
 

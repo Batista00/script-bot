@@ -10,11 +10,16 @@ import { mercadoPagoWebhookRoutes } from "./integrations/mercado-pago/mercado-pa
 import { MercadoPagoWebhookService } from "./integrations/mercado-pago/mercado-pago.webhook.service.js";
 import { SmmRajaCatalogAdapter } from "./integrations/smm-raja/smm-raja.adapter.js";
 import { NativeSmmRajaClient } from "./integrations/smm-raja/smm-raja.client.js";
+import { SmmRajaFulfillmentAdapter } from "./integrations/smm-raja/smm-raja.fulfillment.adapter.js";
 import { authPlugin } from "./modules/auth/auth.plugin.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { businessesRoutes } from "./modules/businesses/businesses.routes.js";
 import { categoriesRoutes } from "./modules/categories/categories.routes.js";
 import { customersRoutes } from "./modules/customers/customers.routes.js";
+import { PostgresFulfillmentsRepository } from "./modules/fulfillments/fulfillments.repository.js";
+import { ProviderFulfillmentRegistry } from "./modules/fulfillments/fulfillments.registry.js";
+import { fulfillmentsRoutes } from "./modules/fulfillments/fulfillments.routes.js";
+import { FulfillmentsService } from "./modules/fulfillments/fulfillments.service.js";
 import { healthRoutes } from "./modules/health/health.routes.js";
 import { integrationsRoutes } from "./modules/integrations/integrations.routes.js";
 import { IntegrationCredentialsCrypto } from "./modules/integrations/integrations.crypto.js";
@@ -72,14 +77,24 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
     mercadoPagoClient,
     (details) => app.log.warn(details, "Unsupported Mercado Pago payment status"),
   );
+  const smmRajaClient = new NativeSmmRajaClient();
   const providerCatalogService = new ProviderCatalogService(
     new PostgresProviderCatalogRepository(app.db),
     app.db,
     integrationsService,
     new PostgresProductsRepository(app.db),
     new ProviderCatalogRegistry([
-      new SmmRajaCatalogAdapter(integrationsService, new NativeSmmRajaClient()),
+      new SmmRajaCatalogAdapter(integrationsService, smmRajaClient),
     ]),
+  );
+  const fulfillmentService = new FulfillmentsService(
+    new PostgresFulfillmentsRepository(app.db),
+    app.db,
+    new ProviderFulfillmentRegistry([
+      new SmmRajaFulfillmentAdapter(integrationsService, smmRajaClient),
+    ]),
+    undefined,
+    (details) => app.log.warn(details, "Unsupported provider fulfillment status"),
   );
   await app.register(healthRoutes);
   await app.register(mercadoPagoWebhookRoutes, { service: mercadoPagoWebhookService });
@@ -90,6 +105,7 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   await app.register(categoriesRoutes);
   await app.register(productsRoutes);
   await app.register(providerCatalogRoutes, { service: providerCatalogService });
+  await app.register(fulfillmentsRoutes, { service: fulfillmentService });
   await app.register(pricingRoutes);
   await app.register(quotesRoutes);
   await app.register(ordersRoutes);

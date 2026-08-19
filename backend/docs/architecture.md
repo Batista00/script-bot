@@ -68,7 +68,8 @@ El dominio depende del contrato, no del proveedor concreto. Cambiar una API exte
 - `modules/integrations`: configuración provider-agnostic por negocio y credenciales cifradas para adapters.
 - `integrations/mercado-pago`: adapter Checkout Pro, cliente HTTP nativo, verificación HMAC y webhook público.
 - `modules/provider-catalog`: catálogo externo normalizado, sincronización y mappings explícitos hacia Products.
-- `integrations/smm-raja`: cliente y adapter de lectura de servicios; no contiene fulfillment ni pedidos.
+- `modules/fulfillments`: snapshot business-scoped de la entrega por Order Item, dispatch y sincronización de estado mediante un contrato genérico.
+- `integrations/smm-raja`: adapters de catálogo y fulfillment, con cliente HTTP form-urlencoded para `services`, `add` y `status`.
 
 ```text
 Product
@@ -82,6 +83,10 @@ Order
 Payment
   ↓
 PaymentProvider
+  ↓
+Fulfillment
+  ↓
+ProviderFulfillmentAdapter
 ```
 
 Los montos monetarios se persisten como enteros `bigint` y solo se exponen dentro del rango entero seguro de la API. Los quotes conservan sus valores históricos; la expiración efectiva se calcula al leer sin producir escrituras inesperadas.
@@ -129,6 +134,24 @@ SmmRajaCatalogAdapter
 Products y Pricing no dependen del payload externo. `provider_services` conserva la fotografía operativa del proveedor por Business e integración; su `rate NUMERIC` se expone como string decimal y nunca se interpreta como precio retail. `product_provider_mappings` admite un único mapping activo por Product y conserva filas inactivas como historial.
 
 El sync valida primero la integración y resuelve el adapter. La llamada HTTPS ocurre sin una transacción PostgreSQL abierta. Solo después de normalizar completamente el catálogo abre una transacción corta, bloquea la integración activa, realiza upsert y desactiva servicios ausentes. Un payload parcialmente inválido no produce escrituras parciales. La desactivación de un Provider Service no modifica Products, Pricing ni mappings existentes.
+
+## Fulfillment
+
+```text
+Order paid
+  ↓ lock Order + resolver OrderItem/mapping/provider
+Fulfillment pending (snapshot) + commit
+  ↓ transacción corta: pending → submitting
+ProviderFulfillmentAdapter.createOrder (sin transacción PostgreSQL)
+  ↓ confirmación
+Fulfillment submitted + Order processing (misma transacción)
+  ↓ action=status fuera de transacción
+Fulfillment terminal + Order completed/failed (misma transacción)
+```
+
+El Core nunca recibe desde HTTP integración, provider service, external service ID ni quantity: deriva esos valores del Order Item y del mapping activo, y conserva el snapshot aunque el mapping cambie. Existe como máximo un Fulfillment por Order Item. El contrato `ProviderFulfillmentAdapter` no conoce credenciales; cada adapter las obtiene internamente desde Integrations Core.
+
+La creación externa no presume exactly-once. Un rechazo explícito deja `failed` y conserva el Order `paid`; un fallo ambiguo después de enviar `action=add` deja `submission_unknown` y bloquea cualquier retry. Las llamadas HTTP siempre ocurren fuera de transacciones. La consulta de estado usa mapping conservador, conserva `provider_status_raw` y no cambia estados locales ante valores externos desconocidos ni ante errores temporales.
 
 ## Autenticación y autorización
 
