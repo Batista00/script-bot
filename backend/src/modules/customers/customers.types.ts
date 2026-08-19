@@ -19,6 +19,8 @@ export interface CreateCustomerInput {
   email?: string | null;
 }
 
+export type ResolveCustomerInput = CreateCustomerInput;
+
 export interface UpdateCustomerInput {
   name?: string | null;
   phone?: string | null;
@@ -63,6 +65,7 @@ export interface CustomersRepository {
   create(businessId: string, input: CustomerPersistenceInput): Promise<Customer>;
   list(businessId: string, options: CustomerListOptions): Promise<Customer[]>;
   findById(businessId: string, customerId: string): Promise<Customer | null>;
+  findByContacts(businessId: string, contact: CustomerContact): Promise<Customer[]>;
   findContactConflict(
     businessId: string,
     contact: CustomerContact,

@@ -51,6 +51,7 @@ export interface ProductPricePersistenceInput {
 export interface ProductPriceListOptions {
   limit: number;
   offset: number;
+  status?: PricingStatus;
 }
 
 export interface ProductPriceListQuery {

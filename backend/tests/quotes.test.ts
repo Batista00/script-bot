@@ -122,6 +122,11 @@ class MemoryCustomersRepository implements CustomersRepository {
   async findById(businessId: string, customerId: string): Promise<Customer | null> {
     return this.customers.find((item) => item.businessId === businessId && item.id === customerId) ?? null;
   }
+  async findByContacts(businessId: string, contact: CustomerContact): Promise<Customer[]> {
+    return this.customers.filter((customer) => customer.businessId === businessId &&
+      ((contact.phone !== null && customer.phone === contact.phone) ||
+       (contact.email !== null && customer.email?.toLowerCase() === contact.email.toLowerCase())));
+  }
   async create(_businessId: string, _input: CustomerPersistenceInput): Promise<Customer> {
     throw new Error("Not used");
   }

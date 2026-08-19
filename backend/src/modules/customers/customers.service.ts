@@ -7,6 +7,7 @@ import {
   type CustomerContactConflict,
   type CustomerListOptions,
   type CustomersRepository,
+  type ResolveCustomerInput,
   type UpdateCustomerInput,
 } from "./customers.types.js";
 
@@ -86,6 +87,30 @@ export class CustomersService {
     }
   }
 
+  async resolve(businessId: string, input: ResolveCustomerInput): Promise<Customer> {
+    const values = {
+      name: normalizeName(input.name),
+      phone: normalizePhone(input.phone),
+      email: normalizeEmail(input.email),
+      status: "active" as const,
+    };
+    requireContact(values.phone, values.email);
+    const existing = this.resolveContactMatches(
+      await this.repository.findByContacts(businessId, values),
+    );
+    if (existing) return existing;
+    try {
+      return await this.repository.create(businessId, values);
+    } catch (error) {
+      if (!(error instanceof CustomerContactConflictError)) throw error;
+      const raced = this.resolveContactMatches(
+        await this.repository.findByContacts(businessId, values),
+      );
+      if (raced) return raced;
+      throw duplicateError(error.field);
+    }
+  }
+
   list(businessId: string, options: CustomerListOptions): Promise<Customer[]> {
     const phone = options.phone === undefined ? undefined : normalizePhone(options.phone);
     const email = options.email === undefined ? undefined : normalizeEmail(options.email);
@@ -153,5 +178,17 @@ export class CustomersService {
       if (error instanceof CustomerContactConflictError) throw duplicateError(error.field);
       throw error;
     }
+  }
+
+  private resolveContactMatches(matches: Customer[]): Customer | null {
+    const unique = new Map(matches.map((customer) => [customer.id, customer]));
+    if (unique.size > 1) {
+      throw new AppError(
+        "Customer contacts belong to different customers",
+        409,
+        "CUSTOMER_CONTACT_CONFLICT",
+      );
+    }
+    return unique.values().next().value ?? null;
   }
 }

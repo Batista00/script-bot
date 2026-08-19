@@ -57,6 +57,9 @@ El dominio depende del contrato, no del proveedor concreto. Cambiar una API exte
 - `modules/businesses`: primera entidad comercial y raíz de propiedad de datos.
 - `modules/users`: identidad y credenciales con hash Argon2id.
 - `modules/auth`: sesiones opacas, cookie HTTP y guards reutilizables.
+- `modules/api-credentials`: administración humana de credenciales machine-to-machine con token visible una sola vez.
+- `modules/machine-auth`: autenticación Bearer independiente y contexto Business derivado del hash del token.
+- `modules/bot-gateway`: fachada HTTP v1 con DTOs seguros que reutiliza los servicios comerciales existentes.
 - `modules/memberships`: relación entre usuarios y negocios con roles `owner`, `admin` y `operator`.
 - `modules/customers`: contactos pertenecientes a un negocio, independientes del canal o proveedor externo.
 - `modules/categories`: clasificación business-scoped del catálogo propio.
@@ -168,6 +171,22 @@ rol sobre el negocio
 ```
 
 La contraseña se verifica con Argon2id y nunca sale del módulo de autenticación. El token de sesión solo existe en el cliente; PostgreSQL conserva su hash y vencimiento. Los guards distinguen autenticación, pertenencia al negocio y rol permitido. Crear un negocio y asignar su owner es una operación transaccional.
+
+Machine Auth no reutiliza cookies, usuarios ni secrets de providers:
+
+```text
+Authorization: Bearer bw_<random>
+  ↓ validar formato + SHA-256
+business_api_credentials active
+  ↓
+MachineAuthContext { credentialId, businessId, credentialName }
+  ↓
+/bot/v1/*
+```
+
+El token machine contiene al menos 256 bits aleatorios y solo se devuelve al crearlo; PostgreSQL guarda hash y prefijo. La administración de estas credenciales continúa bajo sesión humana `owner/admin`. Una cookie no autentica el Gateway y un Bearer machine no autoriza rutas administrativas.
+
+Bot Gateway no tiene repositories ni SQL: orquesta Customers, Categories, Products, Pricing, Quotes, Orders, Payments y Fulfillments. Todas las llamadas reciben el `businessId` del `MachineAuthContext`, nunca del cliente. Sus DTOs excluyen provider rates, referencias externas, credenciales, hashes, idempotency keys e inputs sensibles de fulfillment. Las reglas críticas —pago confirmado por provider y dispatch exclusivo desde Order `paid`— permanecen en sus respectivos servicios Core.
 
 ## Propiedad de datos por negocio
 

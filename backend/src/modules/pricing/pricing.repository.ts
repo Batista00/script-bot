@@ -114,9 +114,10 @@ export class PostgresPricingRepository implements PricingRepository {
       `SELECT ${priceColumns}
        FROM product_prices
        WHERE business_id = $1 AND product_id = $2
+         AND ($3::pricing_status IS NULL OR status = $3)
        ORDER BY created_at DESC, id DESC
-       LIMIT $3 OFFSET $4`,
-      [businessId, productId, options.limit, options.offset],
+       LIMIT $4 OFFSET $5`,
+      [businessId, productId, options.status ?? null, options.limit, options.offset],
     );
     return result.rows.map(mapProductPrice);
   }

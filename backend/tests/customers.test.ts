@@ -16,6 +16,7 @@ import type {
   CustomersRepository,
   UpdateCustomerInput,
 } from "../src/modules/customers/customers.types.js";
+import { CustomerContactConflictError } from "../src/modules/customers/customers.types.js";
 
 const businessA = "0e2f6f5e-72e1-4ec9-8680-0c2185d91c68";
 const businessB = "9d1b85eb-ecbf-479c-838f-80e53e98c9a8";
@@ -62,6 +63,12 @@ class MemoryCustomersRepository implements CustomersRepository {
         (customer) => customer.businessId === businessId && customer.id === customerId,
       ) ?? null
     );
+  }
+
+  async findByContacts(businessId: string, contact: CustomerContact): Promise<Customer[]> {
+    return this.customers.filter((customer) => customer.businessId === businessId &&
+      ((contact.phone !== null && customer.phone === contact.phone) ||
+       (contact.email !== null && customer.email?.toLowerCase() === contact.email.toLowerCase())));
   }
 
   async findContactConflict(
@@ -262,4 +269,57 @@ test("authenticated user without membership cannot access customers", async (t) 
 
   assert.equal(response.statusCode, 404);
   assert.equal(response.json().error.code, "BUSINESS_NOT_FOUND");
+});
+
+test("customer resolve returns phone/email matches and creates normalized contacts", async () => {
+  const { repository, service } = createService();
+  const byPhone = await service.create(businessA, { name: "Phone", phone: "+56 9 1111-2222" });
+  const byEmail = await service.create(businessA, { name: "Email", email: "USER@example.com" });
+
+  assert.equal((await service.resolve(businessA, { phone: "+56 (9) 1111 2222" })).id, byPhone.id);
+  assert.equal((await service.resolve(businessA, { email: " user@EXAMPLE.com " })).id, byEmail.id);
+  const created = await service.resolve(businessA, {
+    name: "  New Customer ", phone: "56933334444", email: " NEW@example.com ",
+  });
+  assert.equal(created.name, "New Customer");
+  assert.equal(created.email, "new@example.com");
+  assert.equal(repository.customers.length, 3);
+});
+
+test("customer resolve refuses to merge phone and email owned by different customers", async () => {
+  const { service } = createService();
+  await service.create(businessA, { phone: "56911112222" });
+  await service.create(businessA, { email: "second@example.com" });
+  await assert.rejects(
+    service.resolve(businessA, { phone: "56911112222", email: "second@example.com" }),
+    hasAppError("CUSTOMER_CONTACT_CONFLICT", 409),
+  );
+});
+
+test("two concurrent equivalent resolves return one Customer", async () => {
+  class RacingRepository extends MemoryCustomersRepository {
+    private waiting = 0;
+    private release!: () => void;
+    private readonly both = new Promise<void>((resolve) => { this.release = resolve; });
+    override async create(businessId: string, input: CustomerPersistenceInput): Promise<Customer> {
+      this.waiting += 1;
+      if (this.waiting === 2) this.release();
+      await this.both;
+      const duplicate = this.customers.find((customer) => customer.businessId === businessId &&
+        ((input.phone !== null && customer.phone === input.phone) ||
+         (input.email !== null && customer.email === input.email)));
+      if (duplicate) throw new CustomerContactConflictError(
+        input.phone !== null && duplicate.phone === input.phone ? "phone" : "email",
+      );
+      return super.create(businessId, input);
+    }
+  }
+  const repository = new RacingRepository();
+  const service = new CustomersService(repository);
+  const results = await Promise.all([
+    service.resolve(businessA, { phone: "+56 9 5555 6666" }),
+    service.resolve(businessA, { phone: "+56 9 5555 6666" }),
+  ]);
+  assert.equal(results[0]?.id, results[1]?.id);
+  assert.equal(repository.customers.length, 1);
 });

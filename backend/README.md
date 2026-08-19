@@ -83,6 +83,37 @@ El script crea el negocio, el usuario y su membresía `owner` en una sola transa
 
 Todos los endpoints `/businesses` requieren sesión. El listado contiene solo negocios asociados al usuario; consultar uno exige membresía; editarlo exige rol `owner` o `admin`. Al crear un negocio, el usuario autenticado obtiene el rol `owner` dentro de la misma transacción.
 
+## Machine Auth y Bot Gateway
+
+La API humana y la API para automatizaciones usan credenciales completamente separadas:
+
+```text
+Human API  → cookie de sesión + membership owner/admin/operator
+Bot Gateway → Authorization: Bearer <BOT_BACKEND_TOKEN>
+```
+
+Solo `owner` y `admin` administran credenciales machine-to-machine mediante:
+
+```text
+POST  /businesses/:businessId/api-credentials
+GET   /businesses/:businessId/api-credentials
+GET   /businesses/:businessId/api-credentials/:credentialId
+PATCH /businesses/:businessId/api-credentials/:credentialId
+```
+
+El POST genera un token opaco `bw_...`, almacena únicamente su hash SHA-256 y devuelve el token completo una sola vez. Los GET solo muestran su prefijo identificador. Para rotar se crea una credencial nueva y después se desactiva la anterior; no hay DELETE físico.
+
+El Bot Gateway se publica bajo `/bot/v1/*`. `businessId` siempre se deriva de la credencial Bearer activa y nunca se acepta en paths o bodies del bot. Expone Customer Resolve, catálogo comercial activo, Quotes, Orders, Checkout de Payments y Fulfillments mediante DTOs que no incluyen costes de proveedor, credenciales ni campos internos.
+
+Contrato conceptual para una futura conexión Typebot:
+
+```http
+Authorization: Bearer <BOT_BACKEND_TOKEN>
+Content-Type: application/json
+```
+
+El token deberá inyectarse posteriormente como secreto de ejecución; no debe incluirse en templates ni exports JSON de Typebot. Esta etapa no modifica ni configura Typebot.
+
 ## Customers
 
 Los customers siempre pertenecen a un negocio y no dependen de proveedores externos. Los roles `owner`, `admin` y `operator` del negocio pueden crear, listar, consultar y actualizar mediante:

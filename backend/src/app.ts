@@ -11,11 +11,20 @@ import { MercadoPagoWebhookService } from "./integrations/mercado-pago/mercado-p
 import { SmmRajaCatalogAdapter } from "./integrations/smm-raja/smm-raja.adapter.js";
 import { NativeSmmRajaClient } from "./integrations/smm-raja/smm-raja.client.js";
 import { SmmRajaFulfillmentAdapter } from "./integrations/smm-raja/smm-raja.fulfillment.adapter.js";
+import { PostgresApiCredentialsRepository } from "./modules/api-credentials/api-credentials.repository.js";
+import { apiCredentialsRoutes } from "./modules/api-credentials/api-credentials.routes.js";
+import { ApiCredentialsService } from "./modules/api-credentials/api-credentials.service.js";
 import { authPlugin } from "./modules/auth/auth.plugin.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { businessesRoutes } from "./modules/businesses/businesses.routes.js";
+import { botGatewayRoutes } from "./modules/bot-gateway/bot-gateway.routes.js";
+import { BotGatewayService } from "./modules/bot-gateway/bot-gateway.service.js";
+import { PostgresCategoriesRepository } from "./modules/categories/categories.repository.js";
 import { categoriesRoutes } from "./modules/categories/categories.routes.js";
+import { CategoriesService } from "./modules/categories/categories.service.js";
+import { PostgresCustomersRepository } from "./modules/customers/customers.repository.js";
 import { customersRoutes } from "./modules/customers/customers.routes.js";
+import { CustomersService } from "./modules/customers/customers.service.js";
 import { PostgresFulfillmentsRepository } from "./modules/fulfillments/fulfillments.repository.js";
 import { ProviderFulfillmentRegistry } from "./modules/fulfillments/fulfillments.registry.js";
 import { fulfillmentsRoutes } from "./modules/fulfillments/fulfillments.routes.js";
@@ -25,19 +34,28 @@ import { integrationsRoutes } from "./modules/integrations/integrations.routes.j
 import { IntegrationCredentialsCrypto } from "./modules/integrations/integrations.crypto.js";
 import { PostgresIntegrationsRepository } from "./modules/integrations/integrations.repository.js";
 import { IntegrationsService } from "./modules/integrations/integrations.service.js";
+import { MachineAuthService } from "./modules/machine-auth/machine-auth.service.js";
+import { PostgresOrdersRepository } from "./modules/orders/orders.repository.js";
 import { ordersRoutes } from "./modules/orders/orders.routes.js";
+import { OrdersService } from "./modules/orders/orders.service.js";
 import { paymentsRoutes } from "./modules/payments/payments.routes.js";
 import { PaymentProviderRegistry } from "./modules/payments/payments.registry.js";
 import { PostgresPaymentsRepository } from "./modules/payments/payments.repository.js";
 import { PaymentsService } from "./modules/payments/payments.service.js";
+import { PriceCalculatorService } from "./modules/pricing/price-calculator.service.js";
+import { PostgresPricingRepository } from "./modules/pricing/pricing.repository.js";
 import { pricingRoutes } from "./modules/pricing/pricing.routes.js";
+import { PricingService } from "./modules/pricing/pricing.service.js";
 import { PostgresProductsRepository } from "./modules/products/products.repository.js";
 import { productsRoutes } from "./modules/products/products.routes.js";
+import { ProductsService } from "./modules/products/products.service.js";
 import { PostgresProviderCatalogRepository } from "./modules/provider-catalog/provider-catalog.repository.js";
 import { ProviderCatalogRegistry } from "./modules/provider-catalog/provider-catalog.registry.js";
 import { providerCatalogRoutes } from "./modules/provider-catalog/provider-catalog.routes.js";
 import { ProviderCatalogService } from "./modules/provider-catalog/provider-catalog.service.js";
+import { PostgresQuotesRepository } from "./modules/quotes/quotes.repository.js";
 import { quotesRoutes } from "./modules/quotes/quotes.routes.js";
+import { QuotesService } from "./modules/quotes/quotes.service.js";
 
 export async function buildApp(config: Env): Promise<FastifyInstance> {
   const app = Fastify({
@@ -96,11 +114,37 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
     undefined,
     (details) => app.log.warn(details, "Unsupported provider fulfillment status"),
   );
+  const apiCredentialsRepository = new PostgresApiCredentialsRepository(app.db);
+  const apiCredentialsService = new ApiCredentialsService(apiCredentialsRepository);
+  const categoriesRepository = new PostgresCategoriesRepository(app.db);
+  const customersRepository = new PostgresCustomersRepository(app.db);
+  const productsRepository = new PostgresProductsRepository(app.db);
+  const pricingRepository = new PostgresPricingRepository(app.db);
+  const botGatewayService = new BotGatewayService(
+    new CustomersService(customersRepository),
+    new CategoriesService(categoriesRepository),
+    new ProductsService(productsRepository, categoriesRepository),
+    new PricingService(pricingRepository, productsRepository),
+    new QuotesService(
+      new PostgresQuotesRepository(app.db),
+      new PriceCalculatorService(productsRepository, pricingRepository),
+      customersRepository,
+    ),
+    new OrdersService(new PostgresOrdersRepository(app.db), app.db),
+    paymentsService,
+    fulfillmentService,
+  );
   await app.register(healthRoutes);
   await app.register(mercadoPagoWebhookRoutes, { service: mercadoPagoWebhookService });
   await app.register(integrationsRoutes, { service: integrationsService });
   await app.register(authRoutes, { prefix: "/auth", config });
   await app.register(businessesRoutes, { prefix: "/businesses" });
+  await app.register(apiCredentialsRoutes, { service: apiCredentialsService });
+  await app.register(botGatewayRoutes, {
+    prefix: "/bot/v1",
+    service: botGatewayService,
+    machineAuth: new MachineAuthService(apiCredentialsRepository),
+  });
   await app.register(customersRoutes);
   await app.register(categoriesRoutes);
   await app.register(productsRoutes);

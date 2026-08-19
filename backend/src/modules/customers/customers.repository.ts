@@ -112,6 +112,19 @@ export class PostgresCustomersRepository implements CustomersRepository {
     return result.rows[0] ? mapCustomer(result.rows[0]) : null;
   }
 
+  async findByContacts(businessId: string, contact: CustomerContact): Promise<Customer[]> {
+    const result = await this.db.query<CustomerRow>(
+      `SELECT ${customerColumns}
+       FROM customers
+       WHERE business_id = $1
+         AND (($2::text IS NOT NULL AND phone = $2)
+           OR ($3::text IS NOT NULL AND lower(email) = lower($3)))
+       ORDER BY created_at, id`,
+      [businessId, contact.phone, contact.email],
+    );
+    return result.rows.map(mapCustomer);
+  }
+
   async findContactConflict(
     businessId: string,
     contact: CustomerContact,

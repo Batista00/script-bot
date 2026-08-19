@@ -10,6 +10,7 @@ const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 const expectedTables = [
   "auth_sessions",
   "business_integrations",
+  "business_api_credentials",
   "business_memberships",
   "businesses",
   "categories",
@@ -35,6 +36,8 @@ const expectedConstraints = new Map([
   ["fulfillments_service_integration_business_fk", "f"],
   ["order_items_business_order_id_id_unique", "u"],
   ["business_integrations_business_provider_unique", "u"],
+  ["business_api_credentials_business_id_fkey", "f"],
+  ["business_api_credentials_token_hash_unique", "u"],
   ["business_integrations_config_object", "c"],
   ["business_integrations_business_id_id_unique", "u"],
   ["order_items_order_business_fk", "f"],
@@ -73,7 +76,7 @@ test(
     const migrationResult = await db.query<{ count: number }>(
       "SELECT count(*)::integer AS count FROM pgmigrations",
     );
-    assert.equal(migrationResult.rows[0]?.count, 11);
+    assert.equal(migrationResult.rows[0]?.count, 12);
 
     const tableResult = await db.query<{ table_name: string }>(
       `SELECT table_name
@@ -133,6 +136,24 @@ test(
       ]],
     );
     assert.equal(fulfillmentIndexes.rows.length, 3);
+
+    const apiCredentialIndexes = await db.query<{ indexname: string }>(
+      `SELECT indexname FROM pg_indexes
+       WHERE schemaname = 'public' AND indexname = ANY($1::text[])`,
+      [[
+        "business_api_credentials_token_hash_unique",
+        "business_api_credentials_business_status_idx",
+      ]],
+    );
+    assert.equal(apiCredentialIndexes.rows.length, 2);
+
+    const credentialStatuses = await db.query<{ enumlabel: string }>(
+      `SELECT enumlabel FROM pg_enum
+       JOIN pg_type ON pg_type.oid = pg_enum.enumtypid
+       WHERE pg_type.typname = 'api_credential_status'
+       ORDER BY enumsortorder`,
+    );
+    assert.deepEqual(credentialStatuses.rows.map((row) => row.enumlabel), ["active", "inactive"]);
 
     const providerReferenceColumn = await db.query<{ column_name: string }>(
       `SELECT column_name
