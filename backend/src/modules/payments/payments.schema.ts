@@ -26,7 +26,8 @@ const nullableDateSchema = {
 const paymentResponseSchema = {
   type: "object", additionalProperties: false,
   required: [
-    "id", "businessId", "orderId", "providerKey", "providerPaymentId", "status",
+    "id", "businessId", "orderId", "providerKey", "providerReferenceId",
+    "providerPaymentId", "status",
     "amount", "currency", "checkoutUrl", "idempotencyKey", "expiresAt",
     "approvedAt", "createdAt", "updatedAt",
   ],
@@ -35,6 +36,7 @@ const paymentResponseSchema = {
     businessId: { type: "string", format: "uuid" },
     orderId: { type: "string", format: "uuid" },
     providerKey: { type: "string", pattern: "^[a-z][a-z0-9_]{0,63}$" },
+    providerReferenceId: nullableStringSchema(255),
     providerPaymentId: nullableStringSchema(255),
     status: paymentStatusSchema,
     amount: { type: "integer", minimum: 1, maximum: 9_007_199_254_740_991 },

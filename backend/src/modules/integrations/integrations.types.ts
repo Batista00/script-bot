@@ -79,6 +79,7 @@ export interface IntegrationsRepository {
     businessId: string,
     providerKey: string,
   ): Promise<BusinessIntegrationRecord | null>;
+  findInternalById(integrationId: string): Promise<BusinessIntegrationRecord | null>;
   update(
     businessId: string,
     integrationId: string,

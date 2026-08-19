@@ -2,7 +2,7 @@
 
 Backend comercial modular con Fastify, configuración validada, PostgreSQL, migraciones versionadas, autenticación por sesión y administración mínima de negocios.
 
-Incluye Payments Core independiente de proveedores. Mercado Pago y los demás adaptadores externos aún no están implementados.
+Incluye Payments Core independiente de proveedores y el adaptador inicial de Mercado Pago Checkout Pro para pagos CLP.
 
 ## Requisitos
 
@@ -129,7 +129,30 @@ GET  /businesses/:businessId/orders/:orderId/payments
 
 La creación admite el header opcional `Idempotency-Key`. Solo una actualización confirmada por un `PaymentProvider` puede aprobar un Payment y cambiar atómicamente su Order de `pending_payment` a `paid`; no existe una ruta de aprobación manual.
 
-El registro de providers de producción está vacío en esta etapa. Por eso una creación devuelve `PAYMENT_PROVIDER_NOT_AVAILABLE` hasta que se implemente y registre un adaptador real. Mercado Pago, webhooks, refunds y chargebacks quedan fuera de Payments Core.
+El runtime registra `mercado_pago`. Al crear un intento, el adaptador genera una preferencia Checkout Pro y devuelve su `checkoutUrl`. El `preference_id` se conserva como `providerReferenceId`; el `payment_id` definitivo permanece separado y solo se enlaza después de verificar una notificación contra la API de Mercado Pago.
+
+La moneda soportada inicialmente es únicamente `CLP`, usando el monto entero del Order sin dividirlo ni convertirlo. Otra moneda devuelve `PAYMENT_PROVIDER_CURRENCY_NOT_SUPPORTED`.
+
+Mercado Pago se configura como una integración activa del negocio con:
+
+```json
+{
+  "providerKey": "mercado_pago",
+  "config": {
+    "successUrl": "https://commerce.example.com/payment/success",
+    "pendingUrl": "https://commerce.example.com/payment/pending",
+    "failureUrl": "https://commerce.example.com/payment/failure"
+  },
+  "credentials": {
+    "accessToken": "valor-entregado-por-mercado-pago",
+    "webhookSecret": "firma-secreta-del-webhook"
+  }
+}
+```
+
+`accessToken` y `webhookSecret` quedan cifrados por Integrations Core. Las tres back URLs son opcionales, pero se envían juntas cuando están todas configuradas. `PUBLIC_API_BASE_URL` debe ser la base pública HTTPS del backend, sin secretos; se utiliza para construir `POST /webhooks/mercado-pago/:integrationId`. Fuera de tests no se admite HTTP.
+
+El webhook es público porque Mercado Pago no posee una sesión del sistema, pero exige la firma HMAC de Mercado Pago. El body no aprueba pagos: el backend consulta `GET /v1/payments/:id` con el token interno y valida negocio, provider, referencia local, monto y moneda antes de aplicar una transición. Solo `approved` confirmado paga el Order en la misma transacción; los redirects del navegador nunca determinan aprobación. Refunds y chargebacks no se implementan en esta etapa.
 
 ## Integrations Core
 
@@ -142,7 +165,7 @@ GET   /businesses/:businessId/integrations/:integrationId
 PATCH /businesses/:businessId/integrations/:integrationId
 ```
 
-Solo `owner` y `admin` pueden administrar integraciones. El acceso interno `getActiveIntegration(businessId, providerKey)` entrega configuración y credenciales descifradas a futuros adapters, pero no está publicado como endpoint. Mercado Pago, SMM Raja y Evolution todavía no están implementados.
+Solo `owner` y `admin` pueden administrar integraciones. Los accesos internos por Business/provider y por ID exacto entregan configuración y credenciales descifradas únicamente a adapters; no están publicados como endpoints. Mercado Pago usa este contrato. SMM Raja y Evolution todavía no están implementados.
 
 ## Docker Compose
 

@@ -1,6 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
 
-import type { Env } from "../../config/env.js";
 import {
   requireAuthenticatedUser,
   requireBusinessMembership,
@@ -11,8 +10,6 @@ import {
   IntegrationsController,
   type IntegrationIdParams,
 } from "./integrations.controller.js";
-import { IntegrationCredentialsCrypto } from "./integrations.crypto.js";
-import { PostgresIntegrationsRepository } from "./integrations.repository.js";
 import {
   createIntegrationSchema,
   getIntegrationSchema,
@@ -26,18 +23,13 @@ import type {
   UpdateIntegrationInput,
 } from "./integrations.types.js";
 
-interface IntegrationsRoutesOptions { config: Env }
+interface IntegrationsRoutesOptions { service: IntegrationsService }
 
 export const integrationsRoutes: FastifyPluginAsync<IntegrationsRoutesOptions> = async (
   app,
   options,
 ) => {
-  const controller = new IntegrationsController(
-    new IntegrationsService(
-      new PostgresIntegrationsRepository(app.db),
-      new IntegrationCredentialsCrypto(options.config.INTEGRATIONS_ENCRYPTION_KEY),
-    ),
-  );
+  const controller = new IntegrationsController(options.service);
   const authorization = [
     requireAuthenticatedUser(app.authService),
     requireBusinessMembership(app.membershipsRepository),

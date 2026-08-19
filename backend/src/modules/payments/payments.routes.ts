@@ -12,8 +12,6 @@ import {
   type PaymentIdParams,
   type PaymentOrderParams,
 } from "./payments.controller.js";
-import { PaymentProviderRegistry } from "./payments.registry.js";
-import { PostgresPaymentsRepository } from "./payments.repository.js";
 import {
   createPaymentSchema,
   getPaymentSchema,
@@ -23,14 +21,13 @@ import {
 import { PaymentsService } from "./payments.service.js";
 import type { CreatePaymentInput, PaymentListQuery } from "./payments.types.js";
 
-export const paymentsRoutes: FastifyPluginAsync = async (app) => {
-  const controller = new PaymentsController(
-    new PaymentsService(
-      new PostgresPaymentsRepository(app.db),
-      app.db,
-      new PaymentProviderRegistry(),
-    ),
-  );
+interface PaymentsRoutesOptions { service: PaymentsService }
+
+export const paymentsRoutes: FastifyPluginAsync<PaymentsRoutesOptions> = async (
+  app,
+  options,
+) => {
+  const controller = new PaymentsController(options.service);
   const authorization = [
     requireAuthenticatedUser(app.authService),
     requireBusinessMembership(app.membershipsRepository),

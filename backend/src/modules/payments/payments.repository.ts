@@ -11,6 +11,7 @@ import {
   type PaymentProviderDetails,
   PaymentIdempotencyUniqueError,
   PaymentProviderIdentityUniqueError,
+  PaymentProviderReferenceUniqueError,
   type PaymentsRepository,
   type PaymentStatus,
 } from "./payments.types.js";
@@ -20,6 +21,7 @@ interface PaymentRow extends QueryResultRow {
   business_id: string;
   order_id: string;
   provider_key: string;
+  provider_reference_id: string | null;
   provider_payment_id: string | null;
   status: PaymentStatus;
   amount: string | number;
@@ -46,7 +48,8 @@ interface PaymentOrderRow extends QueryResultRow {
 
 interface PostgreSqlError { code?: string; constraint?: string }
 
-const paymentColumns = `id, business_id, order_id, provider_key, provider_payment_id,
+const paymentColumns = `id, business_id, order_id, provider_key, provider_reference_id,
+  provider_payment_id,
   status, amount, currency, checkout_url, idempotency_key, expires_at, approved_at,
   created_at, updated_at`;
 
@@ -68,6 +71,7 @@ function mapPayment(row: PaymentRow): Payment {
     businessId: row.business_id,
     orderId: row.order_id,
     providerKey: row.provider_key,
+    providerReferenceId: row.provider_reference_id,
     providerPaymentId: row.provider_payment_id,
     status: row.status,
     amount: mapMoney(row.amount),
@@ -89,6 +93,9 @@ function mapUniqueError(error: unknown): never {
     }
     if (pgError.constraint === "payments_provider_identity_unique") {
       throw new PaymentProviderIdentityUniqueError();
+    }
+    if (pgError.constraint === "payments_provider_reference_unique") {
+      throw new PaymentProviderReferenceUniqueError();
     }
     if (pgError.constraint === "payments_approved_order_unique") {
       throw new PaymentApprovedUniqueError();
@@ -217,12 +224,13 @@ export class PostgresPaymentsRepository implements PaymentsRepository {
     try {
       const result = await executor.query<PaymentRow>(
         `UPDATE payments
-         SET provider_payment_id = $3, checkout_url = $4, expires_at = $5,
+         SET provider_reference_id = $3, provider_payment_id = $4,
+             checkout_url = $5, expires_at = $6,
              updated_at = now()
          WHERE business_id = $1 AND id = $2 AND status = 'pending'
          RETURNING ${paymentColumns}`,
-        [businessId, paymentId, details.providerPaymentId, details.checkoutUrl,
-          details.expiresAt],
+        [businessId, paymentId, details.providerReferenceId,
+          details.providerPaymentId, details.checkoutUrl, details.expiresAt],
       );
       return result.rows[0] ? mapPayment(result.rows[0]) : null;
     } catch (error) {
@@ -241,12 +249,12 @@ export class PostgresPaymentsRepository implements PaymentsRepository {
     try {
       const result = await executor.query<PaymentRow>(
         `UPDATE payments
-         SET status = $3, provider_payment_id = $4, checkout_url = $5,
-             expires_at = $6, approved_at = $7, updated_at = now()
+         SET status = $3, provider_reference_id = $4, provider_payment_id = $5,
+             checkout_url = $6, expires_at = $7, approved_at = $8, updated_at = now()
          WHERE business_id = $1 AND id = $2 AND status = 'pending'
          RETURNING ${paymentColumns}`,
-        [businessId, paymentId, status, details.providerPaymentId, details.checkoutUrl,
-          details.expiresAt, approvedAt],
+        [businessId, paymentId, status, details.providerReferenceId,
+          details.providerPaymentId, details.checkoutUrl, details.expiresAt, approvedAt],
       );
       return result.rows[0] ? mapPayment(result.rows[0]) : null;
     } catch (error) {

@@ -41,7 +41,7 @@ test("operator can initiate and read Payments through normal authorization", asy
     method: "POST",
     url: `/businesses/${paymentBusinessA}/orders/${paymentMissingId}/payments`,
     headers: authHeaders,
-    payload: { providerKey: "mercado_pago" },
+    payload: { providerKey: "unregistered_provider" },
   });
   const list = await app.inject({
     method: "GET", url: `/businesses/${paymentBusinessA}/payments`, headers: authHeaders,
@@ -64,7 +64,7 @@ test("caller amount and currency are removed from the Payment creation contract"
     method: "POST",
     url: `/businesses/${paymentBusinessA}/orders/${paymentMissingId}/payments`,
     headers: authHeaders,
-    payload: { providerKey: "mercado_pago", amount: 1, currency: "USD" },
+    payload: { providerKey: "unregistered_provider", amount: 1, currency: "USD" },
   });
   assert.equal(response.statusCode, 503);
   assert.equal(response.json().error.code, "PAYMENT_PROVIDER_NOT_AVAILABLE");

@@ -17,6 +17,7 @@ export interface Payment {
   businessId: string;
   orderId: string;
   providerKey: string;
+  providerReferenceId: string | null;
   providerPaymentId: string | null;
   status: PaymentStatus;
   amount: number;
@@ -34,6 +35,16 @@ export interface CreatePaymentInput { providerKey: string }
 export interface CreatePaymentOutcome {
   payment: Payment;
   created: boolean;
+}
+
+export interface VerifiedProviderUpdate {
+  businessId: string;
+  paymentId: string;
+  providerKey: string;
+  providerPaymentId: string;
+  status: PaymentStatus;
+  amount: number;
+  currency: string;
 }
 
 export interface PaymentListOptions {
@@ -77,6 +88,7 @@ export interface PaymentOrderContext {
 }
 
 export interface PaymentProviderDetails {
+  providerReferenceId: string | null;
   providerPaymentId: string | null;
   checkoutUrl: string | null;
   expiresAt: string | null;
@@ -144,4 +156,5 @@ export interface PaymentsRepository {
 
 export class PaymentIdempotencyUniqueError extends Error {}
 export class PaymentProviderIdentityUniqueError extends Error {}
+export class PaymentProviderReferenceUniqueError extends Error {}
 export class PaymentApprovedUniqueError extends Error {}

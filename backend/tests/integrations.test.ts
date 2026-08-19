@@ -67,6 +67,11 @@ class MemoryIntegrationsRepository implements IntegrationsRepository {
     return record ? clone(record) : null;
   }
 
+  async findInternalById(integrationId: string): Promise<BusinessIntegrationRecord | null> {
+    const record = this.records.find((item) => item.id === integrationId);
+    return record ? clone(record) : null;
+  }
+
   async update(
     businessId: string,
     integrationId: string,
@@ -120,6 +125,26 @@ test("internal access decrypts only an active integration", async () => {
   assert.deepEqual(active?.credentials, { accessToken: "internal-secret" });
   await service.update(businessA, created.id, { status: "inactive" });
   assert.equal(await service.getActiveIntegration(businessA, "provider_one"), null);
+});
+
+test("internal webhook lookup requires the exact active provider", async () => {
+  const { service } = createService();
+  const created = await service.create(businessA, {
+    providerKey: "mercado_pago",
+    credentials: { accessToken: "internal-secret", webhookSecret: "webhook-secret" },
+  });
+
+  const active = await service.getActiveIntegrationById(created.id, "mercado_pago");
+  assert.equal(active?.businessId, businessA);
+  assert.deepEqual(active?.credentials, {
+    accessToken: "internal-secret",
+    webhookSecret: "webhook-secret",
+  });
+  assert.equal(await service.getActiveIntegrationById(created.id, "other_provider"), null);
+  assert.equal(await service.getActiveIntegrationById(missingId, "mercado_pago"), null);
+
+  await service.update(businessA, created.id, { status: "inactive" });
+  assert.equal(await service.getActiveIntegrationById(created.id, "mercado_pago"), null);
 });
 
 test("public get and list never expose encrypted or decrypted credentials", async () => {

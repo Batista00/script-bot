@@ -119,6 +119,14 @@ export class PostgresIntegrationsRepository implements IntegrationsRepository {
     return result.rows[0] ? mapIntegration(result.rows[0]) : null;
   }
 
+  async findInternalById(integrationId: string): Promise<BusinessIntegrationRecord | null> {
+    const result = await this.db.query<IntegrationRow>(
+      `SELECT ${integrationColumns} FROM business_integrations WHERE id = $1`,
+      [integrationId],
+    );
+    return result.rows[0] ? mapIntegration(result.rows[0]) : null;
+  }
+
   async update(
     businessId: string,
     integrationId: string,

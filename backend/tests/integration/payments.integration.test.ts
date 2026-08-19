@@ -92,7 +92,7 @@ test(
     const base = await createOrderFixture(db, `${unique}-base`, 42_000);
     businessIds.push(base.businessId);
     provider.result = {
-      providerPaymentId: `pending-${unique}`,
+      providerReferenceId: `preference-${unique}`,
       status: "pending",
       checkoutUrl: "https://payments.example/postgres",
     };
@@ -113,13 +113,20 @@ test(
     assert.equal(repeated.created, false);
     assert.equal(repeated.payment.id, created.payment.id);
     assert.equal(provider.calls.length, 1);
+    assert.equal(created.payment.providerReferenceId, `preference-${unique}`);
+    assert.equal(created.payment.providerPaymentId, null);
 
-    const approved = await service.applyProviderUpdate(
-      base.businessId,
-      provider.key,
-      `pending-${unique}`,
-      "approved",
-    );
+    const approved = await service.applyVerifiedProviderUpdate({
+      businessId: base.businessId,
+      paymentId: created.payment.id,
+      providerKey: provider.key,
+      providerPaymentId: `payment-${unique}`,
+      status: "approved",
+      amount: 42_000,
+      currency: "CLP",
+    });
+    assert.equal(approved.providerReferenceId, `preference-${unique}`);
+    assert.equal(approved.providerPaymentId, `payment-${unique}`);
     const atomicState = await db.query<{ payment_status: string; order_status: string }>(
       `SELECT p.status::text AS payment_status, o.status::text AS order_status
        FROM payments p JOIN orders o
@@ -131,6 +138,30 @@ test(
       payment_status: "approved",
       order_status: "paid",
     });
+
+    await assert.rejects(
+      db.query(
+        `INSERT INTO payments (
+           business_id, order_id, provider_key, provider_reference_id,
+           status, amount, currency
+         ) VALUES ($1, $2, $3, $4, 'pending', $5, 'CLP')`,
+        [base.businessId, base.orderId, provider.key, `preference-${unique}`, 42_000],
+      ),
+      (error: unknown) => (error as { code?: string }).code === "23505",
+    );
+
+    const isolatedReference = await createOrderFixture(db, `${unique}-reference-isolation`);
+    businessIds.push(isolatedReference.businessId);
+    provider.result = {
+      providerReferenceId: `preference-${unique}`,
+      status: "pending",
+    };
+    const isolatedPayment = await service.create(
+      isolatedReference.businessId,
+      isolatedReference.orderId,
+      provider.key,
+    );
+    assert.equal(isolatedPayment.payment.providerReferenceId, `preference-${unique}`);
 
     const attempts = await createOrderFixture(db, `${unique}-attempts`);
     businessIds.push(attempts.businessId);

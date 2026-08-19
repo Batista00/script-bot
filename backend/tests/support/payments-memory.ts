@@ -19,6 +19,7 @@ import {
   type PaymentPersistenceInput,
   type PaymentProviderDetails,
   PaymentProviderIdentityUniqueError,
+  PaymentProviderReferenceUniqueError,
   type PaymentsRepository,
   type PaymentStatus,
 } from "../../src/modules/payments/payments.types.js";
@@ -105,7 +106,8 @@ export class MemoryPaymentsRepository implements PaymentsRepository {
     }
     const payment: Payment = {
       id: randomUUID(), businessId, orderId: input.orderId,
-      providerKey: input.providerKey, providerPaymentId: null, status: "pending",
+      providerKey: input.providerKey, providerReferenceId: null,
+      providerPaymentId: null, status: "pending",
       amount: input.amount, currency: input.currency, checkoutUrl: null,
       idempotencyKey: input.idempotencyKey, expiresAt: null, approvedAt: null,
       createdAt: paymentNow, updatedAt: paymentNow,
@@ -168,6 +170,10 @@ export class MemoryPaymentsRepository implements PaymentsRepository {
     const payment = this.mutablePending(businessId, paymentId);
     if (!payment) return null;
     this.ensureProviderIdentityUnique(businessId, paymentId, payment.providerKey, details.providerPaymentId);
+    this.ensureProviderReferenceUnique(
+      businessId, paymentId, payment.providerKey, details.providerReferenceId,
+    );
+    payment.providerReferenceId = details.providerReferenceId;
     payment.providerPaymentId = details.providerPaymentId;
     payment.checkoutUrl = details.checkoutUrl;
     payment.expiresAt = details.expiresAt;
@@ -184,6 +190,9 @@ export class MemoryPaymentsRepository implements PaymentsRepository {
     const payment = this.mutablePending(businessId, paymentId);
     if (!payment) return null;
     this.ensureProviderIdentityUnique(businessId, paymentId, payment.providerKey, details.providerPaymentId);
+    this.ensureProviderReferenceUnique(
+      businessId, paymentId, payment.providerKey, details.providerReferenceId,
+    );
     if (
       status === "approved" &&
       this.payments.some((item) => item.id !== paymentId && item.businessId === businessId &&
@@ -192,6 +201,7 @@ export class MemoryPaymentsRepository implements PaymentsRepository {
       throw new PaymentApprovedUniqueError();
     }
     payment.status = status;
+    payment.providerReferenceId = details.providerReferenceId;
     payment.providerPaymentId = details.providerPaymentId;
     payment.checkoutUrl = details.checkoutUrl;
     payment.expiresAt = details.expiresAt;
@@ -254,6 +264,21 @@ export class MemoryPaymentsRepository implements PaymentsRepository {
         item.providerKey === providerKey && item.providerPaymentId === providerPaymentId)
     ) {
       throw new PaymentProviderIdentityUniqueError();
+    }
+  }
+
+  private ensureProviderReferenceUnique(
+    businessId: string,
+    paymentId: string,
+    providerKey: string,
+    providerReferenceId: string | null,
+  ): void {
+    if (
+      providerReferenceId !== null &&
+      this.payments.some((item) => item.id !== paymentId && item.businessId === businessId &&
+        item.providerKey === providerKey && item.providerReferenceId === providerReferenceId)
+    ) {
+      throw new PaymentProviderReferenceUniqueError();
     }
   }
 }

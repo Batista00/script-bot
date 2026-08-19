@@ -14,6 +14,23 @@ test("loadEnv applies safe defaults and parses PORT", () => {
   assert.equal(env.LOG_LEVEL, "info");
   assert.equal(env.AUTH_SESSION_TTL_HOURS, 168);
   assert.equal(env.INTEGRATIONS_ENCRYPTION_KEY, undefined);
+  assert.equal(env.PUBLIC_API_BASE_URL, undefined);
+});
+
+test("loadEnv validates the optional public API base URL", () => {
+  const database = "postgresql://bot:test@localhost:5432/bot_whatsapp";
+  assert.equal(loadEnv({
+    DATABASE_URL: database,
+    PUBLIC_API_BASE_URL: "https://api.example.com",
+  }).PUBLIC_API_BASE_URL, "https://api.example.com");
+  assert.equal(loadEnv({
+    DATABASE_URL: database,
+    PUBLIC_API_BASE_URL: "",
+  }).PUBLIC_API_BASE_URL, undefined);
+  assert.throws(() => loadEnv({
+    DATABASE_URL: database,
+    PUBLIC_API_BASE_URL: "not-a-url",
+  }));
 });
 
 test("loadEnv rejects a non-PostgreSQL database URL", () => {

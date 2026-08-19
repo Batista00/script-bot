@@ -176,4 +176,28 @@ export class IntegrationsService {
       ),
     };
   }
+
+  async getActiveIntegrationById(
+    integrationId: string,
+    requiredProviderKey: string,
+  ): Promise<ActiveIntegration | null> {
+    const providerKey = normalizeProviderKey(requiredProviderKey);
+    const record = await this.repository.findInternalById(integrationId);
+    if (
+      !record || record.status !== "active" || record.providerKey !== providerKey
+    ) {
+      return null;
+    }
+    return {
+      id: record.id,
+      businessId: record.businessId,
+      providerKey: record.providerKey,
+      config: record.config,
+      credentials: this.crypto.decrypt(
+        record.credentialsEncrypted,
+        record.businessId,
+        record.providerKey,
+      ),
+    };
+  }
 }

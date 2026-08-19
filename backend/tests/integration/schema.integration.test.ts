@@ -57,7 +57,7 @@ test(
     const migrationResult = await db.query<{ count: number }>(
       "SELECT count(*)::integer AS count FROM pgmigrations",
     );
-    assert.equal(migrationResult.rows[0]?.count, 8);
+    assert.equal(migrationResult.rows[0]?.count, 9);
 
     const tableResult = await db.query<{ table_name: string }>(
       `SELECT table_name
@@ -91,9 +91,19 @@ test(
         "payments_provider_identity_unique",
         "payments_approved_order_unique",
         "payments_business_idempotency_unique",
+        "payments_provider_reference_unique",
       ]],
     );
-    assert.equal(paymentIndexes.rows.length, 3);
+    assert.equal(paymentIndexes.rows.length, 4);
+
+    const providerReferenceColumn = await db.query<{ column_name: string }>(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'payments'
+         AND column_name = 'provider_reference_id'`,
+    );
+    assert.equal(providerReferenceColumn.rows[0]?.column_name, "provider_reference_id");
 
     const moneyResult = await db.query<{ table_name: string; column_name: string }>(
       `SELECT table_name, column_name

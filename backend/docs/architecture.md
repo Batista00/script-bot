@@ -65,7 +65,8 @@ El dominio depende del contrato, no del proveedor concreto. Cambiar una API exte
 - `modules/quotes`: snapshots comerciales inmutables del producto y el cálculo de precio ofrecido.
 - `modules/orders`: conversión transaccional de Quotes en ventas comprometidas con Items históricos.
 - `modules/payments`: intentos de pago business-scoped, idempotencia y aprobación atómica del Order mediante un contrato de provider genérico.
-- `modules/integrations`: configuración provider-agnostic por negocio y credenciales cifradas para futuros adapters.
+- `modules/integrations`: configuración provider-agnostic por negocio y credenciales cifradas para adapters.
+- `integrations/mercado-pago`: adapter Checkout Pro, cliente HTTP nativo, verificación HMAC y webhook público.
 
 ```text
 Product
@@ -87,9 +88,27 @@ La conversión de un Quote bloquea su fila y crea el Order, su Item y el estado 
 
 Payments copia `amount`, `currency` y customer desde el Order. La llamada al provider ocurre después de confirmar el Payment local y nunca dentro de una transacción PostgreSQL. Una aprobación bloquea Payment y Order, valida que sus snapshots monetarios coincidan y realiza `Payment → approved` junto con `Order: pending_payment → paid` en una sola transacción.
 
-El contrato `PaymentProvider` y su registry pertenecen al dominio Payments; el runtime no registra todavía ningún adaptador real. Mercado Pago, sus webhooks y cualquier otro proveedor externo se implementarán posteriormente sin introducir detalles del proveedor en Orders o Payments Core.
+El contrato `PaymentProvider` y su registry pertenecen al dominio Payments. El runtime registra el adapter `mercado_pago`, que obtiene credenciales activas desde Integrations Core y crea una preferencia Checkout Pro fuera de cualquier transacción. Payments Core conserva por separado `provider_reference_id` (la preferencia) y `provider_payment_id` (el pago verificado posteriormente), sin introducir tipos de Mercado Pago en el dominio.
 
-Integrations Core separa `config` no secreta de credenciales cifradas con AES-256-GCM. La clave maestra proviene exclusivamente del entorno y el ciphertext se autentica con el contexto Business/provider. Las APIs públicas nunca descifran ni serializan credenciales; el acceso descifrado existe solo como contrato interno para adapters futuros.
+```text
+POST Payment
+  ↓ commit Payment pending
+MercadoPagoPaymentProvider
+  ↓ POST /checkout/preferences
+provider_reference_id + checkout_url
+
+POST webhook firmado
+  ↓ verificar HMAC
+GET /v1/payments/:id
+  ↓ validar external_reference, Business, provider, amount y currency
+PaymentsService.applyVerifiedProviderUpdate
+  ↓ transacción
+Payment approved + Order paid
+```
+
+El webhook identifica la integración por UUID, exige que siga activa y que su provider sea exactamente `mercado_pago`. La notificación recibida solo aporta el identificador a consultar: estado y datos financieros provienen de la consulta server-to-server. Estados externos no soportados se registran como advertencia y no inventan transiciones locales.
+
+Integrations Core separa `config` no secreta de credenciales cifradas con AES-256-GCM. La clave maestra proviene exclusivamente del entorno y el ciphertext se autentica con el contexto Business/provider. Las APIs públicas nunca descifran ni serializan credenciales; el acceso descifrado existe solo como contrato interno para adapters.
 
 ## Autenticación y autorización
 

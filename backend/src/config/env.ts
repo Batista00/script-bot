@@ -19,6 +19,13 @@ const envSchema = z.object({
       "INTEGRATIONS_ENCRYPTION_KEY must be a base64-encoded 32-byte key",
     ).optional(),
   ),
+  PUBLIC_API_BASE_URL: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.string().url().refine(
+      (value) => value.startsWith("http://") || value.startsWith("https://"),
+      "PUBLIC_API_BASE_URL must use the http or https protocol",
+    ).optional(),
+  ),
 });
 
 export type Env = z.infer<typeof envSchema>;

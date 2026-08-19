@@ -2,7 +2,11 @@ import type { Pool } from "pg";
 
 import { withTransaction } from "../../core/database/database.js";
 import { AppError } from "../../core/errors/app-error.js";
-import type { CreateProviderPaymentResult } from "./payments.provider.js";
+import {
+  type CreateProviderPaymentResult,
+  PaymentProviderCurrencyNotSupportedError,
+  PaymentProviderUnavailableError,
+} from "./payments.provider.js";
 import { normalizeProviderKey, PaymentProviderRegistry } from "./payments.registry.js";
 import {
   type CreatePaymentOutcome,
@@ -11,9 +15,11 @@ import {
   PaymentIdempotencyUniqueError,
   type PaymentListOptions,
   PaymentProviderIdentityUniqueError,
+  PaymentProviderReferenceUniqueError,
   type PaymentsRepository,
   type PaymentStatus,
   paymentStatuses,
+  type VerifiedProviderUpdate,
 } from "./payments.types.js";
 
 function normalizeIdempotencyKey(value: string | undefined): string | null {
@@ -37,15 +43,36 @@ function invalidTransitionError(): AppError {
   return new AppError("Invalid payment transition", 409, "PAYMENT_INVALID_TRANSITION");
 }
 
-function normalizeProviderResult(result: CreateProviderPaymentResult): Required<CreateProviderPaymentResult> {
-  const providerPaymentId = result.providerPaymentId.trim();
-  if (providerPaymentId.length === 0 || providerPaymentId.length > 255) {
-    throw new Error("Payment provider returned an invalid payment id");
+interface NormalizedProviderResult {
+  providerReferenceId: string | null;
+  providerPaymentId: string | null;
+  status: PaymentStatus;
+  checkoutUrl: string | null;
+  expiresAt: string | null;
+}
+
+function normalizeProviderIdentifier(value: string | undefined, label: string): string | null {
+  if (value === undefined) return null;
+  const normalized = value.trim();
+  if (normalized.length === 0 || normalized.length > 255) {
+    throw new Error(`Payment provider returned an invalid ${label}`);
   }
+  return normalized;
+}
+
+function normalizeProviderResult(result: CreateProviderPaymentResult): NormalizedProviderResult {
+  const providerReferenceId = normalizeProviderIdentifier(
+    result.providerReferenceId,
+    "reference id",
+  );
+  const providerPaymentId = normalizeProviderIdentifier(result.providerPaymentId, "payment id");
   if (!paymentStatuses.includes(result.status)) {
     throw new Error("Payment provider returned an invalid status");
   }
-  let checkoutUrl = "";
+  if (result.status === "approved" && providerPaymentId === null) {
+    throw new Error("Approved provider result requires a payment id");
+  }
+  let checkoutUrl: string | null = null;
   if (result.checkoutUrl !== undefined) {
     checkoutUrl = result.checkoutUrl.trim();
     if (checkoutUrl.length === 0 || checkoutUrl.length > 2048) {
@@ -56,7 +83,7 @@ function normalizeProviderResult(result: CreateProviderPaymentResult): Required<
       throw new Error("Payment provider returned an invalid checkout URL");
     }
   }
-  let expiresAt = "";
+  let expiresAt: string | null = null;
   if (result.expiresAt !== undefined) {
     const parsed = new Date(result.expiresAt);
     if (Number.isNaN(parsed.getTime())) {
@@ -64,7 +91,13 @@ function normalizeProviderResult(result: CreateProviderPaymentResult): Required<
     }
     expiresAt = parsed.toISOString();
   }
-  return { providerPaymentId, status: result.status, checkoutUrl, expiresAt };
+  return {
+    providerReferenceId,
+    providerPaymentId,
+    status: result.status,
+    checkoutUrl,
+    expiresAt,
+  };
 }
 
 export class PaymentsService {
@@ -129,28 +162,18 @@ export class PaymentsService {
       return this.resolveIdempotent(existing, orderId, providerKey);
     }
 
+    let result: NormalizedProviderResult;
     try {
       const rawResult = await provider.createPayment({
+        businessId,
         paymentId: local.payment.id,
         orderId: local.payment.orderId,
         amount: local.payment.amount,
         currency: local.payment.currency,
         customer: local.customer,
       });
-      const result = normalizeProviderResult(rawResult);
-      const payment = result.status === "pending"
-        ? await this.storePendingResult(businessId, local.payment.id, result)
-        : await this.transitionPayment(
-            businessId,
-            local.payment.id,
-            result.status,
-            result.providerPaymentId,
-            result.checkoutUrl || null,
-            result.expiresAt || null,
-          );
-      return { payment, created: true };
+      result = normalizeProviderResult(rawResult);
     } catch (error) {
-      if (error instanceof AppError) throw error;
       const payment = await this.transitionPayment(
         businessId,
         local.payment.id,
@@ -158,9 +181,34 @@ export class PaymentsService {
         null,
         null,
         null,
+        null,
       );
+      if (error instanceof PaymentProviderUnavailableError) {
+        throw providerNotAvailableError();
+      }
+      if (error instanceof PaymentProviderCurrencyNotSupportedError) {
+        throw new AppError(
+          "Payment provider does not support this currency",
+          409,
+          "PAYMENT_PROVIDER_CURRENCY_NOT_SUPPORTED",
+        );
+      }
+      if (error instanceof AppError) throw error;
       return { payment, created: true };
     }
+
+    const payment = result.status === "pending"
+      ? await this.storePendingResult(businessId, local.payment.id, result)
+      : await this.transitionPayment(
+          businessId,
+          local.payment.id,
+          result.status,
+          result.providerReferenceId,
+          result.providerPaymentId,
+          result.checkoutUrl,
+          result.expiresAt,
+        );
+    return { payment, created: true };
   }
 
   async applyProviderUpdate(
@@ -186,9 +234,47 @@ export class PaymentsService {
       businessId,
       payment.id,
       providerStatus,
+      payment.providerReferenceId,
       providerPaymentId,
       payment.checkoutUrl,
       payment.expiresAt,
+    );
+  }
+
+  async applyVerifiedProviderUpdate(input: VerifiedProviderUpdate): Promise<Payment> {
+    let providerKey: string;
+    try {
+      providerKey = normalizeProviderKey(input.providerKey);
+    } catch {
+      throw new AppError("Payment not found", 404, "PAYMENT_NOT_FOUND");
+    }
+    const providerPaymentId = normalizeProviderIdentifier(
+      input.providerPaymentId,
+      "payment id",
+    );
+    if (providerPaymentId === null) throw invalidTransitionError();
+    const verification = {
+      providerKey,
+      amount: input.amount,
+      currency: input.currency,
+    };
+    if (input.status === "pending") {
+      return this.bindVerifiedPending(
+        input.businessId,
+        input.paymentId,
+        providerPaymentId,
+        verification,
+      );
+    }
+    return this.transitionPayment(
+      input.businessId,
+      input.paymentId,
+      input.status,
+      null,
+      providerPaymentId,
+      null,
+      null,
+      verification,
     );
   }
 
@@ -239,7 +325,7 @@ export class PaymentsService {
   private storePendingResult(
     businessId: string,
     paymentId: string,
-    result: Required<CreateProviderPaymentResult>,
+    result: NormalizedProviderResult,
   ): Promise<Payment> {
     return withTransaction(this.db, async (client) => {
       const payment = await this.repository.lockById(businessId, paymentId, client);
@@ -250,9 +336,47 @@ export class PaymentsService {
           businessId,
           payment.id,
           {
+            providerReferenceId: result.providerReferenceId,
             providerPaymentId: result.providerPaymentId,
-            checkoutUrl: result.checkoutUrl || null,
-            expiresAt: result.expiresAt || null,
+            checkoutUrl: result.checkoutUrl,
+            expiresAt: result.expiresAt,
+          },
+          client,
+        );
+        if (!updated) throw invalidTransitionError();
+        return updated;
+      } catch (error) {
+        if (
+          error instanceof PaymentProviderIdentityUniqueError ||
+          error instanceof PaymentProviderReferenceUniqueError
+        ) {
+          throw invalidTransitionError();
+        }
+        throw error;
+      }
+    });
+  }
+
+  private bindVerifiedPending(
+    businessId: string,
+    paymentId: string,
+    providerPaymentId: string,
+    verification: { providerKey: string; amount: number; currency: string },
+  ): Promise<Payment> {
+    return withTransaction(this.db, async (client) => {
+      const payment = await this.repository.lockById(businessId, paymentId, client);
+      if (!payment) throw new AppError("Payment not found", 404, "PAYMENT_NOT_FOUND");
+      this.verifyProviderPayment(payment, providerPaymentId, verification);
+      if (payment.status !== "pending") throw invalidTransitionError();
+      try {
+        const updated = await this.repository.updatePendingDetails(
+          businessId,
+          payment.id,
+          {
+            providerReferenceId: payment.providerReferenceId,
+            providerPaymentId,
+            checkoutUrl: payment.checkoutUrl,
+            expiresAt: payment.expiresAt,
           },
           client,
         );
@@ -260,7 +384,7 @@ export class PaymentsService {
         return updated;
       } catch (error) {
         if (error instanceof PaymentProviderIdentityUniqueError) {
-          throw new AppError("Provider payment already exists", 409, "PAYMENT_INVALID_TRANSITION");
+          throw invalidTransitionError();
         }
         throw error;
       }
@@ -271,16 +395,17 @@ export class PaymentsService {
     businessId: string,
     paymentId: string,
     targetStatus: PaymentStatus,
+    providerReferenceId: string | null,
     providerPaymentId: string | null,
     checkoutUrl: string | null,
     expiresAt: string | null,
+    verification?: { providerKey: string; amount: number; currency: string },
   ): Promise<Payment> {
     return withTransaction(this.db, async (client) => {
       const payment = await this.repository.lockById(businessId, paymentId, client);
       if (!payment) throw new AppError("Payment not found", 404, "PAYMENT_NOT_FOUND");
-      if (payment.status === targetStatus) return payment;
-      if (payment.status !== "pending" || targetStatus === "pending") {
-        throw invalidTransitionError();
+      if (verification !== undefined && providerPaymentId !== null) {
+        this.verifyProviderPayment(payment, providerPaymentId, verification);
       }
       if (
         payment.providerPaymentId !== null &&
@@ -289,8 +414,13 @@ export class PaymentsService {
       ) {
         throw invalidTransitionError();
       }
+      if (payment.status === targetStatus) return payment;
+      if (payment.status !== "pending" || targetStatus === "pending") {
+        throw invalidTransitionError();
+      }
 
       const details = {
+        providerReferenceId: providerReferenceId ?? payment.providerReferenceId,
         providerPaymentId: providerPaymentId ?? payment.providerPaymentId,
         checkoutUrl: checkoutUrl ?? payment.checkoutUrl,
         expiresAt: expiresAt ?? payment.expiresAt,
@@ -349,11 +479,36 @@ export class PaymentsService {
         if (error instanceof PaymentApprovedUniqueError) {
           throw new AppError("Order already has an approved payment", 409, "PAYMENT_ALREADY_APPROVED");
         }
-        if (error instanceof PaymentProviderIdentityUniqueError) {
+        if (
+          error instanceof PaymentProviderIdentityUniqueError ||
+          error instanceof PaymentProviderReferenceUniqueError
+        ) {
           throw invalidTransitionError();
         }
         throw error;
       }
     });
+  }
+
+  private verifyProviderPayment(
+    payment: Payment,
+    providerPaymentId: string,
+    verification: { providerKey: string; amount: number; currency: string },
+  ): void {
+    if (payment.providerKey !== verification.providerKey) {
+      throw new AppError("Payment provider does not match", 409, "PAYMENT_PROVIDER_MISMATCH");
+    }
+    if (payment.amount !== verification.amount) {
+      throw new AppError("Payment amount does not match", 409, "PAYMENT_AMOUNT_MISMATCH");
+    }
+    if (payment.currency !== verification.currency) {
+      throw new AppError("Payment currency does not match", 409, "PAYMENT_CURRENCY_MISMATCH");
+    }
+    if (
+      payment.providerPaymentId !== null &&
+      payment.providerPaymentId !== providerPaymentId
+    ) {
+      throw invalidTransitionError();
+    }
   }
 }
