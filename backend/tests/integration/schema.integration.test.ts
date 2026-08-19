@@ -18,7 +18,9 @@ const expectedTables = [
   "orders",
   "payments",
   "product_prices",
+  "product_provider_mappings",
   "products",
+  "provider_services",
   "quotes",
   "users",
 ] as const;
@@ -27,6 +29,7 @@ const expectedConstraints = new Map([
   ["customers_business_id_id_unique", "u"],
   ["business_integrations_business_provider_unique", "u"],
   ["business_integrations_config_object", "c"],
+  ["business_integrations_business_id_id_unique", "u"],
   ["order_items_order_business_fk", "f"],
   ["orders_quote_business_fk", "f"],
   ["orders_quote_id_unique", "u"],
@@ -34,7 +37,12 @@ const expectedConstraints = new Map([
   ["payments_order_business_fk", "f"],
   ["payments_approved_at_valid", "c"],
   ["product_prices_active_range_exclusion", "x"],
+  ["product_provider_mappings_product_business_fk", "f"],
+  ["product_provider_mappings_service_business_fk", "f"],
   ["products_business_id_id_unique", "u"],
+  ["provider_services_integration_business_fk", "f"],
+  ["provider_services_integration_external_unique", "u"],
+  ["provider_services_rate_positive", "c"],
   ["quotes_business_id_id_unique", "u"],
 ]);
 
@@ -57,7 +65,7 @@ test(
     const migrationResult = await db.query<{ count: number }>(
       "SELECT count(*)::integer AS count FROM pgmigrations",
     );
-    assert.equal(migrationResult.rows[0]?.count, 9);
+    assert.equal(migrationResult.rows[0]?.count, 10);
 
     const tableResult = await db.query<{ table_name: string }>(
       `SELECT table_name
@@ -96,6 +104,17 @@ test(
     );
     assert.equal(paymentIndexes.rows.length, 4);
 
+    const providerCatalogIndexes = await db.query<{ indexname: string }>(
+      `SELECT indexname FROM pg_indexes
+       WHERE schemaname = 'public' AND indexname = ANY($1::text[])`,
+      [[
+        "product_provider_mappings_active_product_unique",
+        "provider_services_business_filters_idx",
+        "provider_services_business_integration_idx",
+      ]],
+    );
+    assert.equal(providerCatalogIndexes.rows.length, 3);
+
     const providerReferenceColumn = await db.query<{ column_name: string }>(
       `SELECT column_name
        FROM information_schema.columns
@@ -121,5 +140,14 @@ test(
          )`,
     );
     assert.equal(moneyResult.rows.length, 7);
+
+    const providerRate = await db.query<{ data_type: string; numeric_precision: number }>(
+      `SELECT data_type, numeric_precision
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'provider_services'
+         AND column_name = 'rate'`,
+    );
+    assert.deepEqual(providerRate.rows[0], { data_type: "numeric", numeric_precision: 30 });
   },
 );

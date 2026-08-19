@@ -100,7 +100,42 @@ Cada customer requiere teléfono o email. El listado admite `limit`, `offset` y 
 
 `categories` y `products` forman el catálogo propio de cada negocio. Los roles `owner` y `admin` pueden crear y actualizar; `operator` tiene acceso de lectura. Ambos recursos se administran bajo `/businesses/:businessId/categories` y `/businesses/:businessId/products`, con paginación y filtros sencillos.
 
-Los productos pueden existir sin categoría ni SKU. No contienen precios ni referencias a proveedores: esas vinculaciones pertenecen a etapas posteriores.
+Los productos pueden existir sin categoría ni SKU. Sus nombres, descripciones, límites y precios siguen siendo propiedad del negocio; nunca se sobrescriben desde un proveedor externo.
+
+## Provider Catalog y SMM Raja
+
+`Provider Service` representa un servicio mayorista observado en una integración y es distinto del `Product` comercial propio. Conserva el nombre original, rate decimal, límites y metadata del proveedor sin modificar Products ni Pricing. El rate permanece como string decimal respaldado por PostgreSQL `NUMERIC`; no es un precio retail y no se convierte de moneda.
+
+Endpoints de lectura y sincronización:
+
+```text
+GET  /businesses/:businessId/provider-services
+GET  /businesses/:businessId/provider-services/:providerServiceId
+POST /businesses/:businessId/integrations/:integrationId/provider-services/sync
+```
+
+La primera integración de catálogo usa `providerKey: "smm_raja"` y credenciales cifradas:
+
+```json
+{
+  "providerKey": "smm_raja",
+  "credentials": {
+    "apiKey": "valor-entregado-por-smm-raja"
+  }
+}
+```
+
+El sync consulta `action=services` fuera de cualquier transacción, valida toda la respuesta y después ejecuta un upsert corto. Servicios ausentes se marcan `inactive`, nunca se borran. La API key no aparece en respuestas, metadata ni logs.
+
+Un Product se vincula explícitamente con un Provider Service mediante:
+
+```text
+POST  /businesses/:businessId/products/:productId/provider-mapping
+GET   /businesses/:businessId/products/:productId/provider-mapping
+PATCH /businesses/:businessId/products/:productId/provider-mapping
+```
+
+Solo puede existir un mapping activo por Product. `owner` y `admin` sincronizan y modifican mappings; `operator` tiene acceso de lectura. Esta etapa no crea pedidos, no consulta estados de pedidos y no calcula márgenes automáticamente en SMM Raja.
 
 ## Pricing y Quotes
 
@@ -165,7 +200,7 @@ GET   /businesses/:businessId/integrations/:integrationId
 PATCH /businesses/:businessId/integrations/:integrationId
 ```
 
-Solo `owner` y `admin` pueden administrar integraciones. Los accesos internos por Business/provider y por ID exacto entregan configuración y credenciales descifradas únicamente a adapters; no están publicados como endpoints. Mercado Pago usa este contrato. SMM Raja y Evolution todavía no están implementados.
+Solo `owner` y `admin` pueden administrar integraciones. Los accesos internos por Business/provider y por ID exacto entregan configuración y credenciales descifradas únicamente a adapters; no están publicados como endpoints. Mercado Pago y el catálogo SMM Raja usan este contrato. Evolution todavía no está implementado.
 
 ## Docker Compose
 

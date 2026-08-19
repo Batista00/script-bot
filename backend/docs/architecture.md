@@ -67,6 +67,8 @@ El dominio depende del contrato, no del proveedor concreto. Cambiar una API exte
 - `modules/payments`: intentos de pago business-scoped, idempotencia y aprobación atómica del Order mediante un contrato de provider genérico.
 - `modules/integrations`: configuración provider-agnostic por negocio y credenciales cifradas para adapters.
 - `integrations/mercado-pago`: adapter Checkout Pro, cliente HTTP nativo, verificación HMAC y webhook público.
+- `modules/provider-catalog`: catálogo externo normalizado, sincronización y mappings explícitos hacia Products.
+- `integrations/smm-raja`: cliente y adapter de lectura de servicios; no contiene fulfillment ni pedidos.
 
 ```text
 Product
@@ -109,6 +111,24 @@ Payment approved + Order paid
 El webhook identifica la integración por UUID, exige que siga activa y que su provider sea exactamente `mercado_pago`. La notificación recibida solo aporta el identificador a consultar: estado y datos financieros provienen de la consulta server-to-server. Estados externos no soportados se registran como advertencia y no inventan transiciones locales.
 
 Integrations Core separa `config` no secreta de credenciales cifradas con AES-256-GCM. La clave maestra proviene exclusivamente del entorno y el ciphertext se autentica con el contexto Business/provider. Las APIs públicas nunca descifran ni serializan credenciales; el acceso descifrado existe solo como contrato interno para adapters.
+
+## Catálogo de proveedores
+
+```text
+Product propio + Pricing propio
+            ↓ mapping explícito
+ProviderService normalizado
+            ↓
+BusinessIntegration
+            ↓
+ProviderCatalogAdapter
+            ↓
+SmmRajaCatalogAdapter
+```
+
+Products y Pricing no dependen del payload externo. `provider_services` conserva la fotografía operativa del proveedor por Business e integración; su `rate NUMERIC` se expone como string decimal y nunca se interpreta como precio retail. `product_provider_mappings` admite un único mapping activo por Product y conserva filas inactivas como historial.
+
+El sync valida primero la integración y resuelve el adapter. La llamada HTTPS ocurre sin una transacción PostgreSQL abierta. Solo después de normalizar completamente el catálogo abre una transacción corta, bloquea la integración activa, realiza upsert y desactiva servicios ausentes. Un payload parcialmente inválido no produce escrituras parciales. La desactivación de un Provider Service no modifica Products, Pricing ni mappings existentes.
 
 ## Autenticación y autorización
 

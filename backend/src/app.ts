@@ -8,6 +8,8 @@ import { NativeMercadoPagoClient } from "./integrations/mercado-pago/mercado-pag
 import { MercadoPagoPaymentProvider } from "./integrations/mercado-pago/mercado-pago.provider.js";
 import { mercadoPagoWebhookRoutes } from "./integrations/mercado-pago/mercado-pago.webhook.routes.js";
 import { MercadoPagoWebhookService } from "./integrations/mercado-pago/mercado-pago.webhook.service.js";
+import { SmmRajaCatalogAdapter } from "./integrations/smm-raja/smm-raja.adapter.js";
+import { NativeSmmRajaClient } from "./integrations/smm-raja/smm-raja.client.js";
 import { authPlugin } from "./modules/auth/auth.plugin.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { businessesRoutes } from "./modules/businesses/businesses.routes.js";
@@ -24,7 +26,12 @@ import { PaymentProviderRegistry } from "./modules/payments/payments.registry.js
 import { PostgresPaymentsRepository } from "./modules/payments/payments.repository.js";
 import { PaymentsService } from "./modules/payments/payments.service.js";
 import { pricingRoutes } from "./modules/pricing/pricing.routes.js";
+import { PostgresProductsRepository } from "./modules/products/products.repository.js";
 import { productsRoutes } from "./modules/products/products.routes.js";
+import { PostgresProviderCatalogRepository } from "./modules/provider-catalog/provider-catalog.repository.js";
+import { ProviderCatalogRegistry } from "./modules/provider-catalog/provider-catalog.registry.js";
+import { providerCatalogRoutes } from "./modules/provider-catalog/provider-catalog.routes.js";
+import { ProviderCatalogService } from "./modules/provider-catalog/provider-catalog.service.js";
 import { quotesRoutes } from "./modules/quotes/quotes.routes.js";
 
 export async function buildApp(config: Env): Promise<FastifyInstance> {
@@ -65,6 +72,15 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
     mercadoPagoClient,
     (details) => app.log.warn(details, "Unsupported Mercado Pago payment status"),
   );
+  const providerCatalogService = new ProviderCatalogService(
+    new PostgresProviderCatalogRepository(app.db),
+    app.db,
+    integrationsService,
+    new PostgresProductsRepository(app.db),
+    new ProviderCatalogRegistry([
+      new SmmRajaCatalogAdapter(integrationsService, new NativeSmmRajaClient()),
+    ]),
+  );
   await app.register(healthRoutes);
   await app.register(mercadoPagoWebhookRoutes, { service: mercadoPagoWebhookService });
   await app.register(integrationsRoutes, { service: integrationsService });
@@ -73,6 +89,7 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   await app.register(customersRoutes);
   await app.register(categoriesRoutes);
   await app.register(productsRoutes);
+  await app.register(providerCatalogRoutes, { service: providerCatalogService });
   await app.register(pricingRoutes);
   await app.register(quotesRoutes);
   await app.register(ordersRoutes);
