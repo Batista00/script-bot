@@ -11,6 +11,7 @@ export interface LoginInput {
 export interface AuthenticatedBusiness {
   id: string;
   name: string;
+  currency: string;
   status: BusinessStatus;
   role: BusinessRole;
 }
@@ -35,4 +36,3 @@ export interface AuthSessionsRepository {
   findActiveUserByTokenHash(tokenHash: string): Promise<User | null>;
   deleteByTokenHash(tokenHash: string): Promise<void>;
 }
-

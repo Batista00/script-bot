@@ -57,12 +57,25 @@ const product = {
   type: "object", additionalProperties: false,
   required: [
     "productId", "categoryId", "name", "description", "type", "sku",
-    "minQuantity", "maxQuantity",
+    "minQuantity", "maxQuantity", "requiredInputs",
   ],
   properties: {
     productId: uuid, categoryId: nullableUuid, name: { type: "string" },
     description: nullableString, type: { type: "string", enum: ["service", "product"] },
     sku: nullableString, minQuantity: nullableInteger, maxQuantity: nullableInteger,
+    requiredInputs: {
+      type: "array", maxItems: 20,
+      items: {
+        type: "object", additionalProperties: false,
+        required: ["key", "label", "helpText", "type", "required", "position", "validation"],
+        properties: {
+          key: { type: "string" }, label: { type: "string" }, helpText: nullableString,
+          type: { type: "string", enum: ["url", "text", "textarea", "integer", "date"] },
+          required: { type: "boolean" }, position: { type: "integer" },
+          validation: { type: "object", additionalProperties: true },
+        },
+      },
+    },
   },
 } as const;
 const price = {
@@ -173,7 +186,7 @@ export const listBotPricesSchema = {
 export const createBotQuoteSchema = {
   body: {
     type: "object", additionalProperties: false,
-    required: ["productId", "quantity", "currency"],
+    required: ["productId", "quantity"],
     properties: {
       productId: uuid, quantity: { type: "integer", minimum: 1, maximum: 2_147_483_647 },
       currency: { type: "string", minLength: 3, maxLength: 3 },
@@ -199,9 +212,19 @@ export const createBotPaymentSchema = {
     properties: { "idempotency-key": { type: "string", minLength: 1, maxLength: 128 } },
   },
   body: {
-    type: "object", additionalProperties: false, required: ["providerKey"],
-    properties: { providerKey: { type: "string", minLength: 1, maxLength: 64 } },
+    type: "object", additionalProperties: false, minProperties: 1,
+    properties: {
+      providerKey: { type: "string", minLength: 1, maxLength: 64 },
+      paymentMethodId: uuid,
+    },
   }, response: { 200: payment, 201: payment, ...errors },
+} satisfies FastifySchema;
+export const listBotPaymentMethodsSchema = {
+  response: { 200: { type: "array", items: {
+    type: "object", additionalProperties: false,
+    required: ["paymentMethodId", "type", "name", "config"],
+    properties: { paymentMethodId: uuid, type: { type: "string", enum: ["mercado_pago", "bank_transfer"] }, name: { type: "string" }, config: { type: "object", additionalProperties: true } },
+  } }, ...errors },
 } satisfies FastifySchema;
 export const getBotPaymentSchema = {
   params: paymentParams, response: { 200: payment, ...errors },

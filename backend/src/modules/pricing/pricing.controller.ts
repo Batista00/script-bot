@@ -69,4 +69,11 @@ export class PricingController {
     );
     return reply.status(200).send(price);
   };
+
+  delete = async (
+    request: FastifyRequest<{ Params: PriceIdParams }>, reply: FastifyReply,
+  ): Promise<FastifyReply> => {
+    await this.service.delete(request.params.businessId, request.params.productId, request.params.priceId);
+    return reply.status(204).send();
+  };
 }

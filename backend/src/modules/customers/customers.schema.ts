@@ -154,3 +154,8 @@ export const updateCustomerSchema = {
     409: errorResponseSchema,
   },
 } satisfies FastifySchema;
+
+export const deleteCustomerSchema = {
+  params: customerParamsSchema,
+  response: { 400: errorResponseSchema, 401: errorResponseSchema, 403: errorResponseSchema, 404: errorResponseSchema, 409: errorResponseSchema },
+} satisfies FastifySchema;

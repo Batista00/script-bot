@@ -17,6 +17,7 @@ import {
   getProductSchema,
   listProductsSchema,
   updateProductSchema,
+  deleteProductSchema,
 } from "./products.schema.js";
 import { ProductsService } from "./products.service.js";
 import type {
@@ -58,5 +59,10 @@ export const productsRoutes: FastifyPluginAsync = async (app) => {
     "/businesses/:businessId/products/:productId",
     { schema: updateProductSchema, preHandler: writeAuthorization },
     controller.update,
+  );
+  app.delete<{ Params: ProductIdParams }>(
+    "/businesses/:businessId/products/:productId",
+    { schema: deleteProductSchema, preHandler: writeAuthorization },
+    controller.delete,
   );
 };

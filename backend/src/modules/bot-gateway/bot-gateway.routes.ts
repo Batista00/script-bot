@@ -21,6 +21,7 @@ import {
   listBotCategoriesSchema,
   listBotFulfillmentsSchema,
   listBotPricesSchema,
+  listBotPaymentMethodsSchema,
   listBotProductsSchema,
   resolveCustomerSchema,
   syncBotFulfillmentSchema,
@@ -87,6 +88,10 @@ export const botGatewayRoutes: FastifyPluginAsync<BotGatewayRoutesOptions> = asy
   }>(
     "/orders/:orderId/payments", { schema: createBotPaymentSchema, preHandler: machineAuth },
     controller.createPayment,
+  );
+  app.get(
+    "/payment-methods", { schema: listBotPaymentMethodsSchema, preHandler: machineAuth },
+    controller.listPaymentMethods,
   );
   app.get<{ Params: BotPaymentParams }>(
     "/payments/:paymentId", { schema: getBotPaymentSchema, preHandler: machineAuth },

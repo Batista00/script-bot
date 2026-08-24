@@ -20,6 +20,7 @@ interface PaymentRow extends QueryResultRow {
   id: string;
   business_id: string;
   order_id: string;
+  payment_method_id: string | null;
   provider_key: string;
   provider_reference_id: string | null;
   provider_payment_id: string | null;
@@ -48,7 +49,7 @@ interface PaymentOrderRow extends QueryResultRow {
 
 interface PostgreSqlError { code?: string; constraint?: string }
 
-const paymentColumns = `id, business_id, order_id, provider_key, provider_reference_id,
+const paymentColumns = `id, business_id, order_id, payment_method_id, provider_key, provider_reference_id,
   provider_payment_id,
   status, amount, currency, checkout_url, idempotency_key, expires_at, approved_at,
   created_at, updated_at`;
@@ -70,6 +71,7 @@ function mapPayment(row: PaymentRow): Payment {
     id: row.id,
     businessId: row.business_id,
     orderId: row.order_id,
+    paymentMethodId: row.payment_method_id,
     providerKey: row.provider_key,
     providerReferenceId: row.provider_reference_id,
     providerPaymentId: row.provider_payment_id,
@@ -115,10 +117,10 @@ export class PostgresPaymentsRepository implements PaymentsRepository {
     try {
       const result = await executor.query<PaymentRow>(
         `INSERT INTO payments (
-           business_id, order_id, provider_key, amount, currency, idempotency_key
-         ) VALUES ($1, $2, $3, $4, $5, $6)
+           business_id, order_id, payment_method_id, provider_key, amount, currency, idempotency_key
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING ${paymentColumns}`,
-        [businessId, input.orderId, input.providerKey, input.amount, input.currency,
+        [businessId, input.orderId, input.paymentMethodId ?? null, input.providerKey, input.amount, input.currency,
           input.idempotencyKey],
       );
       const row = result.rows[0];

@@ -6,6 +6,7 @@ import type { BusinessIntegration } from "../src/modules/integrations/integratio
 import type { ProviderCatalogAdapter } from "../src/modules/provider-catalog/provider-catalog.adapter.js";
 import {
   ProviderResponseInvalidError,
+  ProviderRequestRejectedError,
   ProviderTemporarilyUnavailableError,
 } from "../src/modules/provider-catalog/provider-catalog.adapter.js";
 import { ProviderCatalogRegistry } from "../src/modules/provider-catalog/provider-catalog.registry.js";
@@ -51,6 +52,7 @@ function setup() {
   const repository = new MemoryProviderCatalogRepository();
   const { pool, state } = createMemoryPool(repository);
   const adapter = new FakeCatalogAdapter();
+  const failures: unknown[] = [];
   const integrations = new Map([
     [`${catalogBusinessA}:${catalogIntegrationA}`, integration(catalogIntegrationA, catalogBusinessA)],
     [`${catalogBusinessB}:${catalogIntegrationB}`, integration(catalogIntegrationB, catalogBusinessB)],
@@ -68,8 +70,9 @@ function setup() {
     { findById: async () => null },
     new ProviderCatalogRegistry([adapter]),
     () => new Date(catalogNow),
+    (failure) => failures.push(failure),
   );
-  return { repository, state, adapter, integrations, service };
+  return { repository, state, adapter, integrations, failures, service };
 }
 
 test("sync creates services and reports deterministic counts", async () => {
@@ -82,8 +85,12 @@ test("sync creates services and reports deterministic counts", async () => {
     integrationId: catalogIntegrationA,
     providerKey: "smm_raja",
     received: 2,
+    normalized: 2,
+    rejected: 0,
+    rejectionReasons: {},
     created: 2,
     updated: 0,
+    reactivated: 0,
     deactivated: 0,
   });
   assert.equal(repository.services.length, 2);
@@ -100,7 +107,8 @@ test("second sync upserts known services and deactivates disappeared services", 
 
   assert.deepEqual(result, {
     integrationId: catalogIntegrationA, providerKey: "smm_raja",
-    received: 2, created: 1, updated: 1, deactivated: 1,
+    received: 2, normalized: 2, rejected: 0, rejectionReasons: {},
+    created: 1, updated: 1, reactivated: 0, deactivated: 1,
   });
   assert.equal(repository.services.find((item) => item.externalServiceId === "100")?.name,
     "Updated service");
@@ -148,9 +156,10 @@ test("duplicate provider IDs reject the complete sync before persistence", async
 test("provider response and transport failures are controlled without opening a transaction", async () => {
   for (const [failure, code] of [
     [new ProviderResponseInvalidError(), "PROVIDER_RESPONSE_INVALID"],
+    [new ProviderRequestRejectedError(), "PROVIDER_REQUEST_REJECTED"],
     [new ProviderTemporarilyUnavailableError(), "PROVIDER_TEMPORARILY_UNAVAILABLE"],
   ] as const) {
-    const { repository, state, adapter, service } = setup();
+    const { repository, state, adapter, failures, service } = setup();
     adapter.error = failure;
     await assert.rejects(
       service.sync(catalogBusinessA, catalogIntegrationA),
@@ -158,6 +167,13 @@ test("provider response and transport failures are controlled without opening a 
     );
     assert.equal(state.inTransaction, false);
     assert.equal(repository.services.length, 0);
+    assert.deepEqual(failures, [{
+      businessId: catalogBusinessA,
+      integrationId: catalogIntegrationA,
+      providerKey: "smm_raja",
+      failureCode: code,
+    }]);
+    assert.equal(JSON.stringify(failures).includes("credential"), false);
   }
 });
 
@@ -181,6 +197,19 @@ test("provider service listing is business-scoped and normalizes provider filter
   assert.equal((await service.listServices(catalogBusinessA, {
     limit: 50, offset: 0, providerKey: " SMM_RAJA ",
   })).length, 1);
+  assert.equal((await service.listServices(catalogBusinessA, {
+    limit: 50, offset: 0, externalServiceId: " 100 ",
+  }))[0]?.externalServiceId, "100");
+  assert.equal((await service.listServices(catalogBusinessA, {
+    limit: 50, offset: 0, externalServiceId: "999",
+  })).length, 0);
+  assert.throws(
+    () => service.listServices(catalogBusinessA, {
+      limit: 50, offset: 0, externalServiceId: "invalid id",
+    }),
+    (error: unknown) => error instanceof AppError &&
+      error.code === "INVALID_EXTERNAL_SERVICE_ID",
+  );
   assert.equal((await service.listServices(catalogBusinessB, {
     limit: 50, offset: 0,
   })).length, 0);

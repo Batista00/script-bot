@@ -75,8 +75,15 @@ function stringValue(
   return normalized;
 }
 
+function aliasedValue(input: JsonObject, canonical: string, legacy: string): JsonObject {
+  if (input[canonical] !== undefined && input[legacy] !== undefined) {
+    throw new ProviderFulfillmentInputError();
+  }
+  return input[canonical] === undefined ? input : { ...input, [legacy]: input[canonical] };
+}
+
 function link(input: JsonObject): string {
-  const value = stringValue(input, "link", 2048);
+  const value = stringValue(aliasedValue(input, "targetUrl", "link"), "link", 2048);
   try {
     const parsed = new URL(value);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
@@ -106,27 +113,27 @@ function createParameters(input: CreateProviderOrderInput): Record<string, strin
   const quantity = String(input.quantity);
   switch (type) {
     case "default":
-      assertKeys(input.fulfillmentInput, ["link"]);
+      assertKeys(input.fulfillmentInput, ["targetUrl", "link"]);
       return { link: link(input.fulfillmentInput), quantity };
     case "custom_comments":
-      assertKeys(input.fulfillmentInput, ["link", "comments"]);
+      assertKeys(input.fulfillmentInput, ["targetUrl", "link", "comments"]);
       return {
         link: link(input.fulfillmentInput),
         comments: stringValue(input.fulfillmentInput, "comments", 50_000, true),
       };
     case "mentions_user_followers":
     case "comment_likes":
-      assertKeys(input.fulfillmentInput, ["link", "username"]);
+      assertKeys(input.fulfillmentInput, ["targetUrl", "link", "username"]);
       return {
         link: link(input.fulfillmentInput),
         username: stringValue(input.fulfillmentInput, "username", 255),
         quantity,
       };
     case "package":
-      assertKeys(input.fulfillmentInput, ["link"]);
+      assertKeys(input.fulfillmentInput, ["targetUrl", "link"]);
       return { link: link(input.fulfillmentInput) };
     case "drip_feed":
-      assertKeys(input.fulfillmentInput, ["link", "runs", "interval"]);
+      assertKeys(input.fulfillmentInput, ["targetUrl", "link", "runs", "interval"]);
       return {
         link: link(input.fulfillmentInput),
         quantity,
@@ -134,10 +141,12 @@ function createParameters(input: CreateProviderOrderInput): Record<string, strin
         interval: integerValue(input.fulfillmentInput, "interval", 1, 525_600),
       };
     case "subscriptions": {
-      const keys = ["username", "min", "max", "posts", "delay", "expiry"];
+      const keys = ["username", "minimum", "maximum", "min", "max", "posts", "delay", "expiry"];
       assertKeys(input.fulfillmentInput, keys);
-      const min = Number(integerValue(input.fulfillmentInput, "min", 1));
-      const max = Number(integerValue(input.fulfillmentInput, "max", 1));
+      const normalizedMin = aliasedValue(input.fulfillmentInput, "minimum", "min");
+      const normalized = aliasedValue(normalizedMin, "maximum", "max");
+      const min = Number(integerValue(normalized, "min", 1));
+      const max = Number(integerValue(normalized, "max", 1));
       if (max < min) throw new ProviderFulfillmentInputError();
       return {
         username: stringValue(input.fulfillmentInput, "username", 255),

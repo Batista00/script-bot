@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 
 import { withTransaction } from "../../core/database/database.js";
 import { AppError } from "../../core/errors/app-error.js";
+import type { PaymentMethodsRepository } from "../payment-methods/payment-methods.types.js";
 import {
   type CreateProviderPaymentResult,
   PaymentProviderCurrencyNotSupportedError,
@@ -10,6 +11,7 @@ import {
 import { normalizeProviderKey, PaymentProviderRegistry } from "./payments.registry.js";
 import {
   type CreatePaymentOutcome,
+  type CreatePaymentInput,
   type Payment,
   PaymentApprovedUniqueError,
   PaymentIdempotencyUniqueError,
@@ -106,14 +108,33 @@ export class PaymentsService {
     private readonly db: Pool,
     private readonly providers: PaymentProviderRegistry,
     private readonly now: () => Date = () => new Date(),
+    private readonly paymentMethods?: PaymentMethodsRepository,
   ) {}
 
   async create(
     businessId: string,
     orderId: string,
-    providerKeyInput: string,
+    input: string | CreatePaymentInput,
     idempotencyKeyInput?: string,
   ): Promise<CreatePaymentOutcome> {
+    const request = typeof input === "string" ? { providerKey: input } : input;
+    if (request.providerKey !== undefined && request.paymentMethodId !== undefined) {
+      throw new AppError("Choose either providerKey or paymentMethodId", 400, "INVALID_REQUEST");
+    }
+    let providerKeyInput = request.providerKey;
+    let paymentMethodId: string | null = null;
+    if (request.paymentMethodId !== undefined) {
+      if (!this.paymentMethods) throw providerNotAvailableError();
+      const method = await this.paymentMethods.findById(businessId, request.paymentMethodId);
+      if (!method || method.status !== "active") {
+        throw new AppError("Payment method not found", 404, "PAYMENT_METHOD_NOT_FOUND");
+      }
+      providerKeyInput = method.type;
+      paymentMethodId = method.id;
+    }
+    if (providerKeyInput === undefined) {
+      throw new AppError("Payment method is required", 400, "INVALID_REQUEST");
+    }
     let providerKey: string;
     try {
       providerKey = normalizeProviderKey(providerKeyInput);
@@ -144,6 +165,7 @@ export class PaymentsService {
           businessId,
           {
             orderId: order.id,
+            paymentMethodId,
             providerKey,
             amount: order.total,
             currency: order.currency,
@@ -209,6 +231,25 @@ export class PaymentsService {
           result.expiresAt,
         );
     return { payment, created: true };
+  }
+
+  async confirmBankTransfer(
+    businessId: string,
+    paymentId: string,
+    referenceInput: string,
+  ): Promise<Payment> {
+    const reference = referenceInput.trim();
+    if (reference.length === 0 || reference.length > 255) {
+      throw new AppError("Invalid bank transfer reference", 400, "INVALID_TRANSFER_REFERENCE");
+    }
+    const payment = await this.repository.findById(businessId, paymentId);
+    if (!payment) throw new AppError("Payment not found", 404, "PAYMENT_NOT_FOUND");
+    if (payment.providerKey !== "bank_transfer") {
+      throw new AppError("Payment is not a bank transfer", 409, "PAYMENT_METHOD_MISMATCH");
+    }
+    return this.transitionPayment(
+      businessId, paymentId, "approved", reference, reference, null, null,
+    );
   }
 
   async applyProviderUpdate(

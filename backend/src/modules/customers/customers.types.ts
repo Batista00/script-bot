@@ -60,6 +60,7 @@ export class CustomerContactConflictError extends Error {
     this.name = "CustomerContactConflictError";
   }
 }
+export class CustomerHistoryConflictError extends Error {}
 
 export interface CustomersRepository {
   create(businessId: string, input: CustomerPersistenceInput): Promise<Customer>;
@@ -76,4 +77,5 @@ export interface CustomersRepository {
     customerId: string,
     input: CustomerPersistenceInput,
   ): Promise<Customer | null>;
+  delete?(businessId: string, customerId: string): Promise<boolean>;
 }

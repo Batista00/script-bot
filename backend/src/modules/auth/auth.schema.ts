@@ -25,10 +25,11 @@ const authViewSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["id", "name", "status", "role"],
+        required: ["id", "name", "currency", "status", "role"],
         properties: {
           id: { type: "string", format: "uuid" },
           name: { type: "string" },
+          currency: { type: "string", pattern: "^[A-Z]{3}$" },
           status: { type: "string", enum: ["active", "inactive"] },
           role: { type: "string", enum: ["owner", "admin", "operator"] },
         },
@@ -83,4 +84,3 @@ export const logoutSchema = {
     401: errorResponseSchema,
   },
 } satisfies FastifySchema;
-

@@ -5,6 +5,7 @@ export type BusinessStatus = (typeof businessStatuses)[number];
 export interface Business {
   id: string;
   name: string;
+  currency: string;
   status: BusinessStatus;
   createdAt: string;
   updatedAt: string;
@@ -16,6 +17,7 @@ export interface CreateBusinessInput {
 
 export interface UpdateBusinessInput {
   name?: string;
+  currency?: string;
   status?: BusinessStatus;
 }
 
@@ -30,4 +32,3 @@ export interface BusinessesRepository {
   ): Promise<Business | null>;
 }
 import type { DatabaseExecutor } from "../../core/database/database.js";
-

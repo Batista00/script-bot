@@ -15,6 +15,7 @@ const reservedCreateKeys = new Set(["key", "action", "service"]);
 
 export interface SmmRajaHttpClient {
   listServices(apiKey: string): Promise<unknown>;
+  getBalance(apiKey: string): Promise<unknown>;
 }
 
 export interface SmmRajaFulfillmentHttpClient {
@@ -34,6 +35,12 @@ export class NativeSmmRajaClient implements SmmRajaHttpClient {
 
   async listServices(apiKey: string): Promise<unknown> {
     const form = new URLSearchParams({ key: apiKey, action: "services" });
+    const body = await this.post(form, () => new ProviderTemporarilyUnavailableError());
+    return this.parse(body, () => new ProviderResponseInvalidError());
+  }
+
+  async getBalance(apiKey: string): Promise<unknown> {
+    const form = new URLSearchParams({ key: apiKey, action: "balance" });
     const body = await this.post(form, () => new ProviderTemporarilyUnavailableError());
     return this.parse(body, () => new ProviderResponseInvalidError());
   }

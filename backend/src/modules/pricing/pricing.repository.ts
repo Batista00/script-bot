@@ -85,9 +85,10 @@ export class PostgresPricingRepository implements PricingRepository {
     businessId: string,
     productId: string,
     input: ProductPricePersistenceInput,
+    executor: DatabaseExecutor = this.db,
   ): Promise<ProductPrice> {
     try {
-      const result = await this.db.query<ProductPriceRow>(
+      const result = await executor.query<ProductPriceRow>(
         `INSERT INTO product_prices (
            business_id, product_id, pricing_type, currency, fixed_price, unit_price,
            min_quantity, max_quantity, status
@@ -203,5 +204,13 @@ export class PostgresPricingRepository implements PricingRepository {
       if (isRangeConflict(error)) throw new PriceRangeConflictError();
       throw error;
     }
+  }
+
+  async delete(businessId: string, productId: string, priceId: string): Promise<boolean> {
+    const result = await this.db.query(
+      "DELETE FROM product_prices WHERE business_id = $1 AND product_id = $2 AND id = $3",
+      [businessId, productId, priceId],
+    );
+    return result.rowCount === 1;
   }
 }

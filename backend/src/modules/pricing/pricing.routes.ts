@@ -6,6 +6,7 @@ import {
   requireBusinessRole,
 } from "../auth/auth.middleware.js";
 import { PostgresProductsRepository } from "../products/products.repository.js";
+import { PostgresBusinessesRepository } from "../businesses/businesses.repository.js";
 import {
   type PriceIdParams,
   PricingController,
@@ -17,6 +18,7 @@ import {
   getPriceSchema,
   listPricesSchema,
   updatePriceSchema,
+  deletePriceSchema,
 } from "./pricing.schema.js";
 import { PricingService } from "./pricing.service.js";
 import type {
@@ -30,6 +32,7 @@ export const pricingRoutes: FastifyPluginAsync = async (app) => {
     new PricingService(
       new PostgresPricingRepository(app.db),
       new PostgresProductsRepository(app.db),
+      new PostgresBusinessesRepository(app.db),
     ),
   );
   const requireUser = requireAuthenticatedUser(app.authService);
@@ -58,5 +61,10 @@ export const pricingRoutes: FastifyPluginAsync = async (app) => {
     "/businesses/:businessId/products/:productId/prices/:priceId",
     { schema: updatePriceSchema, preHandler: writeAuthorization },
     controller.update,
+  );
+  app.delete<{ Params: PriceIdParams }>(
+    "/businesses/:businessId/products/:productId/prices/:priceId",
+    { schema: deletePriceSchema, preHandler: writeAuthorization },
+    controller.delete,
   );
 };

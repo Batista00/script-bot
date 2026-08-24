@@ -1,8 +1,9 @@
 import { apiRequest } from "./client";
 import type {
   ApiCredential, ApiCredentialCreated, AuthView, Business, Category, Customer,
-  Fulfillment, Integration, Order, Payment, Price, Product, ProductMapping,
-  ProviderService, QueryValue, Quote,
+  Fulfillment, Integration, Order, Payment, PaymentMethod, Price, Product, ProductMapping,
+  ProviderService, QueryValue, Quote, ImportProviderProductInput, ImportedProviderProduct,
+  ProviderCatalogState, ProviderCatalogSyncResult,
 } from "./types";
 
 type Params = Record<string, QueryValue>;
@@ -16,7 +17,7 @@ export const authApi = {
 export const businessesApi = {
   list: () => apiRequest<Business[]>("/businesses"),
   create: (body: { name: string }) => apiRequest<Business>("/businesses", { method: "POST", body }),
-  update: (id: string, body: Partial<Pick<Business, "name" | "status">>) => apiRequest<Business>(`/businesses/${id}`, { method: "PATCH", body }),
+  update: (id: string, body: Partial<Pick<Business, "name" | "currency" | "status">>) => apiRequest<Business>(`/businesses/${id}`, { method: "PATCH", body }),
 };
 
 function crud<T>(name: string) {
@@ -25,6 +26,7 @@ function crud<T>(name: string) {
     get: (businessId: string, id: string) => apiRequest<T>(businessPath(businessId, `${name}/${id}`)),
     create: (businessId: string, body: unknown) => apiRequest<T>(businessPath(businessId, name), { method: "POST", body }),
     update: (businessId: string, id: string, body: unknown) => apiRequest<T>(businessPath(businessId, `${name}/${id}`), { method: "PATCH", body }),
+    remove: (businessId: string, id: string) => apiRequest<void>(businessPath(businessId, `${name}/${id}`), { method: "DELETE" }),
   };
 }
 export const customersApi = crud<Customer>("customers");
@@ -35,6 +37,7 @@ export const pricingApi = {
   list: (businessId: string, productId: string, query: Params = {}) => apiRequest<Price[]>(businessPath(businessId, `products/${productId}/prices`), { query }),
   create: (businessId: string, productId: string, body: unknown) => apiRequest<Price>(businessPath(businessId, `products/${productId}/prices`), { method: "POST", body }),
   update: (businessId: string, productId: string, priceId: string, body: unknown) => apiRequest<Price>(businessPath(businessId, `products/${productId}/prices/${priceId}`), { method: "PATCH", body }),
+  remove: (businessId: string, productId: string, priceId: string) => apiRequest<void>(businessPath(businessId, `products/${productId}/prices/${priceId}`), { method: "DELETE" }),
 };
 export const quotesApi = {
   list: (businessId: string, query: Params = {}) => apiRequest<Quote[]>(businessPath(businessId, "quotes"), { query }),
@@ -50,7 +53,9 @@ export const paymentsApi = {
   list: (businessId: string, query: Params = {}) => apiRequest<Payment[]>(businessPath(businessId, "payments"), { query }),
   get: (businessId: string, id: string) => apiRequest<Payment>(businessPath(businessId, `payments/${id}`)),
   byOrder: (businessId: string, orderId: string) => apiRequest<Payment[]>(businessPath(businessId, `orders/${orderId}/payments`)),
+  confirmBankTransfer: (businessId: string, paymentId: string, reference: string) => apiRequest<Payment>(businessPath(businessId, `payments/${paymentId}/confirm-bank-transfer`), { method: "POST", body: { reference } }),
 };
+export const paymentMethodsApi = crud<PaymentMethod>("payment-methods");
 export const fulfillmentsApi = {
   list: (businessId: string, query: Params = {}) => apiRequest<Fulfillment[]>(businessPath(businessId, "fulfillments"), { query }),
   dispatch: (businessId: string, orderId: string, body: unknown) => apiRequest<Fulfillment>(businessPath(businessId, `orders/${orderId}/fulfillments`), { method: "POST", body }),
@@ -64,7 +69,9 @@ export const integrationsApi = {
 };
 export const providerApi = {
   list: (businessId: string, query: Params = {}) => apiRequest<ProviderService[]>(businessPath(businessId, "provider-services"), { query }),
-  sync: (businessId: string, integrationId: string) => apiRequest<{ integrationId: string; providerKey: string; received: number; created: number; updated: number; deactivated: number }>(businessPath(businessId, `integrations/${integrationId}/provider-services/sync`), { method: "POST" }),
+  sync: (businessId: string, integrationId: string) => apiRequest<ProviderCatalogSyncResult>(businessPath(businessId, `integrations/${integrationId}/provider-services/sync`), { method: "POST" }),
+  state: (businessId: string, integrationId: string) => apiRequest<ProviderCatalogState | null>(businessPath(businessId, `integrations/${integrationId}/provider-catalog/state`)),
+  importProduct: (businessId: string, body: ImportProviderProductInput) => apiRequest<ImportedProviderProduct>(businessPath(businessId, "provider-services/import-product"), { method: "POST", body }),
   mapping: (businessId: string, productId: string) => apiRequest<ProductMapping>(businessPath(businessId, `products/${productId}/provider-mapping`)),
   createMapping: (businessId: string, productId: string, providerServiceId: string) => apiRequest<ProductMapping>(businessPath(businessId, `products/${productId}/provider-mapping`), { method: "POST", body: { providerServiceId } }),
   updateMapping: (businessId: string, productId: string, body: unknown) => apiRequest<ProductMapping>(businessPath(businessId, `products/${productId}/provider-mapping`), { method: "PATCH", body }),

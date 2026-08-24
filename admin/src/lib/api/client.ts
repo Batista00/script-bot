@@ -12,7 +12,26 @@ const safeMessages: Record<number, string> = {
   409: "La operación entra en conflicto con el estado actual.",
   422: "No fue posible validar los datos.",
   500: "Ocurrió un error interno. Intenta nuevamente.",
+  502: "El proveedor respondió de forma inesperada.",
   503: "El servicio no está disponible temporalmente.",
+};
+
+const safeCodeMessages: Record<string, string> = {
+  INVALID_REQUEST: "Hay campos inválidos o incompletos. Revisa los valores del formulario.",
+  INVALID_CURRENCY: "La moneda debe tener un código válido de tres letras, por ejemplo CLP.",
+  INVALID_MONEY_AMOUNT: "El precio retail debe ser un número entero mayor que cero.",
+  INVALID_PRODUCT_QUANTITY: "Las cantidades del producto deben ser números enteros mayores que cero.",
+  INVALID_PRODUCT_QUANTITY_RANGE: "La cantidad máxima debe ser igual o mayor que la cantidad mínima.",
+  INVALID_PRICE_QUANTITY: "Las cantidades del precio deben ser números enteros mayores que cero.",
+  INVALID_PRICE_QUANTITY_RANGE: "La cantidad máxima del precio debe ser igual o mayor que la mínima.",
+  INVALID_PRODUCT_SKU: "El SKU solo puede usar letras, números, punto, guion y guion bajo.",
+  PRODUCT_SKU_CONFLICT: "Ya existe un producto con ese SKU en este negocio.",
+  BUSINESS_CURRENCY_MISMATCH: "La moneda retail debe coincidir con la moneda global del negocio.",
+  PROVIDER_REQUEST_REJECTED: "El proveedor rechazó la solicitud. Revisa que la API key esté vigente y tenga acceso al catálogo.",
+  PROVIDER_RESPONSE_INVALID: "El proveedor devolvió un formato no reconocido. Intenta sincronizar más tarde.",
+  PROVIDER_CATALOG_NOT_AVAILABLE: "La integración no tiene credenciales válidas para consultar el catálogo.",
+  PROVIDER_TEMPORARILY_UNAVAILABLE: "El proveedor no está disponible temporalmente. Intenta nuevamente.",
+  PRODUCT_HAS_COMMERCIAL_HISTORY: "El producto tiene historial comercial y no puede eliminarse. Desactívalo para conservar la trazabilidad.",
 };
 
 export class ApiError extends Error {
@@ -45,9 +64,9 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     let payload: { error?: { code?: string; message?: string } } = {};
     try { payload = await response.json() as typeof payload; } catch { /* safe fallback */ }
     const code = payload.error?.code ?? `HTTP_${response.status}`;
-    const message = response.status === 409 && payload.error?.message
+    const message = safeCodeMessages[code] ?? (response.status === 409 && payload.error?.message
       ? payload.error.message
-      : (safeMessages[response.status] ?? "No fue posible completar la solicitud.");
+      : (safeMessages[response.status] ?? "No fue posible completar la solicitud."));
     if (response.status === 401) window.dispatchEvent(new Event(unauthorizedEvent));
     throw new ApiError(response.status, code, message);
   }

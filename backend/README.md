@@ -125,17 +125,17 @@ GET   /businesses/:businessId/customers/:customerId
 PATCH /businesses/:businessId/customers/:customerId
 ```
 
-Cada customer requiere teléfono o email. El listado admite `limit`, `offset` y filtros exactos opcionales `phone` y `email`. Para desactivar se actualiza `status` a `inactive`; no existe eliminación física.
+Cada customer requiere teléfono o email. El listado admite `limit`, `offset` y filtros exactos opcionales `phone` y `email`. `DELETE /businesses/:businessId/customers/:customerId` elimina únicamente clientes sin historial; ante Quotes u Orders responde `409 CUSTOMER_HAS_COMMERCIAL_HISTORY` y corresponde desactivarlos.
 
 ## Catálogo
 
-`categories` y `products` forman el catálogo propio de cada negocio. Los roles `owner` y `admin` pueden crear y actualizar; `operator` tiene acceso de lectura. Ambos recursos se administran bajo `/businesses/:businessId/categories` y `/businesses/:businessId/products`, con paginación y filtros sencillos.
+`categories` y `products` forman el catálogo propio de cada negocio. Los roles `owner` y `admin` pueden crear y actualizar; `operator` tiene acceso de lectura. Ambos recursos se administran bajo `/businesses/:businessId/categories` y `/businesses/:businessId/products`, con paginación y filtros sencillos. `DELETE /businesses/:businessId/products/:productId` sólo elimina Products sin Quotes, Orders o Fulfillments; si hay historial devuelve `409 PRODUCT_HAS_COMMERCIAL_HISTORY` y debe usarse desactivación.
 
 Los productos pueden existir sin categoría ni SKU. Sus nombres, descripciones, límites y precios siguen siendo propiedad del negocio; nunca se sobrescriben desde un proveedor externo.
 
 ## Provider Catalog y SMM Raja
 
-`Provider Service` representa un servicio mayorista observado en una integración y es distinto del `Product` comercial propio. Conserva el nombre original, rate decimal, límites y metadata del proveedor sin modificar Products ni Pricing. El rate permanece como string decimal respaldado por PostgreSQL `NUMERIC`; no es un precio retail y no se convierte de moneda.
+`Provider Service` representa un servicio mayorista observado en una integración y es distinto del `Product` comercial propio. Conserva nombre y descripción originales, rate decimal, límites, capacidades de pedido y metadata segura del proveedor sin modificar Products ni Pricing. El rate permanece como string decimal respaldado por PostgreSQL `NUMERIC`; no es un precio retail y no se convierte de moneda.
 
 Endpoints de lectura y sincronización:
 
@@ -143,6 +143,8 @@ Endpoints de lectura y sincronización:
 GET  /businesses/:businessId/provider-services
 GET  /businesses/:businessId/provider-services/:providerServiceId
 POST /businesses/:businessId/integrations/:integrationId/provider-services/sync
+GET  /businesses/:businessId/integrations/:integrationId/provider-catalog/state
+POST /businesses/:businessId/provider-services/import-product
 ```
 
 La primera integración de catálogo usa `providerKey: "smm_raja"` y credenciales cifradas:
@@ -156,7 +158,17 @@ La primera integración de catálogo usa `providerKey: "smm_raja"` y credenciale
 }
 ```
 
-El sync consulta `action=services` fuera de cualquier transacción, valida toda la respuesta y después ejecuta un upsert corto. Servicios ausentes se marcan `inactive`, nunca se borran. La API key no aparece en respuestas, metadata ni logs.
+El sync consulta `action=services` y `action=balance` fuera de cualquier transacción, aísla registros individuales inválidos y después ejecuta un upsert corto. Devuelve `received`, `normalized`, `rejected` y razones de rechazo; servicios ausentes se marcan `inactive`, nunca se borran. Estado de conexión, saldo y última sync se guardan en `provider_catalog_states`. La API key no aparece en respuestas, metadata ni logs.
+
+`import-product` recibe un Provider Service activo y los campos retail editables (`name`,
+`description`, `categoryId`, `sku`, `type`, límites, moneda, modelo de precio, precio, estado y
+`requiredInputs`). Crea Product, configuración comercial de inputs, Pricing y mapping en una sola
+transacción PostgreSQL; un fallo en cualquiera de las etapas hace rollback completo. También vuelve a bloquear la integración activa antes
+de escribir y rechaza IDs pertenecientes a otro Business.
+
+Los rechazos explícitos del proveedor, respuestas inválidas e indisponibilidad se traducen a
+códigos seguros diferentes. Los logs sólo incluyen Business, integración, provider key y código
+de fallo; nunca API keys ni el body devuelto por el proveedor.
 
 Un Product se vincula explícitamente con un Provider Service mediante:
 
@@ -195,7 +207,7 @@ El retry explícito `POST /businesses/:businessId/fulfillments/:fulfillmentId/re
 
 ## Pricing y Quotes
 
-El flujo comercial actual es `Product → Pricing → Quote`. Las reglas de precio `fixed` y `unit` pertenecen al negocio y se administran bajo `/businesses/:businessId/products/:productId/prices`. Sus rangos activos son inclusivos y no pueden superponerse para el mismo producto y moneda.
+El flujo comercial actual es `Product → Pricing → Quote`. Las reglas `fixed` permiten paquetes de precio único y las reglas `unit` cobran por cantidad. Pertenecen al negocio, usan obligatoriamente `business.currency` y se administran bajo `/businesses/:businessId/products/:productId/prices`. Sus rangos activos son inclusivos y no pueden superponerse. Un Price puede eliminarse porque Quotes y Orders conservan snapshots monetarios propios.
 
 Los montos se guardan como enteros PostgreSQL `bigint` y la API solo acepta enteros positivos hasta `Number.MAX_SAFE_INTEGER`; por ejemplo, `15990` representa `$15.990 CLP`. No se usan decimales de coma flotante ni conversión de monedas.
 
@@ -218,11 +230,13 @@ GET  /businesses/:businessId/payments/:paymentId
 GET  /businesses/:businessId/orders/:orderId/payments
 ```
 
-La creación admite el header opcional `Idempotency-Key`. Solo una actualización confirmada por un `PaymentProvider` puede aprobar un Payment y cambiar atómicamente su Order de `pending_payment` a `paid`; no existe una ruta de aprobación manual.
+La creación admite el header opcional `Idempotency-Key` y, para clientes nuevos, `paymentMethodId`; `providerKey` se conserva por compatibilidad. Los métodos activos se administran en `/businesses/:businessId/payment-methods` y el Bot Gateway los publica en `GET /bot/v1/payment-methods`.
+
+`bank_transfer` conserva titular, RUT chileno, banco, tipo y número de cuenta, más correo opcional. El Payment nace siempre `pending`: únicamente owner/admin puede confirmar un abono ya verificado mediante `POST /businesses/:businessId/payments/:paymentId/confirm-bank-transfer` con una referencia. Mercado Pago continúa aprobándose exclusivamente por webhook verificado. Ningún bot ni IA posee la ruta de confirmación manual.
 
 El runtime registra `mercado_pago`. Al crear un intento, el adaptador genera una preferencia Checkout Pro y devuelve su `checkoutUrl`. El `preference_id` se conserva como `providerReferenceId`; el `payment_id` definitivo permanece separado y solo se enlaza después de verificar una notificación contra la API de Mercado Pago.
 
-La moneda soportada inicialmente es únicamente `CLP`, usando el monto entero del Order sin dividirlo ni convertirlo. Otra moneda devuelve `PAYMENT_PROVIDER_CURRENCY_NOT_SUPPORTED`.
+La moneda global del negocio se configura en `PATCH /businesses/:businessId` (`currency`, ISO 4217). Pricing, Quote, Order y Payment operan en esa moneda sin convertir el rate USD del proveedor. Mercado Pago actualmente acepta solo CLP y devuelve `PAYMENT_PROVIDER_CURRENCY_NOT_SUPPORTED` para otra moneda; transferencia bancaria conserva la moneda del Order.
 
 Mercado Pago se configura como una integración activa del negocio con:
 

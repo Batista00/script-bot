@@ -38,8 +38,25 @@ export class ProviderCatalogController {
       ...(request.query.providerStatus === undefined
         ? {} : { providerStatus: request.query.providerStatus }),
       ...(request.query.category === undefined ? {} : { category: request.query.category }),
+      ...(request.query.externalServiceId === undefined
+        ? {} : { externalServiceId: request.query.externalServiceId }),
+      ...(request.query.serviceType === undefined ? {} : { serviceType: request.query.serviceType }),
+      ...(request.query.search === undefined ? {} : { search: request.query.search }),
+      ...(request.query.mappingStatus === undefined
+        ? {} : { mappingStatus: request.query.mappingStatus }),
     });
     return reply.status(200).send(services);
+  };
+
+  getCatalogState = async (
+    request: FastifyRequest<{ Params: ProviderCatalogSyncParams }>,
+    reply: FastifyReply,
+  ): Promise<FastifyReply> => {
+    const state = await this.service.getCatalogState(
+      request.params.businessId,
+      request.params.integrationId,
+    );
+    return reply.status(200).send(state);
   };
 
   getServiceById = async (

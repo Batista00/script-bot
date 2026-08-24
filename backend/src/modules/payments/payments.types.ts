@@ -16,6 +16,7 @@ export interface Payment {
   id: string;
   businessId: string;
   orderId: string;
+  paymentMethodId: string | null;
   providerKey: string;
   providerReferenceId: string | null;
   providerPaymentId: string | null;
@@ -30,7 +31,7 @@ export interface Payment {
   updatedAt: string;
 }
 
-export interface CreatePaymentInput { providerKey: string }
+export interface CreatePaymentInput { providerKey?: string; paymentMethodId?: string }
 
 export interface CreatePaymentOutcome {
   payment: Payment;
@@ -65,6 +66,7 @@ export interface PaymentListQuery {
 
 export interface PaymentPersistenceInput {
   orderId: string;
+  paymentMethodId?: string | null;
   providerKey: string;
   amount: number;
   currency: string;

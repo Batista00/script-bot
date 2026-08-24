@@ -1,5 +1,6 @@
 import { AppError } from "../../core/errors/app-error.js";
 import type { CategoriesService } from "../categories/categories.service.js";
+import type { BusinessesRepository } from "../businesses/businesses.types.js";
 import type { Category } from "../categories/categories.types.js";
 import type { CustomersService } from "../customers/customers.service.js";
 import type { Customer } from "../customers/customers.types.js";
@@ -9,6 +10,7 @@ import type { OrdersService } from "../orders/orders.service.js";
 import type { Order } from "../orders/orders.types.js";
 import type { PaymentsService } from "../payments/payments.service.js";
 import type { Payment } from "../payments/payments.types.js";
+import type { PaymentMethodsService } from "../payment-methods/payment-methods.service.js";
 import type { PricingService } from "../pricing/pricing.service.js";
 import type { ProductPrice } from "../pricing/pricing.types.js";
 import type { ProductsService } from "../products/products.service.js";
@@ -48,6 +50,8 @@ export class BotGatewayService {
     private readonly orders: OrdersService,
     private readonly payments: PaymentsService,
     private readonly fulfillments: FulfillmentsService,
+    private readonly paymentMethods?: PaymentMethodsService,
+    private readonly businesses?: BusinessesRepository,
   ) {}
 
   async resolveCustomer(businessId: string, input: BotResolveCustomerInput) {
@@ -88,7 +92,17 @@ export class BotGatewayService {
   }
 
   async createQuote(businessId: string, input: BotCreateQuoteInput) {
-    return this.quoteDto(await this.quotes.create(businessId, input));
+    let currency = input.currency;
+    if (this.businesses) {
+      const business = await this.businesses.findById(businessId);
+      if (!business) throw new AppError("Business not found", 404, "BUSINESS_NOT_FOUND");
+      if (currency !== undefined && currency.trim().toUpperCase() !== business.currency) {
+        throw new AppError("Quote currency must match the business currency", 409, "BUSINESS_CURRENCY_MISMATCH");
+      }
+      currency = business.currency;
+    }
+    if (!currency) throw new AppError("Quote currency is required", 400, "INVALID_CURRENCY");
+    return this.quoteDto(await this.quotes.create(businessId, { ...input, currency }));
   }
 
   async createOrder(businessId: string, input: BotCreateOrderInput) {
@@ -102,11 +116,20 @@ export class BotGatewayService {
   async createPayment(
     businessId: string,
     orderId: string,
-    providerKey: string,
+    input: string | { providerKey?: string; paymentMethodId?: string },
     idempotencyKey?: string,
   ) {
-    const result = await this.payments.create(businessId, orderId, providerKey, idempotencyKey);
+    const result = await this.payments.create(
+      businessId, orderId, typeof input === "string" ? input : input, idempotencyKey,
+    );
     return { payment: this.paymentDto(result.payment), created: result.created };
+  }
+
+  async listPaymentMethods(businessId: string) {
+    if (!this.paymentMethods) return [];
+    return (await this.paymentMethods.list(businessId, "active")).map((method) => ({
+      paymentMethodId: method.id, type: method.type, name: method.name, config: method.config,
+    }));
   }
 
   async getPayment(businessId: string, paymentId: string) {
@@ -146,6 +169,7 @@ export class BotGatewayService {
       productId: value.id, categoryId: value.categoryId, name: value.name,
       description: value.description, type: value.type, sku: value.sku,
       minQuantity: value.minQuantity, maxQuantity: value.maxQuantity,
+      requiredInputs: value.requiredInputs ?? [],
     };
   }
   private priceDto(value: ProductPrice): BotPriceDto {

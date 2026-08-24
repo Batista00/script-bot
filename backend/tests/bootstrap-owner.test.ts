@@ -66,6 +66,7 @@ function createHarness(failureStage?: FailureStage): {
   const business: Business = {
     id: "0e2f6f5e-72e1-4ec9-8680-0c2185d91c68",
     name: input.businessName,
+    currency: "CLP",
     status: "active",
     createdAt: now,
     updatedAt: now,

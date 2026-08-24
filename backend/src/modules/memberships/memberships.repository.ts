@@ -20,6 +20,7 @@ interface MembershipRow extends QueryResultRow {
 
 interface MembershipBusinessRow extends MembershipRow {
   business_name: string;
+  business_currency: string;
   business_status: BusinessStatus;
   business_created_at: Date | string;
   business_updated_at: Date | string;
@@ -86,6 +87,7 @@ export class PostgresMembershipsRepository implements MembershipsRepository {
               membership.created_at,
               membership.updated_at,
               business.name AS business_name,
+              business.currency AS business_currency,
               business.status AS business_status,
               business.created_at AS business_created_at,
               business.updated_at AS business_updated_at
@@ -101,6 +103,7 @@ export class PostgresMembershipsRepository implements MembershipsRepository {
       business: {
         id: row.business_id,
         name: row.business_name,
+        currency: row.business_currency,
         status: row.business_status,
         createdAt: toIsoString(row.business_created_at),
         updatedAt: toIsoString(row.business_updated_at),
@@ -108,4 +111,3 @@ export class PostgresMembershipsRepository implements MembershipsRepository {
     }));
   }
 }
-

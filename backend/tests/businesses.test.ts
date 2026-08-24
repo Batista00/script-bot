@@ -27,6 +27,7 @@ const testConfig: Env = {
 const existingBusiness: Business = {
   id: "0e2f6f5e-72e1-4ec9-8680-0c2185d91c68",
   name: "Full Digital",
+  currency: "CLP",
   status: "active",
   createdAt: "2026-08-18T12:00:00.000Z",
   updatedAt: "2026-08-18T12:00:00.000Z",

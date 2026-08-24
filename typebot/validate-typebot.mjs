@@ -132,6 +132,48 @@ for (const block of blocks) {
   if (!allowedBlockTypes.has(block.type)) fail(`unsupported block type ${block.type}`);
 }
 
+export function validateTypebotSemantics(typebotBlocks) {
+  function inspect(value) {
+    if (Array.isArray(value)) {
+      for (const item of value) inspect(item);
+      return;
+    }
+    if (!value || typeof value !== "object") return;
+    if (value.comparisonOperator === "Equal to" && value.value === "") {
+      fail(`comparison ${value.id ?? "unknown"} must use Is empty instead of Equal to empty string`);
+    }
+    if (value.comparisonOperator === "Is empty" && Object.hasOwn(value, "value")) {
+      fail(`comparison ${value.id ?? "unknown"} must not define a value for Is empty`);
+    }
+    if (
+      typeof value.bodyPath === "string" &&
+      /(?:^|\.)\d+(?=\.|$)/.test(value.bodyPath)
+    ) {
+      fail(`bodyPath ${value.bodyPath} must use bracket notation for array indexes`);
+    }
+    for (const child of Object.values(value)) inspect(child);
+  }
+  inspect(typebotBlocks);
+
+  const quantityBlock = typebotBlocks.find(
+    (block) => block.type === "Set variable" && block.options?.variableId === "vquantity",
+  );
+  if (!quantityBlock) fail("quantity conversion block is missing");
+  const expression = quantityBlock.options?.expressionToEvaluate;
+  if (quantityBlock.options?.isCode !== true) fail("quantity conversion must enable isCode");
+  if (typeof expression !== "string" || !expression.includes("Number({{quantityInput}})")) {
+    fail("quantity conversion must evaluate the unquoted quantityInput interpolation");
+  }
+  if (!expression.includes("Number.isInteger") || !expression.includes("> 0")) {
+    fail("quantity conversion must require a positive integer");
+  }
+  if (/Number\(\s*["']\{\{quantityInput\}\}/.test(expression)) {
+    fail("quantityInput interpolation must not be quoted inside Number()");
+  }
+}
+
+validateTypebotSemantics(blocks);
+
 const webhooks = blocks.filter(({ type }) => type === "Webhook");
 const requiredEndpointFragments = [
   "/bot/v1/customers/resolve",

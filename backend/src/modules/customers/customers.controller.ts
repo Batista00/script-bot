@@ -61,4 +61,11 @@ export class CustomersController {
     );
     return reply.status(200).send(customer);
   };
+
+  delete = async (
+    request: FastifyRequest<{ Params: CustomerIdParams }>, reply: FastifyReply,
+  ): Promise<FastifyReply> => {
+    await this.service.delete(request.params.businessId, request.params.customerId);
+    return reply.status(204).send();
+  };
 }

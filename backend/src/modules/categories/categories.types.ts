@@ -1,3 +1,5 @@
+import type { DatabaseExecutor } from "../../core/database/database.js";
+
 export const categoryStatuses = ["active", "inactive"] as const;
 
 export type CategoryStatus = (typeof categoryStatuses)[number];
@@ -47,7 +49,11 @@ export class CategoryNameConflictError extends Error {
 export interface CategoriesRepository {
   create(businessId: string, input: CategoryPersistenceInput): Promise<Category>;
   list(businessId: string, options: CategoryListOptions): Promise<Category[]>;
-  findById(businessId: string, categoryId: string): Promise<Category | null>;
+  findById(
+    businessId: string,
+    categoryId: string,
+    executor?: DatabaseExecutor,
+  ): Promise<Category | null>;
   findByName(
     businessId: string,
     name: string,

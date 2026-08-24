@@ -6,6 +6,7 @@ import type { IntegrationsService } from "../integrations/integrations.service.j
 import type { ProductsRepository } from "../products/products.types.js";
 import {
   ProviderCatalogUnavailableError,
+  ProviderRequestRejectedError,
   ProviderResponseInvalidError,
   ProviderTemporarilyUnavailableError,
 } from "./provider-catalog.adapter.js";
@@ -16,11 +17,19 @@ import {
   type NormalizedProviderService,
   type ProductProviderMapping,
   type ProviderCatalogRepository,
+  type ProviderCatalogState,
   type ProviderCatalogSyncResult,
   type ProviderService,
   type ProviderServiceListOptions,
   type UpdateProductProviderMappingInput,
 } from "./provider-catalog.types.js";
+
+export interface ProviderCatalogSyncFailure {
+  businessId: string;
+  integrationId: string;
+  providerKey: string;
+  failureCode: string;
+}
 
 function mappingConflict(): AppError {
   return new AppError(
@@ -38,6 +47,7 @@ export class ProviderCatalogService {
     private readonly products: Pick<ProductsRepository, "findById">,
     private readonly adapters: ProviderCatalogRegistry,
     private readonly now: () => Date = () => new Date(),
+    private readonly reportFailure?: (failure: ProviderCatalogSyncFailure) => void,
   ) {}
 
   listServices(
@@ -52,10 +62,38 @@ export class ProviderCatalogService {
     } catch {
       throw new AppError("Invalid provider key", 400, "INVALID_PROVIDER_KEY");
     }
+    const externalServiceId = options.externalServiceId?.trim();
+    if (
+      externalServiceId !== undefined &&
+      (externalServiceId.length === 0 || externalServiceId.length > 64 ||
+        !/^[A-Za-z0-9_-]+$/.test(externalServiceId))
+    ) {
+      throw new AppError("Invalid external service id", 400, "INVALID_EXTERNAL_SERVICE_ID");
+    }
+    const serviceType = options.serviceType?.trim();
+    if (serviceType !== undefined && (serviceType.length === 0 || serviceType.length > 255)) {
+      throw new AppError("Invalid provider service type", 400, "INVALID_PROVIDER_SERVICE_TYPE");
+    }
+    const searchInput = options.search?.trim();
+    if (searchInput !== undefined && (searchInput.length === 0 || searchInput.length > 160)) {
+      throw new AppError("Invalid provider service search", 400, "INVALID_PROVIDER_SERVICE_SEARCH");
+    }
+    const search = searchInput?.replace(/[\\%_]/g, "\\$&");
     return this.repository.listServices(businessId, {
       ...options,
       ...(providerKey === undefined ? {} : { providerKey }),
+      ...(externalServiceId === undefined ? {} : { externalServiceId }),
+      ...(serviceType === undefined ? {} : { serviceType }),
+      ...(search === undefined ? {} : { search: `%${search}%` }),
     });
+  }
+
+  async getCatalogState(
+    businessId: string,
+    integrationId: string,
+  ): Promise<ProviderCatalogState | null> {
+    await this.integrations.getById(businessId, integrationId);
+    return this.repository.findCatalogState(businessId, integrationId);
   }
 
   async getServiceById(businessId: string, providerServiceId: string): Promise<ProviderService> {
@@ -81,33 +119,68 @@ export class ProviderCatalogService {
     }
 
     let services: readonly NormalizedProviderService[];
+    let received: number;
+    let rejected: number;
+    let rejectionReasons: Record<string, number>;
+    let balance: { balance: string | null; currency: string | null };
     try {
-      services = await adapter.listServices(businessId);
+      const [catalogResult, providerBalance] = await Promise.all([
+        adapter.listServices(businessId),
+        adapter.getBalance?.(businessId) ?? Promise.resolve(null),
+      ]);
+      const catalog = Array.isArray(catalogResult)
+        ? { services: catalogResult as readonly NormalizedProviderService[],
+          received: catalogResult.length, rejected: 0, rejectionReasons: {} }
+        : catalogResult as import("./provider-catalog.types.js").ProviderCatalogFetchResult;
+      services = catalog.services;
+      received = catalog.received;
+      rejected = catalog.rejected;
+      rejectionReasons = catalog.rejectionReasons;
+      balance = providerBalance ?? { balance: null, currency: null };
       this.assertUniqueExternalIds(services);
     } catch (error) {
+      let mappedError: AppError | undefined;
       if (error instanceof ProviderCatalogUnavailableError) {
-        throw new AppError(
+        mappedError = new AppError(
           "Provider catalog is not available",
           503,
           "PROVIDER_CATALOG_NOT_AVAILABLE",
         );
-      }
-      if (error instanceof ProviderTemporarilyUnavailableError) {
-        throw new AppError(
+      } else if (error instanceof ProviderTemporarilyUnavailableError) {
+        mappedError = new AppError(
           "Provider is temporarily unavailable",
           503,
           "PROVIDER_TEMPORARILY_UNAVAILABLE",
         );
+      } else if (error instanceof ProviderRequestRejectedError) {
+        mappedError = new AppError(
+          "Provider rejected the catalog request",
+          502,
+          "PROVIDER_REQUEST_REJECTED",
+        );
+      } else if (error instanceof ProviderResponseInvalidError) {
+        mappedError = new AppError(
+          "Provider response is invalid",
+          502,
+          "PROVIDER_RESPONSE_INVALID",
+        );
       }
-      if (error instanceof ProviderResponseInvalidError) {
-        throw new AppError("Provider response is invalid", 502, "PROVIDER_RESPONSE_INVALID");
+      if (mappedError) {
+        this.reportFailure?.({
+          businessId,
+          integrationId,
+          providerKey: integration.providerKey,
+          failureCode: mappedError.code,
+        });
+        await this.recordFailure(businessId, integrationId, mappedError.code);
+        throw mappedError;
       }
       throw error;
     }
 
     const syncedAt = this.now().toISOString();
     return withTransaction(this.db, async (client) => {
-      const locked = await this.repository.lockActiveIntegrationForSync(
+      const locked = await this.repository.lockActiveIntegration(
         businessId,
         integrationId,
         client,
@@ -115,11 +188,12 @@ export class ProviderCatalogService {
       if (!locked) {
         throw new AppError("Integration is inactive", 409, "INTEGRATION_INACTIVE");
       }
-      const existingIds = new Set(await this.repository.listExternalServiceIds(
+      const existing = await this.repository.listServiceIdentities(
         businessId,
         integrationId,
         client,
-      ));
+      );
+      const existingById = new Map(existing.map((item) => [item.externalServiceId, item]));
       await this.repository.upsertServices(
         businessId,
         integrationId,
@@ -136,16 +210,60 @@ export class ProviderCatalogService {
         syncedAt,
         client,
       );
-      const created = externalIds.filter((externalId) => !existingIds.has(externalId)).length;
+      const created = externalIds.filter((externalId) => !existingById.has(externalId)).length;
+      const reactivated = externalIds.filter((externalId) =>
+        existingById.get(externalId)?.providerStatus === "inactive").length;
+      const updated = services.length - created - reactivated;
+      await this.repository.saveCatalogState(businessId, integrationId, {
+        connectionStatus: "ok",
+        providerBalance: balance.balance,
+        providerCurrency: balance.currency,
+        servicesReceived: received,
+        servicesNormalized: services.length,
+        servicesRejected: rejected,
+        rejectionReasons,
+        lastSyncAt: syncedAt,
+        lastBalanceAt: syncedAt,
+        lastErrorCode: null,
+      }, client);
       return {
         integrationId,
         providerKey: integration.providerKey,
-        received: services.length,
+        received,
+        normalized: services.length,
+        rejected,
+        rejectionReasons,
         created,
-        updated: services.length - created,
+        updated,
+        reactivated,
         deactivated,
       };
     });
+  }
+
+  private async recordFailure(
+    businessId: string,
+    integrationId: string,
+    errorCode: string,
+  ): Promise<void> {
+    const existing = await this.repository.findCatalogState(businessId, integrationId);
+    await withTransaction(this.db, (client) => this.repository.saveCatalogState(
+      businessId,
+      integrationId,
+      {
+        connectionStatus: "error",
+        providerBalance: existing?.providerBalance ?? null,
+        providerCurrency: existing?.providerCurrency ?? null,
+        servicesReceived: existing?.servicesReceived ?? 0,
+        servicesNormalized: existing?.servicesNormalized ?? 0,
+        servicesRejected: existing?.servicesRejected ?? 0,
+        rejectionReasons: existing?.rejectionReasons ?? {},
+        lastSyncAt: existing?.lastSyncAt ?? null,
+        lastBalanceAt: existing?.lastBalanceAt ?? null,
+        lastErrorCode: errorCode,
+      },
+      client,
+    ));
   }
 
   async getMapping(businessId: string, productId: string): Promise<ProductProviderMapping> {

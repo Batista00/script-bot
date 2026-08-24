@@ -7,6 +7,7 @@ export interface PaymentBusinessParams { businessId: string }
 export interface PaymentOrderParams extends PaymentBusinessParams { orderId: string }
 export interface PaymentIdParams extends PaymentBusinessParams { paymentId: string }
 export interface IdempotencyHeaders { "idempotency-key"?: string }
+export interface ConfirmBankTransferInput { reference: string }
 
 function pagination(query: Pick<PaymentListQuery, "limit" | "offset">) {
   return {
@@ -29,7 +30,7 @@ export class PaymentsController {
     const result = await this.service.create(
       request.params.businessId,
       request.params.orderId,
-      request.body.providerKey,
+      request.body,
       request.headers["idempotency-key"],
     );
     return reply.status(result.created ? 201 : 200).send(result.payment);
@@ -75,4 +76,15 @@ export class PaymentsController {
     );
     return reply.status(200).send(payments);
   };
+
+  confirmBankTransfer = async (
+    request: FastifyRequest<{ Params: PaymentIdParams; Body: ConfirmBankTransferInput }>,
+    reply: FastifyReply,
+  ): Promise<FastifyReply> => reply.status(200).send(
+    await this.service.confirmBankTransfer(
+      request.params.businessId,
+      request.params.paymentId,
+      request.body.reference,
+    ),
+  );
 }

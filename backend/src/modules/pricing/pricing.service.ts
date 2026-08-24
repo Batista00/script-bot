@@ -1,5 +1,6 @@
 import { AppError } from "../../core/errors/app-error.js";
 import type { ProductsRepository } from "../products/products.types.js";
+import type { BusinessesRepository } from "../businesses/businesses.types.js";
 import {
   normalizeCurrency,
   normalizeMoney,
@@ -31,7 +32,21 @@ export class PricingService {
   constructor(
     private readonly repository: PricingRepository,
     private readonly products: ProductsRepository,
+    private readonly businesses?: BusinessesRepository,
   ) {}
+
+  private async requireBusinessCurrency(businessId: string, currency: string): Promise<void> {
+    if (!this.businesses) return;
+    const business = await this.businesses.findById(businessId);
+    if (!business) throw new AppError("Business not found", 404, "BUSINESS_NOT_FOUND");
+    if (currency !== business.currency) {
+      throw new AppError(
+        "Price currency must match the business currency",
+        409,
+        "BUSINESS_CURRENCY_MISMATCH",
+      );
+    }
+  }
 
   private async requireProduct(businessId: string, productId: string): Promise<void> {
     if (!(await this.products.findById(businessId, productId))) {
@@ -76,6 +91,7 @@ export class PricingService {
     };
     validatePriceShape(values.pricingType, values.fixedPrice, values.unitPrice);
     validatePricingRange(values.minQuantity, values.maxQuantity);
+    await this.requireBusinessCurrency(businessId, values.currency);
     await this.requireProduct(businessId, productId);
     await this.requireAvailableRange(businessId, productId, values);
 
@@ -149,6 +165,7 @@ export class PricingService {
     };
     validatePriceShape(values.pricingType, values.fixedPrice, values.unitPrice);
     validatePricingRange(values.minQuantity, values.maxQuantity);
+    await this.requireBusinessCurrency(businessId, values.currency);
     await this.requireAvailableRange(businessId, productId, values, priceId);
 
     try {
@@ -158,6 +175,12 @@ export class PricingService {
     } catch (error) {
       if (error instanceof PriceRangeConflictError) throw rangeConflictError();
       throw error;
+    }
+  }
+
+  async delete(businessId: string, productId: string, priceId: string): Promise<void> {
+    if (!this.repository.delete || !await this.repository.delete(businessId, productId, priceId)) {
+      throw new AppError("Price not found", 404, "PRICE_NOT_FOUND");
     }
   }
 }

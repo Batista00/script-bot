@@ -11,7 +11,7 @@ export function ProductsPage() {
   const categories = useQuery({ queryKey: businessQueryKey("categories", business.id, "options"), queryFn: () => categoriesApi.list(business.id, { limit: 100, offset: 0, status: "active" }) });
   if (categories.isLoading) return <Spinner />;
   return <EntityPage<Product> resource="products" title="Productos" description="Oferta comercial propia; los datos del proveedor viven por separado." empty="No hay productos."
-    list={productsApi.list} create={productsApi.create} update={productsApi.update}
+    list={productsApi.list} create={productsApi.create} update={productsApi.update} remove={productsApi.remove}
     columns={[
       { label: "Nombre", value: (item) => item.name }, { label: "Tipo", value: (item) => item.type },
       { label: "SKU", value: (item) => cell.text(item.sku) },
@@ -26,6 +26,7 @@ export function ProductsPage() {
       { name: "categoryId", label: "Categoría", kind: "select", nullable: true, options: categories.data?.map((item) => ({ value: item.id, label: item.name })) },
       { name: "minQuantity", label: "Cantidad mínima", kind: "number", nullable: true },
       { name: "maxQuantity", label: "Cantidad máxima", kind: "number", nullable: true },
+      { name: "requiredInputs", label: "Campos del cliente (JSON avanzado)", kind: "json" },
       { name: "status", label: "Estado", kind: "select", editOnly: true, options: [{ value: "active", label: "Activo" }, { value: "inactive", label: "Inactivo" }] },
     ]}
   />;

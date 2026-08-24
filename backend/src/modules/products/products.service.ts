@@ -1,10 +1,12 @@
 import { AppError } from "../../core/errors/app-error.js";
 import type { CategoriesRepository } from "../categories/categories.types.js";
+import { normalizeProductInputs } from "./product-inputs.js";
 import {
   type CreateProductInput,
   type Product,
   type ProductListOptions,
   type ProductPersistenceInput,
+  ProductHistoryConflictError,
   productStatuses,
   ProductSkuConflictError,
   type ProductsRepository,
@@ -83,6 +85,25 @@ function skuConflictError(): AppError {
   );
 }
 
+export function normalizeCreateProductInput(input: CreateProductInput): ProductPersistenceInput {
+  if (!productTypes.includes(input.type)) {
+    throw new AppError("Invalid product type", 400, "INVALID_PRODUCT_TYPE");
+  }
+  const values: ProductPersistenceInput = {
+    categoryId: input.categoryId ?? null,
+    name: normalizeName(input.name),
+    description: normalizeDescription(input.description),
+    type: input.type,
+    sku: normalizeSku(input.sku),
+    minQuantity: normalizeQuantity(input.minQuantity, "minQuantity"),
+    maxQuantity: normalizeQuantity(input.maxQuantity, "maxQuantity"),
+    requiredInputs: normalizeProductInputs(input.requiredInputs),
+    status: "active",
+  };
+  validateQuantityRange(values.minQuantity, values.maxQuantity);
+  return values;
+}
+
 export class ProductsService {
   constructor(
     private readonly repository: ProductsRepository,
@@ -107,20 +128,7 @@ export class ProductsService {
   }
 
   async create(businessId: string, input: CreateProductInput): Promise<Product> {
-    if (!productTypes.includes(input.type)) {
-      throw new AppError("Invalid product type", 400, "INVALID_PRODUCT_TYPE");
-    }
-    const values: ProductPersistenceInput = {
-      categoryId: input.categoryId ?? null,
-      name: normalizeName(input.name),
-      description: normalizeDescription(input.description),
-      type: input.type,
-      sku: normalizeSku(input.sku),
-      minQuantity: normalizeQuantity(input.minQuantity, "minQuantity"),
-      maxQuantity: normalizeQuantity(input.maxQuantity, "maxQuantity"),
-      status: "active",
-    };
-    validateQuantityRange(values.minQuantity, values.maxQuantity);
+    const values = normalizeCreateProductInput(input);
     await this.requireCategory(businessId, values.categoryId);
     await this.requireUniqueSku(businessId, values.sku);
 
@@ -179,6 +187,9 @@ export class ProductsService {
         input.maxQuantity === undefined
           ? existing.maxQuantity
           : normalizeQuantity(input.maxQuantity, "maxQuantity"),
+      requiredInputs: input.requiredInputs === undefined
+        ? (existing.requiredInputs ?? [])
+        : normalizeProductInputs(input.requiredInputs),
       status: input.status ?? existing.status,
     };
     validateQuantityRange(values.minQuantity, values.maxQuantity);
@@ -191,6 +202,23 @@ export class ProductsService {
       return product;
     } catch (error) {
       if (error instanceof ProductSkuConflictError) throw skuConflictError();
+      throw error;
+    }
+  }
+
+  async delete(businessId: string, productId: string): Promise<void> {
+    try {
+      if (!await this.repository.delete(businessId, productId)) {
+        throw new AppError("Product not found", 404, "PRODUCT_NOT_FOUND");
+      }
+    } catch (error) {
+      if (error instanceof ProductHistoryConflictError) {
+        throw new AppError(
+          "Product has commercial history; deactivate it instead",
+          409,
+          "PRODUCT_HAS_COMMERCIAL_HISTORY",
+        );
+      }
       throw error;
     }
   }

@@ -13,6 +13,7 @@ import {
   type ProviderOrderStatusResult,
 } from "./fulfillments.adapter.js";
 import { validateFulfillmentInput } from "./fulfillments.input.js";
+import { validateCommercialInput } from "../products/product-inputs.js";
 import { ProviderFulfillmentRegistry } from "./fulfillments.registry.js";
 import {
   type DispatchContext,
@@ -109,7 +110,13 @@ export class FulfillmentsService {
           );
         }
         const context: DispatchContext = { orderStatus, ...orderItem, ...provider };
-        return this.repository.create(businessId, orderId, context, inputData, client);
+        return this.repository.create(
+          businessId,
+          orderId,
+          context,
+          validateCommercialInput(provider.requiredInputs ?? [], inputData),
+          client,
+        );
       });
     } catch (error) {
       if (!(error instanceof FulfillmentOrderItemUniqueError)) throw error;

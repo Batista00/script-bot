@@ -16,6 +16,7 @@ import {
   getCustomerSchema,
   listCustomersSchema,
   updateCustomerSchema,
+  deleteCustomerSchema,
 } from "./customers.schema.js";
 import { CustomersService } from "./customers.service.js";
 import type {
@@ -51,5 +52,10 @@ export const customersRoutes: FastifyPluginAsync = async (app) => {
     "/businesses/:businessId/customers/:customerId",
     { schema: updateCustomerSchema, preHandler: authorization },
     controller.update,
+  );
+  app.delete<{ Params: CustomerIdParams }>(
+    "/businesses/:businessId/customers/:customerId",
+    { schema: deleteCustomerSchema, preHandler: [requireUser, requireMembership, requireBusinessRole(["owner", "admin"])] },
+    controller.delete,
   );
 };

@@ -12,6 +12,7 @@ import {
 } from "./businesses.types.js";
 
 const maximumNameLength = 120;
+const currencyPattern = /^[A-Z]{3}$/;
 
 function normalizeName(name: string): string {
   const normalized = name.trim();
@@ -57,7 +58,7 @@ export class BusinessesService {
   }
 
   async update(id: string, input: UpdateBusinessInput): Promise<Business> {
-    if (input.name === undefined && input.status === undefined) {
+    if (input.name === undefined && input.currency === undefined && input.status === undefined) {
       throw new AppError(
         "At least one business field must be provided",
         400,
@@ -68,9 +69,14 @@ export class BusinessesService {
     if (input.status !== undefined && !businessStatuses.includes(input.status)) {
       throw new AppError("Invalid business status", 400, "INVALID_BUSINESS_STATUS");
     }
+    const currency = input.currency?.trim().toUpperCase();
+    if (currency !== undefined && !currencyPattern.test(currency)) {
+      throw new AppError("Invalid business currency", 400, "INVALID_BUSINESS_CURRENCY");
+    }
 
     const business = await this.repository.update(id, {
       ...(input.name === undefined ? {} : { name: normalizeName(input.name) }),
+      ...(currency === undefined ? {} : { currency }),
       ...(input.status === undefined ? {} : { status: input.status }),
     });
 

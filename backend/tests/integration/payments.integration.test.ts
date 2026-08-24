@@ -7,6 +7,9 @@ import type { Pool } from "pg";
 import { createDatabasePool } from "../../src/core/database/database.js";
 import { AppError } from "../../src/core/errors/app-error.js";
 import { PaymentProviderRegistry } from "../../src/modules/payments/payments.registry.js";
+import { BankTransferPaymentProvider } from "../../src/modules/payments/bank-transfer.provider.js";
+import { PostgresPaymentMethodsRepository } from "../../src/modules/payment-methods/payment-methods.repository.js";
+import { PaymentMethodsService } from "../../src/modules/payment-methods/payment-methods.service.js";
 import { PostgresPaymentsRepository } from "../../src/modules/payments/payments.repository.js";
 import { PaymentsService } from "../../src/modules/payments/payments.service.js";
 import { FakePaymentProvider } from "../support/payments-memory.js";
@@ -216,6 +219,32 @@ test(
       payment_status: "pending",
       order_status: "pending_payment",
     });
+
+    const transferOrder = await createOrderFixture(db, `${unique}-bank-transfer`, 12_990);
+    businessIds.push(transferOrder.businessId);
+    const methodsRepository = new PostgresPaymentMethodsRepository(db);
+    const methodsService = new PaymentMethodsService(methodsRepository);
+    const method = await methodsService.create(transferOrder.businessId, {
+      type: "bank_transfer", name: "Transferencia Banco Estado",
+      config: { accountHolder: "Payments SpA", rut: "12345678-9", bankName: "Banco Estado", accountType: "sight", accountNumber: "12345678" },
+    });
+    const transferService = new PaymentsService(
+      repository, db, new PaymentProviderRegistry([new BankTransferPaymentProvider()]),
+      () => new Date("2026-08-18T12:00:00.000Z"), methodsRepository,
+    );
+    const transfer = await transferService.create(
+      transferOrder.businessId, transferOrder.orderId, { paymentMethodId: method.id },
+    );
+    assert.equal(transfer.payment.paymentMethodId, method.id);
+    assert.equal(transfer.payment.status, "pending");
+    const confirmed = await transferService.confirmBankTransfer(
+      transferOrder.businessId, transfer.payment.id, `receipt-${unique}`,
+    );
+    assert.equal(confirmed.status, "approved");
+    await assert.rejects(
+      methodsService.delete(transferOrder.businessId, method.id),
+      (error: unknown) => error instanceof AppError && error.code === "PAYMENT_METHOD_HAS_HISTORY",
+    );
 
     assert.equal(await repository.findById(rollback.businessId, created.payment.id), null);
     assert.deepEqual(await repository.list(base.businessId, {

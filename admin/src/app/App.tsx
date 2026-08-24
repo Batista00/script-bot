@@ -17,6 +17,7 @@ import { FulfillmentsPage } from "../features/fulfillments/FulfillmentsPage";
 import { IntegrationsPage } from "../features/integrations/IntegrationsPage";
 import { OrdersPage } from "../features/orders/OrdersPage";
 import { PaymentsPage } from "../features/payments/PaymentsPage";
+import { PaymentMethodsPage } from "../features/payments/PaymentMethodsPage";
 import { PricingPage } from "../features/pricing/PricingPage";
 import { MappingsPage } from "../features/providers/MappingsPage";
 import { ProviderServicesPage } from "../features/providers/ProviderServicesPage";
@@ -41,6 +42,7 @@ export function App() {
           <Route path="quotes" element={<QuotesPage />} />
           <Route path="orders" element={<OrdersPage />} />
           <Route path="payments" element={<PaymentsPage />} />
+          <Route path="payment-methods" element={<PaymentMethodsPage />} />
           <Route path="fulfillments" element={<FulfillmentsPage />} />
           <Route path="provider-services" element={<ProviderServicesPage />} />
           <Route path="mappings" element={<MappingsPage />} />

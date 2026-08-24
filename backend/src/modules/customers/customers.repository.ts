@@ -3,6 +3,7 @@ import type { QueryResultRow } from "pg";
 import type { DatabaseExecutor } from "../../core/database/database.js";
 import {
   CustomerContactConflictError,
+  CustomerHistoryConflictError,
   type Customer,
   type CustomerContact,
   type CustomerContactConflict,
@@ -177,6 +178,19 @@ export class PostgresCustomersRepository implements CustomersRepository {
     } catch (error) {
       const conflict = mapContactConflict(error);
       if (conflict) throw conflict;
+      throw error;
+    }
+  }
+
+  async delete(businessId: string, customerId: string): Promise<boolean> {
+    try {
+      const result = await this.db.query(
+        "DELETE FROM customers WHERE business_id = $1 AND id = $2",
+        [businessId, customerId],
+      );
+      return result.rowCount === 1;
+    } catch (error) {
+      if ((error as PostgreSqlError).code === "23503") throw new CustomerHistoryConflictError();
       throw error;
     }
   }

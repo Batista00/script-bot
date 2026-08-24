@@ -16,24 +16,36 @@ import {
   createProviderMappingSchema,
   getProviderMappingSchema,
   getProviderServiceSchema,
+  getProviderCatalogStateSchema,
   listProviderServicesSchema,
   syncProviderServicesSchema,
   updateProviderMappingSchema,
 } from "./provider-catalog.schema.js";
 import { ProviderCatalogService } from "./provider-catalog.service.js";
+import {
+  ProviderProductImportController,
+  type ProviderProductImportParams,
+} from "./provider-product-import.controller.js";
+import { importProviderServiceSchema } from "./provider-product-import.schema.js";
+import type { ImportProviderServiceInput } from "./provider-product-import.types.js";
+import { ProviderProductImportService } from "./provider-product-import.service.js";
 import type {
   CreateProductProviderMappingInput,
   ProviderServiceListQuery,
   UpdateProductProviderMappingInput,
 } from "./provider-catalog.types.js";
 
-interface ProviderCatalogRoutesOptions { service: ProviderCatalogService }
+interface ProviderCatalogRoutesOptions {
+  service: ProviderCatalogService;
+  importService: ProviderProductImportService;
+}
 
 export const providerCatalogRoutes: FastifyPluginAsync<ProviderCatalogRoutesOptions> = async (
   app,
   options,
 ) => {
   const controller = new ProviderCatalogController(options.service);
+  const importController = new ProviderProductImportController(options.importService);
   const membership = [
     requireAuthenticatedUser(app.authService),
     requireBusinessMembership(app.membershipsRepository),
@@ -55,6 +67,16 @@ export const providerCatalogRoutes: FastifyPluginAsync<ProviderCatalogRoutesOpti
     "/businesses/:businessId/integrations/:integrationId/provider-services/sync",
     { schema: syncProviderServicesSchema, preHandler: write },
     controller.sync,
+  );
+  app.get<{ Params: ProviderCatalogSyncParams }>(
+    "/businesses/:businessId/integrations/:integrationId/provider-catalog/state",
+    { schema: getProviderCatalogStateSchema, preHandler: read },
+    controller.getCatalogState,
+  );
+  app.post<{ Params: ProviderProductImportParams; Body: ImportProviderServiceInput }>(
+    "/businesses/:businessId/provider-services/import-product",
+    { schema: importProviderServiceSchema, preHandler: write },
+    importController.import,
   );
   app.post<{
     Params: ProductProviderMappingParams;

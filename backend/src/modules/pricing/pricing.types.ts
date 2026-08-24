@@ -1,3 +1,5 @@
+import type { DatabaseExecutor } from "../../core/database/database.js";
+
 export const pricingTypes = ["fixed", "unit"] as const;
 export const pricingStatuses = ["active", "inactive"] as const;
 
@@ -71,6 +73,7 @@ export interface PricingRepository {
     businessId: string,
     productId: string,
     input: ProductPricePersistenceInput,
+    executor?: DatabaseExecutor,
   ): Promise<ProductPrice>;
   list(
     businessId: string,
@@ -102,6 +105,7 @@ export interface PricingRepository {
     priceId: string,
     input: ProductPricePersistenceInput,
   ): Promise<ProductPrice | null>;
+  delete?(businessId: string, productId: string, priceId: string): Promise<boolean>;
 }
 
 export interface PriceCalculation {
