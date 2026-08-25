@@ -136,3 +136,8 @@ export const updatePriceSchema = {
     409: errorResponseSchema,
   },
 } satisfies FastifySchema;
+
+export const deletePriceSchema = {
+  params: priceParamsSchema,
+  response: { 400: errorResponseSchema, 401: errorResponseSchema, 403: errorResponseSchema, 404: errorResponseSchema },
+} satisfies FastifySchema;

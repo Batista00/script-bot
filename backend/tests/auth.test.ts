@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { FastifyRequest, preHandlerHookHandler } from "fastify";
+import Fastify, { type FastifyRequest, type preHandlerHookHandler } from "fastify";
 
 import { buildApp } from "../src/app.js";
 import type { Env } from "../src/config/env.js";
 import { AppError } from "../src/core/errors/app-error.js";
 import { hashPassword } from "../src/modules/auth/auth.crypto.js";
 import { requireBusinessRole } from "../src/modules/auth/auth.middleware.js";
+import { meSchema } from "../src/modules/auth/auth.schema.js";
 import { AuthService } from "../src/modules/auth/auth.service.js";
 import type { AuthSessionsRepository } from "../src/modules/auth/auth.types.js";
 import type {
@@ -92,6 +93,26 @@ test("login accepts a valid password and stores only a token hash", async () => 
   assert.match(persistedHash, /^[a-f0-9]{64}$/);
   assert.notEqual(persistedHash, result.sessionToken);
   assert.equal("passwordHash" in result.user, false);
+});
+
+test("auth response preserves the business currency required by retail forms", async (t) => {
+  const app = Fastify();
+  t.after(async () => app.close());
+  app.get("/me", { schema: meSchema }, async () => ({
+    user: userBase,
+    businesses: [{
+      id: "0e2f6f5e-72e1-4ec9-8680-0c2185d91c68",
+      name: "Flowchat DEV",
+      currency: "CLP",
+      status: "active",
+      role: "owner",
+    }],
+  }));
+
+  const response = await app.inject({ method: "GET", url: "/me" });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().businesses[0].currency, "CLP");
 });
 
 test("login rejects a wrong password with the uniform credentials error", async () => {

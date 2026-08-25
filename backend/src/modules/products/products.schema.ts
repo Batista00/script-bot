@@ -36,6 +36,31 @@ const nullableQuantitySchema = {
   ],
 } as const;
 
+const requiredInputsSchema = {
+  type: "array", maxItems: 20,
+  items: {
+    type: "object", additionalProperties: false,
+    required: ["key", "label", "helpText", "type", "required", "position", "validation"],
+    properties: {
+      key: { type: "string", pattern: "^[a-z][A-Za-z0-9]{0,63}$" },
+      label: { type: "string", minLength: 1, maxLength: 160, pattern: "\\S" },
+      helpText: nullableStringSchema(1000),
+      type: { type: "string", enum: ["url", "text", "textarea", "integer", "date"] },
+      required: { type: "boolean" },
+      position: { type: "integer", minimum: 0, maximum: 19 },
+      validation: {
+        type: "object", additionalProperties: false,
+        properties: {
+          minLength: { type: "integer", minimum: 0, maximum: 10000 },
+          maxLength: { type: "integer", minimum: 1, maximum: 10000 },
+          minimum: { type: "integer", minimum: 0, maximum: 2147483647 },
+          maximum: { type: "integer", minimum: 0, maximum: 2147483647 },
+        },
+      },
+    },
+  },
+} as const;
+
 const productResponseSchema = {
   type: "object",
   additionalProperties: false,
@@ -49,6 +74,7 @@ const productResponseSchema = {
     "sku",
     "minQuantity",
     "maxQuantity",
+    "requiredInputs",
     "status",
     "createdAt",
     "updatedAt",
@@ -63,6 +89,7 @@ const productResponseSchema = {
     sku: nullableStringSchema(64),
     minQuantity: nullableQuantitySchema,
     maxQuantity: nullableQuantitySchema,
+    requiredInputs: requiredInputsSchema,
     status: { type: "string", enum: ["active", "inactive"] },
     createdAt: { type: "string", format: "date-time" },
     updatedAt: { type: "string", format: "date-time" },
@@ -101,6 +128,7 @@ const productFieldsSchema = {
   sku: nullableStringSchema(64),
   minQuantity: nullableQuantitySchema,
   maxQuantity: nullableQuantitySchema,
+  requiredInputs: requiredInputsSchema,
 } as const;
 
 export const createProductSchema = {
@@ -162,6 +190,17 @@ export const updateProductSchema = {
   response: {
     200: productResponseSchema,
     400: errorResponseSchema,
+    404: errorResponseSchema,
+    409: errorResponseSchema,
+  },
+} satisfies FastifySchema;
+
+export const deleteProductSchema = {
+  params: productParamsSchema,
+  response: {
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
     404: errorResponseSchema,
     409: errorResponseSchema,
   },

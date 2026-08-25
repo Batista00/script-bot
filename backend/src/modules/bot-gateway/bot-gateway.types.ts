@@ -3,13 +3,20 @@ import type { DispatchFulfillmentInput, FulfillmentStatus } from "../fulfillment
 import type { CreateOrderInput, OrderStatus } from "../orders/orders.types.js";
 import type { PaymentStatus } from "../payments/payments.types.js";
 import type { ProductType } from "../products/products.types.js";
+import type { ProductInputField } from "../products/product-inputs.js";
 import type { CreateQuoteInput, QuoteStatus } from "../quotes/quotes.types.js";
 
 export type BotResolveCustomerInput = CreateCustomerInput;
-export type BotCreateQuoteInput = CreateQuoteInput;
+export type BotCreateQuoteInput = Omit<CreateQuoteInput, "currency"> & { currency?: string };
 export type BotCreateOrderInput = CreateOrderInput;
 export type BotDispatchFulfillmentInput = DispatchFulfillmentInput;
-export interface BotCreatePaymentInput { providerKey: string }
+export interface BotCreatePaymentInput { providerKey?: string; paymentMethodId?: string }
+export interface BotPaymentMethodDto {
+  paymentMethodId: string;
+  type: "mercado_pago" | "bank_transfer";
+  name: string;
+  config: Record<string, unknown>;
+}
 
 export interface BotListQuery { limit?: string; offset?: string }
 export interface BotProductListQuery extends BotListQuery {
@@ -35,6 +42,7 @@ export interface BotProductDto {
   sku: string | null;
   minQuantity: number | null;
   maxQuantity: number | null;
+  requiredInputs: ProductInputField[];
 }
 export interface BotPriceDto {
   priceId: string;

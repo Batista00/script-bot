@@ -65,9 +65,10 @@ class MemoryProductsRepository implements ProductsRepository {
     throw new Error("Not used");
   }
   async list(_businessId: string, _options: ProductListOptions): Promise<Product[]> { return []; }
-  async findBySku(): Promise<Product | null> { return null; }
-  async update(): Promise<Product | null> { return null; }
-}
+    async findBySku(): Promise<Product | null> { return null; }
+    async update(): Promise<Product | null> { return null; }
+    async delete(): Promise<boolean> { return false; }
+  }
 
 class MemoryPricingRepository implements PricingRepository {
   readonly prices: ProductPrice[] = [];

@@ -26,7 +26,7 @@ const nullableDateSchema = {
 const paymentResponseSchema = {
   type: "object", additionalProperties: false,
   required: [
-    "id", "businessId", "orderId", "providerKey", "providerReferenceId",
+    "id", "businessId", "orderId", "paymentMethodId", "providerKey", "providerReferenceId",
     "providerPaymentId", "status",
     "amount", "currency", "checkoutUrl", "idempotencyKey", "expiresAt",
     "approvedAt", "createdAt", "updatedAt",
@@ -35,6 +35,7 @@ const paymentResponseSchema = {
     id: { type: "string", format: "uuid" },
     businessId: { type: "string", format: "uuid" },
     orderId: { type: "string", format: "uuid" },
+    paymentMethodId: { anyOf: [{ type: "string", format: "uuid" }, { type: "null" }] },
     providerKey: { type: "string", pattern: "^[a-z][a-z0-9_]{0,63}$" },
     providerReferenceId: nullableStringSchema(255),
     providerPaymentId: nullableStringSchema(255),
@@ -85,8 +86,11 @@ export const createPaymentSchema = {
     },
   },
   body: {
-    type: "object", additionalProperties: false, required: ["providerKey"],
-    properties: { providerKey: { type: "string", minLength: 1, maxLength: 66 } },
+    type: "object", additionalProperties: false, minProperties: 1,
+    properties: {
+      providerKey: { type: "string", minLength: 1, maxLength: 66 },
+      paymentMethodId: { type: "string", format: "uuid" },
+    },
   },
   response: {
     200: paymentResponseSchema, 201: paymentResponseSchema,
@@ -127,5 +131,17 @@ export const listOrderPaymentsSchema = {
   response: {
     200: { type: "array", items: paymentResponseSchema },
     400: errorResponseSchema, 404: errorResponseSchema,
+  },
+} satisfies FastifySchema;
+
+export const confirmBankTransferSchema = {
+  params: paymentParamsSchema,
+  body: {
+    type: "object", additionalProperties: false, required: ["reference"],
+    properties: { reference: { type: "string", minLength: 1, maxLength: 255, pattern: "\\S" } },
+  },
+  response: {
+    200: paymentResponseSchema, 400: errorResponseSchema,
+    404: errorResponseSchema, 409: errorResponseSchema,
   },
 } satisfies FastifySchema;

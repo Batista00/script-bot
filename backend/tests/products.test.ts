@@ -13,6 +13,7 @@ import type {
   CategoryPersistenceInput,
 } from "../src/modules/categories/categories.types.js";
 import { ProductsService } from "../src/modules/products/products.service.js";
+import { ProductHistoryConflictError } from "../src/modules/products/products.types.js";
 import type {
   Product,
   ProductListOptions,
@@ -82,6 +83,7 @@ class MemoryCategoriesRepository implements CategoriesRepository {
 
 class MemoryProductsRepository implements ProductsRepository {
   readonly products: Product[] = [];
+  failDeleteWithHistory = false;
 
   async create(businessId: string, input: ProductPersistenceInput): Promise<Product> {
     const product: Product = {
@@ -144,6 +146,16 @@ class MemoryProductsRepository implements ProductsRepository {
     this.products[index] = product;
     return product;
   }
+
+  async delete(businessId: string, productId: string): Promise<boolean> {
+    if (this.failDeleteWithHistory) throw new ProductHistoryConflictError();
+    const index = this.products.findIndex(
+      (product) => product.businessId === businessId && product.id === productId,
+    );
+    if (index === -1) return false;
+    this.products.splice(index, 1);
+    return true;
+  }
 }
 
 function createService(): {
@@ -161,7 +173,7 @@ function hasAppError(code: string, statusCode: number): (error: unknown) => bool
     error instanceof AppError && error.code === code && error.statusCode === statusCode;
 }
 
-async function buildOperatorApp() {
+async function buildRoleApp(role: "owner" | "admin" | "operator") {
   const app = await buildApp(testConfig);
   app.authService.authenticate = async () => ({
     id: userId,
@@ -175,7 +187,7 @@ async function buildOperatorApp() {
     id: membershipId,
     businessId: businessA,
     userId,
-    role: "operator",
+    role,
     createdAt: now,
     updatedAt: now,
   });
@@ -339,8 +351,36 @@ test("returns 404 for a nonexistent product", async () => {
   );
 });
 
+test("deletes a product without commercial history", async () => {
+  const { products, service } = createService();
+  const product = await service.create(businessA, { name: "Disposable", type: "product" });
+  await service.delete(businessA, product.id);
+  assert.equal(products.products.length, 0);
+});
+
+test("product deletion preserves commercial history", async () => {
+  const { products, service } = createService();
+  const product = await service.create(businessA, { name: "Historical", type: "service" });
+  products.failDeleteWithHistory = true;
+  await assert.rejects(
+    service.delete(businessA, product.id),
+    hasAppError("PRODUCT_HAS_COMMERCIAL_HISTORY", 409),
+  );
+  assert.equal(products.products.length, 1);
+});
+
+test("product deletion remains scoped to its business", async () => {
+  const { products, service } = createService();
+  const product = await service.create(businessA, { name: "Scoped", type: "product" });
+  await assert.rejects(
+    service.delete(businessB, product.id),
+    hasAppError("PRODUCT_NOT_FOUND", 404),
+  );
+  assert.equal(products.products.length, 1);
+});
+
 test("operator can read products", async (t) => {
-  const app = await buildOperatorApp();
+  const app = await buildRoleApp("operator");
   t.after(async () => app.close());
   const response = await app.inject({
     method: "GET",
@@ -351,7 +391,7 @@ test("operator can read products", async (t) => {
 });
 
 test("operator cannot create a product", async (t) => {
-  const app = await buildOperatorApp();
+  const app = await buildRoleApp("operator");
   t.after(async () => app.close());
   const response = await app.inject({
     method: "POST",
@@ -363,7 +403,7 @@ test("operator cannot create a product", async (t) => {
 });
 
 test("operator cannot update a product", async (t) => {
-  const app = await buildOperatorApp();
+  const app = await buildRoleApp("operator");
   t.after(async () => app.close());
   const response = await app.inject({
     method: "PATCH",
@@ -373,6 +413,31 @@ test("operator cannot update a product", async (t) => {
   });
   assert.equal(response.statusCode, 403);
 });
+
+test("operator cannot delete a product", async (t) => {
+  const app = await buildRoleApp("operator");
+  t.after(async () => app.close());
+  const response = await app.inject({
+    method: "DELETE",
+    url: `/businesses/${businessA}/products/${missingProductId}`,
+    headers: authHeaders,
+  });
+  assert.equal(response.statusCode, 403);
+});
+
+for (const role of ["owner", "admin"] as const) {
+  test(`${role} is authorized to delete a product`, async (t) => {
+    const app = await buildRoleApp(role);
+    t.after(async () => app.close());
+    const response = await app.inject({
+      method: "DELETE",
+      url: `/businesses/${businessA}/products/${missingProductId}`,
+      headers: authHeaders,
+    });
+    assert.equal(response.statusCode, 404);
+    assert.equal(response.json().error.code, "PRODUCT_NOT_FOUND");
+  });
+}
 
 test("invalid product status and type are rejected", async (t) => {
   const app = await buildApp(testConfig);

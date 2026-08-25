@@ -81,11 +81,14 @@ export class BotGatewayController {
     reply: FastifyReply,
   ) => {
     const outcome = await this.service.createPayment(
-      this.business(request), request.params.orderId, request.body.providerKey,
+      this.business(request), request.params.orderId, request.body,
       request.headers["idempotency-key"],
     );
     return reply.status(outcome.created ? 201 : 200).send(outcome.payment);
   };
+
+  listPaymentMethods = async (request: FastifyRequest, reply: FastifyReply) =>
+    reply.status(200).send(await this.service.listPaymentMethods(this.business(request)));
 
   getPayment = async (
     request: FastifyRequest<{ Params: BotPaymentParams }>, reply: FastifyReply,

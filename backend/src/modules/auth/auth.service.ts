@@ -67,6 +67,7 @@ export class AuthService {
       businesses: memberships.map(({ business, role }) => ({
         id: business.id,
         name: business.name,
+        currency: business.currency,
         status: business.status,
         role,
       })),

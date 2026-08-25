@@ -1,6 +1,7 @@
 import { AppError } from "../../core/errors/app-error.js";
 import {
   CustomerContactConflictError,
+  CustomerHistoryConflictError,
   customerStatuses,
   type CreateCustomerInput,
   type Customer,
@@ -176,6 +177,23 @@ export class CustomersService {
       return customer;
     } catch (error) {
       if (error instanceof CustomerContactConflictError) throw duplicateError(error.field);
+      throw error;
+    }
+  }
+
+  async delete(businessId: string, customerId: string): Promise<void> {
+    try {
+      if (!this.repository.delete || !await this.repository.delete(businessId, customerId)) {
+        throw new AppError("Customer not found", 404, "CUSTOMER_NOT_FOUND");
+      }
+    } catch (error) {
+      if (error instanceof CustomerHistoryConflictError) {
+        throw new AppError(
+          "Customer has commercial history; deactivate it instead",
+          409,
+          "CUSTOMER_HAS_COMMERCIAL_HISTORY",
+        );
+      }
       throw error;
     }
   }

@@ -6,7 +6,7 @@ export function CustomersPage() {
   return <EntityPage<Customer>
     resource="customers" title="Clientes" description="Contactos comerciales del negocio actual."
     empty="No hay clientes." writeRoles={["owner", "admin", "operator"]}
-    list={customersApi.list} create={customersApi.create} update={customersApi.update}
+    list={customersApi.list} create={customersApi.create} update={customersApi.update} remove={customersApi.remove}
     columns={[
       { label: "Nombre", value: (item) => cell.text(item.name) },
       { label: "Teléfono", value: (item) => cell.text(item.phone) },

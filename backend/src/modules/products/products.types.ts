@@ -1,3 +1,6 @@
+import type { DatabaseExecutor } from "../../core/database/database.js";
+import type { ProductInputField } from "./product-inputs.js";
+
 export const productTypes = ["service", "product"] as const;
 export const productStatuses = ["active", "inactive"] as const;
 
@@ -14,6 +17,7 @@ export interface Product {
   sku: string | null;
   minQuantity: number | null;
   maxQuantity: number | null;
+  requiredInputs?: ProductInputField[];
   status: ProductStatus;
   createdAt: string;
   updatedAt: string;
@@ -27,6 +31,7 @@ export interface CreateProductInput {
   sku?: string | null;
   minQuantity?: number | null;
   maxQuantity?: number | null;
+  requiredInputs?: ProductInputField[];
 }
 
 export interface UpdateProductInput {
@@ -37,6 +42,7 @@ export interface UpdateProductInput {
   sku?: string | null;
   minQuantity?: number | null;
   maxQuantity?: number | null;
+  requiredInputs?: ProductInputField[];
   status?: ProductStatus;
 }
 
@@ -64,6 +70,7 @@ export interface ProductPersistenceInput {
   sku: string | null;
   minQuantity: number | null;
   maxQuantity: number | null;
+  requiredInputs?: ProductInputField[];
   status: ProductStatus;
 }
 
@@ -74,18 +81,31 @@ export class ProductSkuConflictError extends Error {
   }
 }
 
+export class ProductHistoryConflictError extends Error {
+  constructor() {
+    super("Product has commercial history");
+    this.name = "ProductHistoryConflictError";
+  }
+}
+
 export interface ProductsRepository {
-  create(businessId: string, input: ProductPersistenceInput): Promise<Product>;
+  create(
+    businessId: string,
+    input: ProductPersistenceInput,
+    executor?: DatabaseExecutor,
+  ): Promise<Product>;
   list(businessId: string, options: ProductListOptions): Promise<Product[]>;
   findById(businessId: string, productId: string): Promise<Product | null>;
   findBySku(
     businessId: string,
     sku: string,
     excludeProductId?: string,
+    executor?: DatabaseExecutor,
   ): Promise<Product | null>;
   update(
     businessId: string,
     productId: string,
     input: ProductPersistenceInput,
   ): Promise<Product | null>;
+  delete(businessId: string, productId: string): Promise<boolean>;
 }

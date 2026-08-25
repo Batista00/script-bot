@@ -33,6 +33,10 @@ async function buildRoleApp(role: BusinessRole) {
     createdAt: catalogNow, updatedAt: catalogNow,
   });
   app.db.query = (async () => ({ rows: [], rowCount: 0 })) as unknown as typeof app.db.query;
+  app.db.connect = (async () => ({
+    query: async () => ({ rows: [], rowCount: 0 }),
+    release: () => undefined,
+  })) as unknown as typeof app.db.connect;
   return app;
 }
 
@@ -59,6 +63,14 @@ test("operator cannot sync or write provider mappings", async (t) => {
   const app = await buildRoleApp("operator");
   t.after(async () => app.close());
   for (const request of [
+    {
+      method: "POST" as const,
+      url: `/businesses/${catalogBusinessA}/provider-services/import-product`,
+      payload: {
+        providerServiceId, name: "Retail", type: "service", currency: "CLP",
+        pricingType: "fixed", retailPrice: 1000, status: "active",
+      },
+    },
     {
       method: "POST" as const,
       url: `/businesses/${catalogBusinessA}/integrations/${catalogIntegrationA}/provider-services/sync`,
@@ -95,9 +107,20 @@ test("owner and admin pass the mapping write guard", async (t) => {
       url: `/businesses/${catalogBusinessA}/integrations/${catalogIntegrationA}/provider-services/sync`,
       headers: authHeaders,
     });
+    const imported = await app.inject({
+      method: "POST",
+      url: `/businesses/${catalogBusinessA}/provider-services/import-product`,
+      headers: authHeaders,
+      payload: {
+        providerServiceId, name: "Retail", type: "service", currency: "CLP",
+        pricingType: "fixed", retailPrice: 1000, status: "active",
+      },
+    });
     assert.equal(mapping.statusCode, 404);
     assert.equal(mapping.json().error.code, "PRODUCT_NOT_FOUND");
     assert.equal(sync.statusCode, 404);
     assert.equal(sync.json().error.code, "INTEGRATION_NOT_FOUND");
+    assert.equal(imported.statusCode, 404);
+    assert.equal(imported.json().error.code, "PROVIDER_SERVICE_NOT_FOUND");
   }
 });

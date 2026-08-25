@@ -18,7 +18,7 @@ const sections: ReadonlyArray<readonly [heading: string, links: readonly NavEntr
   ["", [["dashboard", "Dashboard", Gauge], ["businesses", "Negocios", Building2]]],
   ["Clientes", [["customers", "Clientes", Users]]],
   ["Catálogo", [["categories", "Categorías", Tags], ["products", "Productos", ShoppingBag], ["pricing", "Precios", CircleDollarSign]]],
-  ["Ventas", [["quotes", "Cotizaciones", FileText], ["orders", "Pedidos", ClipboardList], ["payments", "Pagos", Receipt]]],
+  ["Ventas", [["quotes", "Cotizaciones", FileText], ["orders", "Pedidos", ClipboardList], ["payments", "Pagos", Receipt], ["payment-methods", "Métodos de pago", CircleDollarSign]]],
   ["Operaciones", [["fulfillments", "Fulfillments", PackageCheck]]],
   ["Proveedores", [["provider-services", "Servicios de proveedor", Boxes], ["mappings", "Mapeos", Layers3]]],
   ["", [["integrations", "Integraciones", PlugZap], ["api-credentials", "API Credentials", KeyRound], ["settings", "Configuración", Settings]]],

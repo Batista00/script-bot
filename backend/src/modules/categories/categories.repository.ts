@@ -82,8 +82,12 @@ export class PostgresCategoriesRepository implements CategoriesRepository {
     return result.rows.map(mapCategory);
   }
 
-  async findById(businessId: string, categoryId: string): Promise<Category | null> {
-    const result = await this.db.query<CategoryRow>(
+  async findById(
+    businessId: string,
+    categoryId: string,
+    executor: DatabaseExecutor = this.db,
+  ): Promise<Category | null> {
+    const result = await executor.query<CategoryRow>(
       `SELECT ${categoryColumns}
        FROM categories
        WHERE business_id = $1 AND id = $2`,

@@ -5,11 +5,13 @@ import {
   type Product,
   type ProductListOptions,
   type ProductPersistenceInput,
+  ProductHistoryConflictError,
   ProductSkuConflictError,
   type ProductsRepository,
   type ProductStatus,
   type ProductType,
 } from "./products.types.js";
+import type { ProductInputField } from "./product-inputs.js";
 
 interface ProductRow extends QueryResultRow {
   id: string;
@@ -21,6 +23,7 @@ interface ProductRow extends QueryResultRow {
   sku: string | null;
   min_quantity: number | null;
   max_quantity: number | null;
+  required_inputs: ProductInputField[];
   status: ProductStatus;
   created_at: Date | string;
   updated_at: Date | string;
@@ -32,7 +35,7 @@ interface PostgreSqlError {
 }
 
 const productColumns = `id, business_id, category_id, name, description, type, sku,
-  min_quantity, max_quantity, status, created_at, updated_at`;
+  min_quantity, max_quantity, required_inputs, status, created_at, updated_at`;
 
 function toIsoString(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
@@ -49,6 +52,7 @@ function mapProduct(row: ProductRow): Product {
     sku: row.sku,
     minQuantity: row.min_quantity,
     maxQuantity: row.max_quantity,
+    requiredInputs: row.required_inputs,
     status: row.status,
     createdAt: toIsoString(row.created_at),
     updatedAt: toIsoString(row.updated_at),
@@ -66,14 +70,18 @@ function isSkuConflict(error: unknown): boolean {
 export class PostgresProductsRepository implements ProductsRepository {
   constructor(private readonly db: DatabaseExecutor) {}
 
-  async create(businessId: string, input: ProductPersistenceInput): Promise<Product> {
+  async create(
+    businessId: string,
+    input: ProductPersistenceInput,
+    executor: DatabaseExecutor = this.db,
+  ): Promise<Product> {
     try {
-      const result = await this.db.query<ProductRow>(
+      const result = await executor.query<ProductRow>(
         `INSERT INTO products (
            business_id, category_id, name, description, type, sku,
-           min_quantity, max_quantity, status
+           min_quantity, max_quantity, required_inputs, status
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING ${productColumns}`,
         [
           businessId,
@@ -84,6 +92,7 @@ export class PostgresProductsRepository implements ProductsRepository {
           input.sku,
           input.minQuantity,
           input.maxQuantity,
+          JSON.stringify(input.requiredInputs ?? []),
           input.status,
         ],
       );
@@ -132,8 +141,9 @@ export class PostgresProductsRepository implements ProductsRepository {
     businessId: string,
     sku: string,
     excludeProductId?: string,
+    executor: DatabaseExecutor = this.db,
   ): Promise<Product | null> {
-    const result = await this.db.query<ProductRow>(
+    const result = await executor.query<ProductRow>(
       `SELECT ${productColumns}
        FROM products
        WHERE business_id = $1
@@ -159,7 +169,8 @@ export class PostgresProductsRepository implements ProductsRepository {
              sku = $7,
              min_quantity = $8,
              max_quantity = $9,
-             status = $10,
+             required_inputs = $10,
+             status = $11,
              updated_at = now()
          WHERE business_id = $1 AND id = $2
          RETURNING ${productColumns}`,
@@ -173,12 +184,28 @@ export class PostgresProductsRepository implements ProductsRepository {
           input.sku,
           input.minQuantity,
           input.maxQuantity,
+          JSON.stringify(input.requiredInputs ?? []),
           input.status,
         ],
       );
       return result.rows[0] ? mapProduct(result.rows[0]) : null;
     } catch (error) {
       if (isSkuConflict(error)) throw new ProductSkuConflictError();
+      throw error;
+    }
+  }
+
+  async delete(businessId: string, productId: string): Promise<boolean> {
+    try {
+      const result = await this.db.query(
+        `DELETE FROM products WHERE business_id = $1 AND id = $2`,
+        [businessId, productId],
+      );
+      return result.rowCount === 1;
+    } catch (error) {
+      if ((error as PostgreSqlError).code === "23503") {
+        throw new ProductHistoryConflictError();
+      }
       throw error;
     }
   }

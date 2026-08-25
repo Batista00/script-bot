@@ -3,10 +3,11 @@ import type { FastifySchema } from "fastify";
 const businessResponseSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["id", "name", "status", "createdAt", "updatedAt"],
+  required: ["id", "name", "currency", "status", "createdAt", "updatedAt"],
   properties: {
     id: { type: "string", format: "uuid" },
     name: { type: "string" },
+    currency: { type: "string", pattern: "^[A-Z]{3}$" },
     status: { type: "string", enum: ["active", "inactive"] },
     createdAt: { type: "string", format: "date-time" },
     updatedAt: { type: "string", format: "date-time" },
@@ -87,6 +88,7 @@ export const updateBusinessSchema = {
     minProperties: 1,
     properties: {
       name: businessNameSchema,
+      currency: { type: "string", pattern: "^[A-Za-z]{3}$" },
       status: { type: "string", enum: ["active", "inactive"] },
     },
   },

@@ -24,11 +24,20 @@ No existe API HTTP de administración de memberships/invitaciones, por lo que no
 - Businesses, Customers, Categories, Products y Pricing.
 - Quotes, Orders y Payments sin recálculo ni aprobación manual.
 - Fulfillments con listado global seguro, dispatch, sync y retry conservador.
-- Provider Services, sync vía backend y Product Provider Mappings.
+- Provider Services con conexión/saldo, búsqueda y filtros paginados, capacidades de pedido,
+  conteo de Products, sync vía backend e importación atómica y editable de
+  Product + required inputs + Pricing + Mapping.
 - Integrations genéricas, con formularios especializados para `mercado_pago` y `smm_raja`.
 - API Credentials y Business Settings.
 
 Las tablas operativas usan `limit`/`offset` y navegación Anterior/Siguiente porque las APIs no entregan un total. El dashboard carga ventanas recientes y lo indica expresamente.
+
+Products y Customers permiten eliminación física sólo cuando el backend confirma que no existe historial
+comercial; ante conflicto la interfaz indica desactivar. Customers, Prices, Integrations,
+Provider Services, mappings y credenciales conservan su ciclo de desactivación o revocación.
+Quotes, Orders, Payments y Fulfillments son históricos y no ofrecen eliminación.
+
+La moneda global se edita en Configuración y se reutiliza en Pricing, importación de servicios y Quotes. Métodos de pago permite configurar Mercado Pago o transferencia chilena (RUT, titular, banco, tipo y número de cuenta, correo opcional). Las transferencias quedan pendientes hasta confirmación humana por owner/admin.
 
 ## Desarrollo
 

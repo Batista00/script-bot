@@ -5,6 +5,7 @@ import type { JsonObject } from "../integrations/integrations.types.js";
 import type { IntegrationStatus } from "../integrations/integrations.types.js";
 import type { OrderStatus } from "../orders/orders.types.js";
 import type { ProviderServiceStatus } from "../provider-catalog/provider-catalog.types.js";
+import type { ProductInputField } from "../products/product-inputs.js";
 import {
   type DispatchContext,
   type DispatchOrderItem,
@@ -56,6 +57,7 @@ interface ProviderContextRow extends QueryResultRow {
   min_quantity: number | null;
   max_quantity: number | null;
   integration_status: IntegrationStatus;
+  required_inputs: ProductInputField[];
 }
 
 interface PostgreSqlError { code?: string; constraint?: string }
@@ -157,8 +159,11 @@ export class PostgresFulfillmentsRepository implements FulfillmentsRepository {
     const result = await executor.query<ProviderContextRow>(
       `SELECT ps.id AS provider_service_id, ps.integration_id, ps.provider_key,
               ps.external_service_id, ps.service_type, ps.provider_status,
-              ps.min_quantity, ps.max_quantity, bi.status AS integration_status
+              ps.min_quantity, ps.max_quantity, bi.status AS integration_status,
+              p.required_inputs
        FROM product_provider_mappings ppm
+       JOIN products p
+         ON p.business_id = ppm.business_id AND p.id = ppm.product_id
        JOIN provider_services ps
          ON ps.business_id = ppm.business_id AND ps.id = ppm.provider_service_id
        JOIN business_integrations bi
@@ -178,6 +183,7 @@ export class PostgresFulfillmentsRepository implements FulfillmentsRepository {
       providerMinQuantity: row.min_quantity,
       providerMaxQuantity: row.max_quantity,
       integrationStatus: row.integration_status,
+      requiredInputs: row.required_inputs,
     } : null;
   }
 

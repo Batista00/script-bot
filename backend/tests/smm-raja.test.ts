@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { SmmRajaCatalogAdapter, normalizeSmmRajaServices } from "../src/integrations/smm-raja/smm-raja.adapter.js";
+import { SmmRajaCatalogAdapter, normalizeSmmRajaBalance, normalizeSmmRajaCatalog, normalizeSmmRajaServices, smmRajaOrderCapabilities } from "../src/integrations/smm-raja/smm-raja.adapter.js";
 import { NativeSmmRajaClient, type SmmRajaHttpClient } from "../src/integrations/smm-raja/smm-raja.client.js";
 import type { ActiveIntegration } from "../src/modules/integrations/integrations.types.js";
 import {
   ProviderCatalogUnavailableError,
+  ProviderRequestRejectedError,
   ProviderResponseInvalidError,
   ProviderTemporarilyUnavailableError,
 } from "../src/modules/provider-catalog/provider-catalog.adapter.js";
@@ -55,6 +56,7 @@ test("adapter obtains credentials for the correct Business and returns no API ke
         type: "Default", rate: "1.2500", min: "10", max: "5000",
       }];
     },
+    getBalance: async () => ({ balance: "1.25", currency: "USD" }),
   };
   const adapter = new SmmRajaCatalogAdapter({
     getActiveIntegration: async (businessId: string, providerKey: string) => {
@@ -67,7 +69,7 @@ test("adapter obtains credentials for the correct Business and returns no API ke
 
   assert.deepEqual(businesses, [`${catalogBusinessA}:smm_raja`]);
   assert.deepEqual(clientKeys, [apiKey]);
-  assert.equal(services[0]?.rate, "1.2500");
+  assert.equal(services.services[0]?.rate, "1.2500");
   assert.equal(JSON.stringify(services).includes(apiKey), false);
 });
 
@@ -91,42 +93,123 @@ test("normalization preserves decimal strings, min/max, and safe metadata", () =
     category: "Instagram",
     serviceType: "Default",
     rate: "0.12500000",
-    rateCurrency: null,
+    rateCurrency: "USD",
     minQuantity: 10,
     maxQuantity: 1000,
+    providerDescription: null,
+    orderCapabilities: {
+      supported: true,
+      required: [{ key: "targetUrl", providerField: "link", type: "url" }],
+      optional: [],
+      source: "official",
+    },
     metadata: { refill: true, nested: { public: "kept" } },
   });
 });
 
-test("complete non-list response is invalid", () => {
+test("provider error payload is classified without exposing its message", () => {
   assert.throws(
     () => normalizeSmmRajaServices({ error: "bad response" }),
-    ProviderResponseInvalidError,
+    ProviderRequestRejectedError,
   );
 });
 
-test("invalid rate rejects the complete payload", () => {
-  for (const rate of ["NaN", "Infinity", "-1", "0", "1e3", "arbitrary"]) {
-    assert.throws(
-      () => normalizeSmmRajaServices([{
+test("non-list response without a provider error is invalid", () => {
+  assert.throws(() => normalizeSmmRajaServices({ services: [] }), ProviderResponseInvalidError);
+});
+
+test("invalid individual rates are isolated and reported", () => {
+  for (const rate of ["NaN", "Infinity", "-1", "1e3", "arbitrary"]) {
+    const result = normalizeSmmRajaCatalog([{
         service: "123", name: "Service", rate, min: "1", max: "2",
-      }]),
-      ProviderResponseInvalidError,
-      String(rate),
-    );
+      }]);
+    assert.equal(result.services.length, 0, String(rate));
+    assert.equal(result.rejected, 1, String(rate));
   }
 });
 
-test("invalid service IDs and quantity ranges are rejected", () => {
+test("invalid service IDs and quantity ranges are isolated", () => {
   for (const payload of [
-    { service: "abc", name: "Service", rate: "1" },
     { service: "0", name: "Service", rate: "1" },
-    { service: "1", name: "Service", rate: "1", min: "0" },
+    { service: "invalid id!", name: "Service", rate: "1" },
     { service: "1", name: "Service", rate: "1", min: "20", max: "10" },
     { service: "1", name: "Service", rate: "1", max: "Infinity" },
   ]) {
-    assert.throws(() => normalizeSmmRajaServices([payload]), ProviderResponseInvalidError);
+    const result = normalizeSmmRajaCatalog([payload]);
+    assert.equal(result.services.length, 0);
+    assert.equal(result.rejectionReasons.invalid_service_record, 1);
   }
+});
+
+test("normalization accepts the current Raja opaque IDs and unavailable zero values", () => {
+  const services = normalizeSmmRajaServices([
+    {
+      service: "srv_RAJA-abc123", name: "Package", category: "Instagram",
+      type: "Package", rate: "0", min: 0, max: 1,
+      description: "Editable provider description",
+    },
+    {
+      service: "srv_second", name: "Followers", category: "Instagram",
+      type: "Default", rate: "1.25", min: 100, max: 10_000,
+      description: "Another description",
+    },
+  ]);
+
+  assert.equal(services[0]?.externalServiceId, "srv_RAJA-abc123");
+  assert.equal(services[0]?.rate, null);
+  assert.equal(services[0]?.minQuantity, null);
+  assert.equal(services[0]?.rateCurrency, "USD");
+  assert.equal(services[0]?.providerDescription, "Editable provider description");
+  assert.equal(services[1]?.minQuantity, 100);
+});
+
+test("Raja duplicate service IDs are collapsed deterministically to the first record", () => {
+  const result = normalizeSmmRajaCatalog([
+    { service: "opaque_same", name: "First", rate: "1", min: "1", max: "10" },
+    { service: "opaque_same", name: "Second", rate: "2", min: "2", max: "20" },
+  ]);
+  assert.equal(result.services.length, 1);
+  assert.equal(result.services[0]?.name, "First");
+  assert.equal(result.services[0]?.rate, "1");
+  assert.equal(result.rejected, 1);
+  assert.equal(result.rejectionReasons.duplicate_external_service_id, 1);
+});
+
+test("balance preserves a nonnegative decimal string and ISO currency", () => {
+  assert.deepEqual(normalizeSmmRajaBalance({ balance: "12.3400", currency: "usd" }), {
+    balance: "12.3400", currency: "USD",
+  });
+  assert.throws(() => normalizeSmmRajaBalance({ error: "invalid key" }),
+    ProviderRequestRejectedError);
+});
+
+test("LIVE Raja type variants are represented without guessing undocumented order contracts", () => {
+  for (const supported of [
+    "Default", "Custom Comments", "Package", "Mentions User Followers",
+    "Comment Likes", "Subscriptions", "Drip-feed",
+  ]) {
+    assert.equal(smmRajaOrderCapabilities(supported).supported, true, supported);
+  }
+  for (const unsupported of [
+    "Custom Comments Package", "Invites from Groups", "Mentions",
+    "Mentions Custom List", "Mentions Hashtag", "Mentions Media Likers",
+    "Mentions with Hashtags", "Poll", "SEO", "Web Traffic",
+  ]) {
+    const capabilities = smmRajaOrderCapabilities(unsupported);
+    assert.equal(capabilities.supported, false, unsupported);
+    assert.equal(capabilities.required.length, 0, unsupported);
+  }
+});
+
+test("native client sends the official balance action", async () => {
+  let form: URLSearchParams | undefined;
+  const client = new NativeSmmRajaClient(async (_input, init) => {
+    form = new URLSearchParams(String(init?.body));
+    return new Response('{"balance":"1.50","currency":"USD"}', { status: 200 });
+  });
+  assert.deepEqual(await client.getBalance(apiKey), { balance: "1.50", currency: "USD" });
+  assert.equal(form?.get("action"), "balance");
+  assert.equal(form?.get("key"), apiKey);
 });
 
 test("non-JSON, non-2xx, and network timeout errors are controlled without secrets", async () => {
@@ -156,7 +239,7 @@ test("missing or malformed SMM Raja credentials are not exposed", async () => {
   for (const integration of [null, activeIntegration({}), activeIntegration({ apiKey: "" })]) {
     const adapter = new SmmRajaCatalogAdapter({
       getActiveIntegration: async () => integration,
-    }, { listServices: async () => [] });
+    }, { listServices: async () => [], getBalance: async () => ({}) });
     await assert.rejects(
       adapter.listServices(catalogBusinessA),
       ProviderCatalogUnavailableError,

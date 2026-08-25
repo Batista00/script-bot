@@ -67,7 +67,8 @@ El dominio depende del contrato, no del proveedor concreto. Cambiar una API exte
 - `modules/pricing`: reglas `fixed` o `unit` business-scoped, con dinero entero y rangos activos no ambiguos.
 - `modules/quotes`: snapshots comerciales inmutables del producto y el cálculo de precio ofrecido.
 - `modules/orders`: conversión transaccional de Quotes en ventas comprometidas con Items históricos.
-- `modules/payments`: intentos de pago business-scoped, idempotencia y aprobación atómica del Order mediante un contrato de provider genérico.
+- `modules/payment-methods`: opciones de cobro business-scoped y datos no secretos de transferencia bancaria chilena.
+- `modules/payments`: intentos de pago business-scoped, idempotencia y aprobación atómica del Order mediante providers o confirmación humana explícita de transferencia.
 - `modules/integrations`: configuración provider-agnostic por negocio y credenciales cifradas para adapters.
 - `integrations/mercado-pago`: adapter Checkout Pro, cliente HTTP nativo, verificación HMAC y webhook público.
 - `modules/provider-catalog`: catálogo externo normalizado, sincronización y mappings explícitos hacia Products.
@@ -99,6 +100,8 @@ La conversión de un Quote bloquea su fila y crea el Order, su Item y el estado 
 Payments copia `amount`, `currency` y customer desde el Order. La llamada al provider ocurre después de confirmar el Payment local y nunca dentro de una transacción PostgreSQL. Una aprobación bloquea Payment y Order, valida que sus snapshots monetarios coincidan y realiza `Payment → approved` junto con `Order: pending_payment → paid` en una sola transacción.
 
 El contrato `PaymentProvider` y su registry pertenecen al dominio Payments. El runtime registra el adapter `mercado_pago`, que obtiene credenciales activas desde Integrations Core y crea una preferencia Checkout Pro fuera de cualquier transacción. Payments Core conserva por separado `provider_reference_id` (la preferencia) y `provider_payment_id` (el pago verificado posteriormente), sin introducir tipos de Mercado Pago en el dominio.
+
+`business_payment_methods` separa la opción comercial que ve el cliente del provider técnico. Una transferencia bancaria crea siempre un Payment `pending`; no ejecuta llamadas externas ni se aprueba sola. Solo la ruta administrativa owner/admin acepta una referencia verificada y reutiliza la transición atómica Payment + Order. El Bot Gateway puede listar y elegir métodos, pero no puede confirmar abonos.
 
 ```text
 POST Payment
@@ -134,9 +137,21 @@ ProviderCatalogAdapter
 SmmRajaCatalogAdapter
 ```
 
-Products y Pricing no dependen del payload externo. `provider_services` conserva la fotografía operativa del proveedor por Business e integración; su `rate NUMERIC` se expone como string decimal y nunca se interpreta como precio retail. `product_provider_mappings` admite un único mapping activo por Product y conserva filas inactivas como historial.
+Products y Pricing no dependen del payload externo. `provider_services` conserva la fotografía operativa, descripción, metadata segura y `order_capabilities` del proveedor por Business e integración; su `rate NUMERIC` en USD se expone como string decimal y nunca se interpreta como precio retail ni se convierte automáticamente. `products.required_inputs` traduce el contrato técnico a preguntas comerciales multicanal. La importación crea Product, required inputs, Price en `business.currency` y mapping en una transacción. `product_provider_mappings` admite un único mapping activo por Product, no impone one-to-one por Provider Service y conserva filas inactivas como historial.
 
-El sync valida primero la integración y resuelve el adapter. La llamada HTTPS ocurre sin una transacción PostgreSQL abierta. Solo después de normalizar completamente el catálogo abre una transacción corta, bloquea la integración activa, realiza upsert y desactiva servicios ausentes. Un payload parcialmente inválido no produce escrituras parciales. La desactivación de un Provider Service no modifica Products, Pricing ni mappings existentes.
+El sync valida primero la integración y resuelve el adapter. Las llamadas HTTPS de catálogo y balance ocurren sin una transacción PostgreSQL abierta. El adapter rechaza errores top-level, pero aísla registros individuales inválidos y devuelve estadísticas por razón. Después abre una transacción corta, bloquea la integración activa, realiza upsert, desactiva servicios ausentes y actualiza `provider_catalog_states`. La desactivación de un Provider Service no modifica Products, required inputs, Pricing ni mappings existentes.
+
+La importación comercial de un Provider Service es un caso de uso explícito y distinto del
+sync. Recibe los datos retail editados por el negocio y, sin efectuar llamadas externas, crea
+`Product + ProductPrice + ProductProviderMapping` dentro de una única transacción. Cualquier
+error revierte las tres escrituras. El Business se aplica a cada lookup y escritura; el rate
+mayorista se muestra como referencia, pero nunca se copia como precio retail implícito.
+
+La eliminación física de Product o Customer sólo se permite cuando PostgreSQL confirma que no existe
+historial comercial. Prices y mappings de configuración se eliminan en cascada junto al
+Product; una referencia desde Quote, Order Item o Fulfillment produce conflicto y la opción
+correcta es desactivar el registro. Los Prices individuales se pueden eliminar porque Quotes y Orders guardan snapshots. Quotes, Orders, Payments y Fulfillments nunca se eliminan
+desde la API administrativa.
 
 ## Fulfillment
 

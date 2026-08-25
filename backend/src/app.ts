@@ -17,6 +17,7 @@ import { ApiCredentialsService } from "./modules/api-credentials/api-credentials
 import { authPlugin } from "./modules/auth/auth.plugin.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { businessesRoutes } from "./modules/businesses/businesses.routes.js";
+import { PostgresBusinessesRepository } from "./modules/businesses/businesses.repository.js";
 import { botGatewayRoutes } from "./modules/bot-gateway/bot-gateway.routes.js";
 import { BotGatewayService } from "./modules/bot-gateway/bot-gateway.service.js";
 import { PostgresCategoriesRepository } from "./modules/categories/categories.repository.js";
@@ -42,6 +43,10 @@ import { paymentsRoutes } from "./modules/payments/payments.routes.js";
 import { PaymentProviderRegistry } from "./modules/payments/payments.registry.js";
 import { PostgresPaymentsRepository } from "./modules/payments/payments.repository.js";
 import { PaymentsService } from "./modules/payments/payments.service.js";
+import { BankTransferPaymentProvider } from "./modules/payments/bank-transfer.provider.js";
+import { PostgresPaymentMethodsRepository } from "./modules/payment-methods/payment-methods.repository.js";
+import { paymentMethodsRoutes } from "./modules/payment-methods/payment-methods.routes.js";
+import { PaymentMethodsService } from "./modules/payment-methods/payment-methods.service.js";
 import { PriceCalculatorService } from "./modules/pricing/price-calculator.service.js";
 import { PostgresPricingRepository } from "./modules/pricing/pricing.repository.js";
 import { pricingRoutes } from "./modules/pricing/pricing.routes.js";
@@ -53,6 +58,7 @@ import { PostgresProviderCatalogRepository } from "./modules/provider-catalog/pr
 import { ProviderCatalogRegistry } from "./modules/provider-catalog/provider-catalog.registry.js";
 import { providerCatalogRoutes } from "./modules/provider-catalog/provider-catalog.routes.js";
 import { ProviderCatalogService } from "./modules/provider-catalog/provider-catalog.service.js";
+import { ProviderProductImportService } from "./modules/provider-catalog/provider-product-import.service.js";
 import { PostgresQuotesRepository } from "./modules/quotes/quotes.repository.js";
 import { quotesRoutes } from "./modules/quotes/quotes.routes.js";
 import { QuotesService } from "./modules/quotes/quotes.service.js";
@@ -84,10 +90,14 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
     config.PUBLIC_API_BASE_URL,
     config.NODE_ENV,
   );
+  const paymentMethodsRepository = new PostgresPaymentMethodsRepository(app.db);
+  const paymentMethodsService = new PaymentMethodsService(paymentMethodsRepository);
   const paymentsService = new PaymentsService(
     new PostgresPaymentsRepository(app.db),
     app.db,
-    new PaymentProviderRegistry([mercadoPagoProvider]),
+    new PaymentProviderRegistry([mercadoPagoProvider, new BankTransferPaymentProvider()]),
+    undefined,
+    paymentMethodsRepository,
   );
   const mercadoPagoWebhookService = new MercadoPagoWebhookService(
     integrationsService,
@@ -104,6 +114,16 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
     new ProviderCatalogRegistry([
       new SmmRajaCatalogAdapter(integrationsService, smmRajaClient),
     ]),
+    undefined,
+    (failure) => app.log.warn(failure, "Provider catalog sync failed"),
+  );
+  const providerProductImportService = new ProviderProductImportService(
+    app.db,
+    new PostgresProviderCatalogRepository(app.db),
+    new PostgresCategoriesRepository(app.db),
+    new PostgresProductsRepository(app.db),
+    new PostgresPricingRepository(app.db),
+    new PostgresBusinessesRepository(app.db),
   );
   const fulfillmentService = new FulfillmentsService(
     new PostgresFulfillmentsRepository(app.db),
@@ -124,7 +144,7 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
     new CustomersService(customersRepository),
     new CategoriesService(categoriesRepository),
     new ProductsService(productsRepository, categoriesRepository),
-    new PricingService(pricingRepository, productsRepository),
+    new PricingService(pricingRepository, productsRepository, new PostgresBusinessesRepository(app.db)),
     new QuotesService(
       new PostgresQuotesRepository(app.db),
       new PriceCalculatorService(productsRepository, pricingRepository),
@@ -133,6 +153,8 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
     new OrdersService(new PostgresOrdersRepository(app.db), app.db),
     paymentsService,
     fulfillmentService,
+    paymentMethodsService,
+    new PostgresBusinessesRepository(app.db),
   );
   await app.register(healthRoutes);
   await app.register(mercadoPagoWebhookRoutes, { service: mercadoPagoWebhookService });
@@ -148,12 +170,16 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   await app.register(customersRoutes);
   await app.register(categoriesRoutes);
   await app.register(productsRoutes);
-  await app.register(providerCatalogRoutes, { service: providerCatalogService });
+  await app.register(providerCatalogRoutes, {
+    service: providerCatalogService,
+    importService: providerProductImportService,
+  });
   await app.register(fulfillmentsRoutes, { service: fulfillmentService });
   await app.register(pricingRoutes);
   await app.register(quotesRoutes);
   await app.register(ordersRoutes);
   await app.register(paymentsRoutes, { service: paymentsService });
+  await app.register(paymentMethodsRoutes, { service: paymentMethodsService });
 
   return app;
 }

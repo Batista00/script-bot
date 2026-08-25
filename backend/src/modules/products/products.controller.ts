@@ -64,4 +64,12 @@ export class ProductsController {
     );
     return reply.status(200).send(product);
   };
+
+  delete = async (
+    request: FastifyRequest<{ Params: ProductIdParams }>,
+    reply: FastifyReply,
+  ): Promise<FastifyReply> => {
+    await this.service.delete(request.params.businessId, request.params.productId);
+    return reply.status(204).send();
+  };
 }

@@ -8,6 +8,7 @@ import {
   type NormalizedProviderService,
   type ProductProviderMapping,
   type ProviderCatalogRepository,
+  type ProviderCatalogState,
   type ProviderMappingStatus,
   type ProviderService,
   type ProviderServiceListOptions,
@@ -26,16 +27,20 @@ function clone<T>(value: T): T { return structuredClone(value); }
 export class MemoryProviderCatalogRepository implements ProviderCatalogRepository {
   readonly services: ProviderService[] = [];
   readonly mappings: ProductProviderMapping[] = [];
-  private snapshot: { services: ProviderService[]; mappings: ProductProviderMapping[] } | undefined;
+  readonly states: ProviderCatalogState[] = [];
+  private snapshot: { services: ProviderService[]; mappings: ProductProviderMapping[];
+    states: ProviderCatalogState[] } | undefined;
 
   begin(): void {
-    this.snapshot = { services: clone(this.services), mappings: clone(this.mappings) };
+    this.snapshot = { services: clone(this.services), mappings: clone(this.mappings),
+      states: clone(this.states) };
   }
   commit(): void { this.snapshot = undefined; }
   rollback(): void {
     if (!this.snapshot) return;
     this.services.splice(0, this.services.length, ...this.snapshot.services);
     this.mappings.splice(0, this.mappings.length, ...this.snapshot.mappings);
+    this.states.splice(0, this.states.length, ...this.snapshot.states);
     this.snapshot = undefined;
   }
 
@@ -44,7 +49,9 @@ export class MemoryProviderCatalogRepository implements ProviderCatalogRepositor
       (options.integrationId === undefined || service.integrationId === options.integrationId) &&
       (options.providerKey === undefined || service.providerKey === options.providerKey) &&
       (options.providerStatus === undefined || service.providerStatus === options.providerStatus) &&
-      (options.category === undefined || service.category === options.category))
+      (options.category === undefined || service.category === options.category) &&
+      (options.externalServiceId === undefined ||
+        service.externalServiceId === options.externalServiceId))
       .slice(options.offset, options.offset + options.limit).map(clone);
   }
 
@@ -54,16 +61,19 @@ export class MemoryProviderCatalogRepository implements ProviderCatalogRepositor
     return service ? clone(service) : null;
   }
 
-  async listExternalServiceIds(
+  async listServiceIdentities(
     businessId: string,
     integrationId: string,
     _executor: DatabaseExecutor,
-  ): Promise<string[]> {
+  ) {
     return this.services.filter((service) => service.businessId === businessId &&
-      service.integrationId === integrationId).map((service) => service.externalServiceId);
+      service.integrationId === integrationId).map((service) => ({
+        externalServiceId: service.externalServiceId,
+        providerStatus: service.providerStatus,
+      }));
   }
 
-  async lockActiveIntegrationForSync(): Promise<boolean> { return true; }
+  async lockActiveIntegration(): Promise<boolean> { return true; }
 
   async upsertServices(
     businessId: string,
@@ -110,6 +120,26 @@ export class MemoryProviderCatalogRepository implements ProviderCatalogRepositor
       }
     }
     return count;
+  }
+
+  async saveCatalogState(
+    businessId: string,
+    integrationId: string,
+    input: Omit<ProviderCatalogState, "businessId" | "integrationId" | "updatedAt">,
+  ): Promise<void> {
+    const state = { ...clone(input), businessId, integrationId, updatedAt: catalogNow };
+    const index = this.states.findIndex((item) => item.integrationId === integrationId);
+    if (index === -1) this.states.push(state);
+    else this.states[index] = state;
+  }
+
+  async findCatalogState(
+    businessId: string,
+    integrationId: string,
+  ): Promise<ProviderCatalogState | null> {
+    const state = this.states.find((item) =>
+      item.businessId === businessId && item.integrationId === integrationId);
+    return state ? clone(state) : null;
   }
 
   async findCurrentMapping(

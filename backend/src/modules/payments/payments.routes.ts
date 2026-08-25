@@ -7,6 +7,7 @@ import {
 } from "../auth/auth.middleware.js";
 import {
   type IdempotencyHeaders,
+  type ConfirmBankTransferInput,
   type PaymentBusinessParams,
   PaymentsController,
   type PaymentIdParams,
@@ -14,6 +15,7 @@ import {
 } from "./payments.controller.js";
 import {
   createPaymentSchema,
+  confirmBankTransferSchema,
   getPaymentSchema,
   listOrderPaymentsSchema,
   listPaymentsSchema,
@@ -60,5 +62,17 @@ export const paymentsRoutes: FastifyPluginAsync<PaymentsRoutesOptions> = async (
     "/businesses/:businessId/orders/:orderId/payments",
     { schema: listOrderPaymentsSchema, preHandler: authorization },
     controller.listByOrder,
+  );
+  app.post<{ Params: PaymentIdParams; Body: ConfirmBankTransferInput }>(
+    "/businesses/:businessId/payments/:paymentId/confirm-bank-transfer",
+    {
+      schema: confirmBankTransferSchema,
+      preHandler: [
+        requireAuthenticatedUser(app.authService),
+        requireBusinessMembership(app.membershipsRepository),
+        requireBusinessRole(["owner", "admin"]),
+      ],
+    },
+    controller.confirmBankTransfer,
   );
 };

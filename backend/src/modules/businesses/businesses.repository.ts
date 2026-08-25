@@ -12,6 +12,7 @@ import type {
 interface BusinessRow extends QueryResultRow {
   id: string;
   name: string;
+  currency: string;
   status: BusinessStatus;
   created_at: Date | string;
   updated_at: Date | string;
@@ -25,13 +26,14 @@ function mapBusiness(row: BusinessRow): Business {
   return {
     id: row.id,
     name: row.name,
+    currency: row.currency,
     status: row.status,
     createdAt: toIsoString(row.created_at),
     updatedAt: toIsoString(row.updated_at),
   };
 }
 
-const returningColumns = "id, name, status, created_at, updated_at";
+const returningColumns = "id, name, currency, status, created_at, updated_at";
 
 export class PostgresBusinessesRepository implements BusinessesRepository {
   constructor(private readonly db: DatabaseExecutor) {}
@@ -57,7 +59,7 @@ export class PostgresBusinessesRepository implements BusinessesRepository {
     executor: DatabaseExecutor = this.db,
   ): Promise<Business[]> {
     const result = await executor.query<BusinessRow>(
-      `SELECT b.id, b.name, b.status, b.created_at, b.updated_at
+      `SELECT b.id, b.name, b.currency, b.status, b.created_at, b.updated_at
        FROM businesses b
        INNER JOIN business_memberships bm ON bm.business_id = b.id
        WHERE bm.user_id = $1
@@ -91,11 +93,12 @@ export class PostgresBusinessesRepository implements BusinessesRepository {
     const result = await executor.query<BusinessRow>(
       `UPDATE businesses
        SET name = COALESCE($2, name),
-           status = COALESCE($3::business_status, status),
+           currency = COALESCE($3, currency),
+           status = COALESCE($4::business_status, status),
            updated_at = now()
        WHERE id = $1
        RETURNING ${returningColumns}`,
-      [id, input.name ?? null, input.status ?? null],
+      [id, input.name ?? null, input.currency ?? null, input.status ?? null],
     );
     const row = result.rows[0];
 

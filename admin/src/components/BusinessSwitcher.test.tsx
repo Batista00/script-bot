@@ -4,8 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { BusinessSwitcher } from "./BusinessSwitcher";
 
-const a = { id: "business-a", name: "Cliente A", status: "active", role: "owner" } as const;
-const b = { id: "business-b", name: "Cliente B", status: "active", role: "admin" } as const;
+const a = { id: "business-a", name: "Cliente A", currency: "CLP", status: "active", role: "owner" } as const;
+const b = { id: "business-b", name: "Cliente B", currency: "CLP", status: "active", role: "admin" } as const;
 function Location() { return <span data-testid="location">{useLocation().pathname}</span>; }
 
 test("switches the explicit URL and removes only the previous business cache", async () => {

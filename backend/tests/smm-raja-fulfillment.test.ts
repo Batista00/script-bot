@@ -80,7 +80,7 @@ test("SMM Raja adapter builds each documented service shape exactly", async () =
     getActiveIntegrationById: async () => integration(),
   }, client);
   const cases: Array<[string, JsonObject, Record<string, string>]> = [
-    [" Default ", { link: "https://instagram.com/a" },
+    [" Default ", { targetUrl: "https://instagram.com/a" },
       { link: "https://instagram.com/a", quantity: "100" }],
     ["CUSTOM-COMMENTS", { link: "https://instagram.com/a", comments: "one\ntwo" },
       { link: "https://instagram.com/a", comments: "one\ntwo" }],
@@ -89,7 +89,7 @@ test("SMM Raja adapter builds each documented service shape exactly", async () =
     ["Package", { link: "https://instagram.com/a" }, { link: "https://instagram.com/a" }],
     ["Drip-feed", { link: "https://instagram.com/a", runs: 3, interval: 15 },
       { link: "https://instagram.com/a", quantity: "100", runs: "3", interval: "15" }],
-    ["Subscriptions", { username: "alice", min: 10, max: 50, posts: 5,
+    ["Subscriptions", { username: "alice", minimum: 10, maximum: 50, posts: 5,
       delay: 0, expiry: "31/12/2026" },
       { username: "alice", min: "10", max: "50", posts: "5", delay: "0",
         expiry: "31/12/2026" }],

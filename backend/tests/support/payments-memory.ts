@@ -106,6 +106,7 @@ export class MemoryPaymentsRepository implements PaymentsRepository {
     }
     const payment: Payment = {
       id: randomUUID(), businessId, orderId: input.orderId,
+      paymentMethodId: input.paymentMethodId ?? null,
       providerKey: input.providerKey, providerReferenceId: null,
       providerPaymentId: null, status: "pending",
       amount: input.amount, currency: input.currency, checkoutUrl: null,

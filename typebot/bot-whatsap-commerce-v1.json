@@ -28,8 +28,7 @@
                   {
                     "id": "cmpremotejidempty",
                     "variableId": "vremotejid",
-                    "comparisonOperator": "Equal to",
-                    "value": ""
+                    "comparisonOperator": "Is empty"
                   }
                 ]
               }
@@ -120,7 +119,7 @@
             {
               "id": "itmcustomermissing",
               "outgoingEdgeId": "edgecustomererror",
-              "content": { "comparisons": [{ "id": "cmpcustomerempty", "variableId": "vcustomerid", "comparisonOperator": "Equal to", "value": "" }] }
+              "content": { "comparisons": [{ "id": "cmpcustomerempty", "variableId": "vcustomerid", "comparisonOperator": "Is empty" }] }
             }
           ],
           "outgoingEdgeId": "edgecustomerproducts"
@@ -149,26 +148,26 @@
               ]
             },
             "responseVariableMapping": [
-              { "id": "mapproduct1id", "bodyPath": "data.0.productId", "variableId": "vproduct1id" },
-              { "id": "mapproduct1name", "bodyPath": "data.0.name", "variableId": "vproduct1name" },
-              { "id": "mapproduct1min", "bodyPath": "data.0.minQuantity", "variableId": "vproduct1min" },
-              { "id": "mapproduct1max", "bodyPath": "data.0.maxQuantity", "variableId": "vproduct1max" },
-              { "id": "mapproduct2id", "bodyPath": "data.1.productId", "variableId": "vproduct2id" },
-              { "id": "mapproduct2name", "bodyPath": "data.1.name", "variableId": "vproduct2name" },
-              { "id": "mapproduct2min", "bodyPath": "data.1.minQuantity", "variableId": "vproduct2min" },
-              { "id": "mapproduct2max", "bodyPath": "data.1.maxQuantity", "variableId": "vproduct2max" },
-              { "id": "mapproduct3id", "bodyPath": "data.2.productId", "variableId": "vproduct3id" },
-              { "id": "mapproduct3name", "bodyPath": "data.2.name", "variableId": "vproduct3name" },
-              { "id": "mapproduct3min", "bodyPath": "data.2.minQuantity", "variableId": "vproduct3min" },
-              { "id": "mapproduct3max", "bodyPath": "data.2.maxQuantity", "variableId": "vproduct3max" },
-              { "id": "mapproduct4id", "bodyPath": "data.3.productId", "variableId": "vproduct4id" },
-              { "id": "mapproduct4name", "bodyPath": "data.3.name", "variableId": "vproduct4name" },
-              { "id": "mapproduct4min", "bodyPath": "data.3.minQuantity", "variableId": "vproduct4min" },
-              { "id": "mapproduct4max", "bodyPath": "data.3.maxQuantity", "variableId": "vproduct4max" },
-              { "id": "mapproduct5id", "bodyPath": "data.4.productId", "variableId": "vproduct5id" },
-              { "id": "mapproduct5name", "bodyPath": "data.4.name", "variableId": "vproduct5name" },
-              { "id": "mapproduct5min", "bodyPath": "data.4.minQuantity", "variableId": "vproduct5min" },
-              { "id": "mapproduct5max", "bodyPath": "data.4.maxQuantity", "variableId": "vproduct5max" }
+              { "id": "mapproduct1id", "bodyPath": "data[0].productId", "variableId": "vproduct1id" },
+              { "id": "mapproduct1name", "bodyPath": "data[0].name", "variableId": "vproduct1name" },
+              { "id": "mapproduct1min", "bodyPath": "data[0].minQuantity", "variableId": "vproduct1min" },
+              { "id": "mapproduct1max", "bodyPath": "data[0].maxQuantity", "variableId": "vproduct1max" },
+              { "id": "mapproduct2id", "bodyPath": "data[1].productId", "variableId": "vproduct2id" },
+              { "id": "mapproduct2name", "bodyPath": "data[1].name", "variableId": "vproduct2name" },
+              { "id": "mapproduct2min", "bodyPath": "data[1].minQuantity", "variableId": "vproduct2min" },
+              { "id": "mapproduct2max", "bodyPath": "data[1].maxQuantity", "variableId": "vproduct2max" },
+              { "id": "mapproduct3id", "bodyPath": "data[2].productId", "variableId": "vproduct3id" },
+              { "id": "mapproduct3name", "bodyPath": "data[2].name", "variableId": "vproduct3name" },
+              { "id": "mapproduct3min", "bodyPath": "data[2].minQuantity", "variableId": "vproduct3min" },
+              { "id": "mapproduct3max", "bodyPath": "data[2].maxQuantity", "variableId": "vproduct3max" },
+              { "id": "mapproduct4id", "bodyPath": "data[3].productId", "variableId": "vproduct4id" },
+              { "id": "mapproduct4name", "bodyPath": "data[3].name", "variableId": "vproduct4name" },
+              { "id": "mapproduct4min", "bodyPath": "data[3].minQuantity", "variableId": "vproduct4min" },
+              { "id": "mapproduct4max", "bodyPath": "data[3].maxQuantity", "variableId": "vproduct4max" },
+              { "id": "mapproduct5id", "bodyPath": "data[4].productId", "variableId": "vproduct5id" },
+              { "id": "mapproduct5name", "bodyPath": "data[4].name", "variableId": "vproduct5name" },
+              { "id": "mapproduct5min", "bodyPath": "data[4].minQuantity", "variableId": "vproduct5min" },
+              { "id": "mapproduct5max", "bodyPath": "data[4].maxQuantity", "variableId": "vproduct5max" }
             ]
           }
         },
@@ -179,7 +178,7 @@
             {
               "id": "itmproductsnone",
               "outgoingEdgeId": "edgeproductserror",
-              "content": { "comparisons": [{ "id": "cmpproduct1empty", "variableId": "vproduct1id", "comparisonOperator": "Equal to", "value": "" }] }
+              "content": { "comparisons": [{ "id": "cmpproduct1empty", "variableId": "vproduct1id", "comparisonOperator": "Is empty" }] }
             }
           ],
           "outgoingEdgeId": "edgeproductsmenu"
@@ -280,7 +279,7 @@
             {
               "id": "itmselectedempty",
               "outgoingEdgeId": "edgeselectedunavailable",
-              "content": { "comparisons": [{ "id": "cmpselectedempty", "variableId": "vselectedproductid", "comparisonOperator": "Equal to", "value": "" }] }
+              "content": { "comparisons": [{ "id": "cmpselectedempty", "variableId": "vselectedproductid", "comparisonOperator": "Is empty" }] }
             }
           ],
           "outgoingEdgeId": "edgeselectedquantity"
@@ -333,7 +332,8 @@
           "type": "Set variable",
           "options": {
             "variableId": "vquantity",
-            "expressionToEvaluate": "Number.isInteger(Number(\"{{quantityInput}}\")) && Number(\"{{quantityInput}}\") > 0 ? Number(\"{{quantityInput}}\") : \"\""
+            "isCode": true,
+            "expressionToEvaluate": "Number.isInteger(Number({{quantityInput}})) && Number({{quantityInput}}) > 0 ? Number({{quantityInput}}) : \"\""
           }
         },
         {
@@ -343,7 +343,7 @@
             {
               "id": "itmquantityinvalid",
               "outgoingEdgeId": "edgequantityinvalid",
-              "content": { "comparisons": [{ "id": "cmpquantityempty", "variableId": "vquantity", "comparisonOperator": "Equal to", "value": "" }] }
+              "content": { "comparisons": [{ "id": "cmpquantityempty", "variableId": "vquantity", "comparisonOperator": "Is empty" }] }
             }
           ],
           "outgoingEdgeId": "edgequantityquote"
@@ -380,7 +380,7 @@
                 { "id": "hdrauthquote", "key": "Authorization", "value": "Bearer {{backend_token}}" },
                 { "id": "hdrctquote", "key": "Content-Type", "value": "application/json" }
               ],
-              "body": "{\n  \"productId\": \"{{selectedProductId}}\",\n  \"quantity\": {{quantity}},\n  \"currency\": \"CLP\",\n  \"customerId\": \"{{customerId}}\"\n}"
+              "body": "{\n  \"productId\": \"{{selectedProductId}}\",\n  \"quantity\": {{quantity}},\n  \"customerId\": \"{{customerId}}\"\n}"
             },
             "isCustomBody": true,
             "responseVariableMapping": [
@@ -400,7 +400,7 @@
             {
               "id": "itmquotemissing",
               "outgoingEdgeId": "edgequoteerror",
-              "content": { "comparisons": [{ "id": "cmpquoteempty", "variableId": "vquoteid", "comparisonOperator": "Equal to", "value": "" }] }
+              "content": { "comparisons": [{ "id": "cmpquoteempty", "variableId": "vquoteid", "comparisonOperator": "Is empty" }] }
             }
           ],
           "outgoingEdgeId": "edgequotesummary"
@@ -450,7 +450,7 @@
             "responseVariableMapping": [
               { "id": "maporderid", "bodyPath": "data.orderId", "variableId": "vorderid" },
               { "id": "maporderstatus", "bodyPath": "data.status", "variableId": "vorderstatus" },
-              { "id": "maporderitemid", "bodyPath": "data.items.0.orderItemId", "variableId": "vorderitemid" },
+              { "id": "maporderitemid", "bodyPath": "data.items[0].orderItemId", "variableId": "vorderitemid" },
               { "id": "mapordertotal", "bodyPath": "data.total", "variableId": "vordertotal" }
             ]
           }
@@ -462,7 +462,7 @@
             {
               "id": "itmordermissing",
               "outgoingEdgeId": "edgeordererror",
-              "content": { "comparisons": [{ "id": "cmporderempty", "variableId": "vorderid", "comparisonOperator": "Equal to", "value": "" }] }
+              "content": { "comparisons": [{ "id": "cmporderempty", "variableId": "vorderid", "comparisonOperator": "Is empty" }] }
             }
           ],
           "outgoingEdgeId": "edgeorderpayment"
@@ -513,7 +513,7 @@
             {
               "id": "itmpaymentmissing",
               "outgoingEdgeId": "edgepaymenterror",
-              "content": { "comparisons": [{ "id": "cmppaymentempty", "variableId": "vpaymentid", "comparisonOperator": "Equal to", "value": "" }] }
+              "content": { "comparisons": [{ "id": "cmppaymentempty", "variableId": "vpaymentid", "comparisonOperator": "Is empty" }] }
             }
           ],
           "outgoingEdgeId": "edgepaymentstatus"
@@ -552,7 +552,7 @@
             {
               "id": "itmcheckoutmissing",
               "outgoingEdgeId": "edgecheckouterror",
-              "content": { "comparisons": [{ "id": "cmpcheckoutempty", "variableId": "vcheckouturl", "comparisonOperator": "Equal to", "value": "" }] }
+              "content": { "comparisons": [{ "id": "cmpcheckoutempty", "variableId": "vcheckouturl", "comparisonOperator": "Is empty" }] }
             }
           ],
           "outgoingEdgeId": "edgecheckoutready"

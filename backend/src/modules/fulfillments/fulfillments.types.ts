@@ -3,6 +3,7 @@ import type { JsonObject } from "../integrations/integrations.types.js";
 import type { IntegrationStatus } from "../integrations/integrations.types.js";
 import type { OrderStatus } from "../orders/orders.types.js";
 import type { ProviderServiceStatus } from "../provider-catalog/provider-catalog.types.js";
+import type { ProductInputField } from "../products/product-inputs.js";
 
 export const fulfillmentStatuses = [
   "pending", "submitting", "submitted", "in_progress", "completed",
@@ -73,6 +74,7 @@ export interface DispatchProviderContext {
   providerMinQuantity: number | null;
   providerMaxQuantity: number | null;
   integrationStatus: IntegrationStatus;
+  requiredInputs?: ProductInputField[];
 }
 
 export interface DispatchContext extends DispatchOrderItem, DispatchProviderContext {

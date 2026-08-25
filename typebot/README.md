@@ -21,7 +21,7 @@ Si `remoteJid` llega vacío, el flujo pide nombre y teléfono. Esto permite prob
 3. Valida una selección numérica de `1` a `5` y una cantidad entera positiva.
 4. Crea el Quote con `POST /bot/v1/quotes`; el total mostrado proviene exclusivamente de `totalPrice` del backend.
 5. Tras confirmación explícita, crea el Order con `POST /bot/v1/orders`.
-6. Construye `paymentIdempotencyKey` como `typebot-{{orderId}}-mercado-pago-v1` y crea el Payment con `POST /bot/v1/orders/:orderId/payments` usando `providerKey: mercado_pago`.
+6. El Gateway permite consultar métodos activos con `GET /bot/v1/payment-methods` y crear el Payment usando `paymentMethodId`; el template versionado conserva `providerKey: mercado_pago` como flujo compatible predeterminado.
 7. Muestra `checkoutUrl` y consulta manualmente `GET /bot/v1/payments/:paymentId` cuando el usuario elige revisar el pago.
 8. Enruta `approved`, `pending`, `rejected`, `cancelled`, `expired` y `failed` sin permitir que Typebot apruebe un pago.
 
@@ -46,9 +46,12 @@ Desde la raíz del repositorio:
 
 ```bash
 node typebot/validate-typebot.mjs
+node --test typebot/validate-typebot.test.mjs
 ```
 
-El validador usa solo Node.js estándar y revisa estructura, referencias, variables, endpoints, headers y ausencia de secretos.
+El validador usa solo Node.js estándar y revisa estructura, referencias, variables, endpoints,
+headers, ausencia de secretos, condiciones `Is empty`, rutas de arrays con corchetes y la
+conversión segura de cantidad en modo código.
 
 ## Fuera de alcance
 
