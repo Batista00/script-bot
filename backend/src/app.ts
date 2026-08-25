@@ -1,6 +1,9 @@
 import Fastify, { type FastifyInstance } from "fastify";
 
 import type { Env } from "./config/env.js";
+import { AiOrchestratorService } from "./modules/ai-orchestrator/ai-orchestrator.service.js";
+import { aiOrchestratorRoutes } from "./modules/ai-orchestrator/ai-orchestrator.routes.js";
+import { OpenAiResponsesClient } from "./modules/ai-orchestrator/openai-responses.client.js";
 import { databasePlugin } from "./core/database/database.plugin.js";
 import { registerErrorHandler } from "./core/errors/error-handler.js";
 import { createLoggerOptions } from "./core/logger/logger.js";
@@ -137,6 +140,15 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   );
   const apiCredentialsRepository = new PostgresApiCredentialsRepository(app.db);
   const apiCredentialsService = new ApiCredentialsService(apiCredentialsRepository);
+  const machineAuthService = new MachineAuthService(apiCredentialsRepository);
+
+  const aiOrchestratorService = new AiOrchestratorService(
+    new OpenAiResponsesClient({
+      apiKey: config.OPENAI_API_KEY,
+      model: config.OPENAI_MODEL ?? "gpt-5.4-nano",
+      timeoutMs: config.OPENAI_TIMEOUT_MS ?? 10_000,
+    }),
+  );
   const categoriesRepository = new PostgresCategoriesRepository(app.db);
   const customersRepository = new PostgresCustomersRepository(app.db);
   const productsRepository = new PostgresProductsRepository(app.db);
@@ -166,7 +178,12 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   await app.register(botGatewayRoutes, {
     prefix: "/bot/v1",
     service: botGatewayService,
-    machineAuth: new MachineAuthService(apiCredentialsRepository),
+    machineAuth: machineAuthService,
+  });
+  await app.register(aiOrchestratorRoutes, {
+    prefix: "/bot/v1/assistant",
+    service: aiOrchestratorService,
+    machineAuth: machineAuthService,
   });
   await app.register(customersRoutes);
   await app.register(categoriesRoutes);

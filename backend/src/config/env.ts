@@ -26,6 +26,20 @@ const envSchema = z.object({
       "PUBLIC_API_BASE_URL must use the http or https protocol",
     ).optional(),
   ),
+
+  OPENAI_API_KEY: z.preprocess(
+    (v) => v === "" ? undefined : v,
+    z.string().min(20).max(512).optional(),
+  ),
+  OPENAI_MODEL: z.preprocess(
+    (v) => v === "" ? undefined : v,
+    z.string().min(1).max(128).optional(),
+  ),
+  OPENAI_TIMEOUT_MS: z.preprocess(
+    (v) => v === "" ? undefined : v,
+    z.coerce.number().int().min(1000).max(30000).optional(),
+  ),
+
 });
 
 export type Env = z.infer<typeof envSchema>;
