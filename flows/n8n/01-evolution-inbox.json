@@ -46,7 +46,41 @@
         0
       ],
       "parameters": {
-        "jsCode": "function normalizeEvolution(body,expectedInstance){\n  if(!body || body.instance!==expectedInstance)throw new Error(\"EVOLUTION_INSTANCE_MISMATCH\");\n  if(![\"messages.upsert\",\"MESSAGES_UPSERT\"].includes(body.event))return null;\n  const data=body.data;const key=data?.key;\n  if(!key || key.fromMe || !key.id)return null;\n  const remote=String(key.remoteJid ?? \"\");\n  if(remote.endsWith(\"@g.us\") || remote===\"status@broadcast\")return null;\n  const jid=remote.endsWith(\"@s.whatsapp.net\") ? remote : String(key.remoteJidAlt ?? \"\");\n  if(!/^[0-9]{8,15}(?::[0-9]+)?@s\\.whatsapp\\.net$/.test(jid))throw new Error(\"PHONE_IDENTITY_UNRESOLVED\");\n  const contact=jid.split(\"@\")[0].split(\":\")[0];\n  const message=data.message ?? {};\n  const image=Boolean(message.imageMessage);\n  const text=message.conversation ?? message.extendedTextMessage?.text ?? message.imageMessage?.caption ?? \"\";\n  if(!image && !text)return null;\n  return {contact,name:String(data.pushName||contact).slice(0,120),messageId:String(key.id).slice(0,128),text:String(text).slice(0,10000),image};\n}\nconst message=normalizeEvolution($json.body,$json.config.instance);return message?[{json:message}]:[];"
+        "jsCode": "function normalizeEvolution(body,expectedInstance){\n  if(!body || body.instance!==expectedInstance)throw new Error(\"EVOLUTION_INSTANCE_MISMATCH\");\n  if(![\"messages.upsert\",\"MESSAGES_UPSERT\"].includes(body.event))return null;\n  const data=body.data;const key=data?.key;\n  if(!key || key.fromMe || !key.id)return null;\n  const remote=String(key.remoteJid ?? \"\");\n  if(remote.endsWith(\"@g.us\") || remote===\"status@broadcast\")return null;\n  const jid=remote.endsWith(\"@s.whatsapp.net\") ? remote : String(key.remoteJidAlt ?? \"\");\n  if(!/^[0-9]{8,15}(?::[0-9]+)?@s\\.whatsapp\\.net$/.test(jid))throw new Error(\"PHONE_IDENTITY_UNRESOLVED\");\n  const contact=jid.split(\"@\")[0].split(\":\")[0];\n  const message=data.message ?? {};\n  const image=Boolean(message.imageMessage);\n  const text=message.conversation ?? message.extendedTextMessage?.text ?? message.imageMessage?.caption ?? \"\";\n  if(!image && !text)return null;\n  return {contact,name:String(data.pushName||contact).slice(0,120),messageId:String(key.id).slice(0,128),text:String(text).slice(0,10000),image};\n}\nconst message=normalizeEvolution($json.body,$json.config.instance);return [{json:message ?? {ignored:true}}];"
+      }
+    },
+    {
+      "id": "has-message",
+      "name": "Has message",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "Has message-condition",
+              "leftValue": "={{ Boolean($json.contact) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       }
     },
     {
@@ -55,7 +89,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        720,
+        960,
         0
       ],
       "parameters": {
@@ -79,6 +113,19 @@
         "httpHeaderAuth": {
           "name": "BW Backend"
         }
+      }
+    },
+    {
+      "id": "ignore-safely",
+      "name": "Ignore safely",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "jsCode": "return [{json:{ok:true,ignored:true}}];"
       }
     }
   ],
@@ -109,7 +156,25 @@
       "main": [
         [
           {
+            "node": "Has message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has message": {
+      "main": [
+        [
+          {
             "node": "Save inbox",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignore safely",
             "type": "main",
             "index": 0
           }

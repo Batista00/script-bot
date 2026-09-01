@@ -39,3 +39,11 @@ test("Typebot 6.1 presentation has valid references and no business/provider cre
   const code=builder.options.expressionToEvaluate.replaceAll("{{message_id}}",JSON.stringify("fixture")).replaceAll("{{customer_message}}",JSON.stringify(input));
   assert.deepEqual(JSON.parse(new Function(`return (${code})`)()),{messageId:"fixture",text:input});
 });
+
+test("Evolution ingress acknowledges ignored events without persisting them",()=>{
+  const w=ingress();
+  assert.deepEqual(w.connections["Has message"].main[0],[{node:"Save inbox",type:"main",index:0}]);
+  assert.deepEqual(w.connections["Has message"].main[1],[{node:"Ignore safely",type:"main",index:0}]);
+  const normalize=w.nodes.find(n=>n.name==="Normalize incoming");
+  assert.match(normalize.parameters.jsCode,/message \?\? \{ignored:true\}/);
+});
