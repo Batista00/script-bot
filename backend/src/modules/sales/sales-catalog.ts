@@ -36,6 +36,27 @@ export function catalogTermGroups(value: AiInterpretation): string[][] {
   return groups.slice(0, 6);
 }
 
+function containsTerm(text: string, term: string): boolean {
+  return ` ${text} `.includes(` ${normalizeText(term)} `);
+}
+
+export function catalogTermGroupsFromText(text: string): string[][] {
+  const normalized = normalizeText(text)
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) return [];
+
+  const groups: string[][] = [];
+  const platform = Object.values(platformTerms).find((terms) =>
+    terms.some((term) => containsTerm(normalized, term)));
+  const service = Object.values(serviceTerms).find((terms) =>
+    terms.some((term) => containsTerm(normalized, term)));
+  if (platform) groups.push(platform);
+  if (service) groups.push(service);
+  return groups;
+}
+
 export function formatMoney(amount: number, currency: string): string {
   return `${new Intl.NumberFormat("es-CL").format(amount)} ${currency}`;
 }

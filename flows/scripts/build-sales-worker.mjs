@@ -4,7 +4,7 @@ import {addEvidenceAnalysis} from "./build-evidence-analysis.mjs";
 import {evidenceResponse} from "./evidence-response.mjs";
 export function salesWorker(){
   const w=workflow("BW 03 — Procesar ventas y comprobantes");
-  node(w,"Every 15 seconds","scheduleTrigger",{rule:{interval:[{field:"seconds",secondsInterval:15}]}});
+  node(w,"Every 5 seconds","scheduleTrigger",{rule:{interval:[{field:"seconds",secondsInterval:5}]}});
   configNode(w);
   http(w,"Claim inbox",runner("/inbox/claim"),"{}","BW Automation Runner");
   node(w,"Inbox items","code",{jsCode:"return ($json.items||[]).map(item=>({json:item}));"});
@@ -27,7 +27,7 @@ return [{json:{prefilledVariables:{session_token:opened.sessionToken,message_id:
     "={{ $json }}",null);
   node(w,"Read Typebot reply","code",{jsCode:`${typebotText.toString()}\nconst text=typebotText($json);if(!Array.isArray($json.messages))throw new Error('TYPEBOT_INVALID_RESPONSE');return [{json:{text}}];`});
   http(w,"Finish inbox and queue reply",runner("/inbox/ack"),"={{ {id:$('Each message').item.json.id,lease:$('Each message').item.json.lease,text:$json.text||''} }}","BW Automation Runner");
-  link(w,"Every 15 seconds","Config");link(w,"Config","Claim inbox");link(w,"Claim inbox","Inbox items");link(w,"Inbox items","Each message");
+  link(w,"Every 5 seconds","Config");link(w,"Config","Claim inbox");link(w,"Claim inbox","Inbox items");link(w,"Inbox items","Each message");
   link(w,"Each message","Open session",1);link(w,"Open session","Is image");
   link(w,"Is image","Read Evolution media",0);link(w,"Read Evolution media","Check media limits");link(w,"Check media limits","Media usable");
   link(w,"Media usable","Submit private evidence",0);link(w,"Media usable","Validate evidence result",1);link(w,"Submit private evidence","Validate evidence result");

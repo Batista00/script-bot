@@ -2,8 +2,8 @@
   "name": "BW 03 — Procesar ventas y comprobantes",
   "nodes": [
     {
-      "id": "every-15-seconds",
-      "name": "Every 15 seconds",
+      "id": "every-5-seconds",
+      "name": "Every 5 seconds",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
@@ -15,7 +15,7 @@
           "interval": [
             {
               "field": "seconds",
-              "secondsInterval": 15
+              "secondsInterval": 5
             }
           ]
         }
@@ -338,7 +338,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "function typebotText(response){\n  function plain(value){\n    if(Array.isArray(value))return value.map(plain).join(\"\");\n    if(!value || typeof value!==\"object\")return \"\";\n    if(typeof value.text===\"string\")return value.text;\n    const result=plain(value.children ?? value.content ?? []);\n    return value.type===\"p\" ? result+\"\\n\" : result;\n  }\n  return (response.messages ?? []).filter(m=>m.type===\"text\").map(m=>plain(m.content?.richText ?? [])).join(\"\\n\").trim();\n}\nconst text=typebotText($json);if(!Array.isArray($json.messages))throw new Error('TYPEBOT_INVALID_RESPONSE');return [{json:{text}}];"
+        "jsCode": "function typebotText(response){\n  function plain(value,topLevel=false){\n    if(Array.isArray(value)){\n      const parts=value.map(item=>plain(item,false)).filter(Boolean);\n      return parts.join(topLevel?\"\\n\":\"\");\n    }\n    if(!value || typeof value!==\"object\")return \"\";\n    if(typeof value.text===\"string\")return value.text;\n    if(value.type===\"br\")return \"\\n\";\n    return plain(value.children ?? value.content ?? [],false);\n  }\n  return (response.messages ?? []).filter(m=>m.type===\"text\")\n    .map(m=>plain(m.content?.richText ?? [],true)).filter(Boolean).join(\"\\n\").replace(/\\n{3,}/g,\"\\n\\n\").trim();\n}\nconst text=typebotText($json);if(!Array.isArray($json.messages))throw new Error('TYPEBOT_INVALID_RESPONSE');return [{json:{text}}];"
       }
     },
     {
@@ -532,7 +532,7 @@
     }
   ],
   "connections": {
-    "Every 15 seconds": {
+    "Every 5 seconds": {
       "main": [
         [
           {

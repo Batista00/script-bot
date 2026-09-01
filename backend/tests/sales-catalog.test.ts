@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import type { AiInterpretation } from "../src/modules/ai-orchestrator/ai-orchestrator.types.js";
 import {
-  catalogTermGroups, isConfirmation, quantityFromText,
+  catalogTermGroups, catalogTermGroupsFromText, isConfirmation, quantityFromText,
 } from "../src/modules/sales/sales-catalog.js";
 
 function interpretation(overrides: Partial<AiInterpretation["entities"]>): AiInterpretation {
@@ -34,6 +34,16 @@ test("catalog search expands known services without depending on a fixed product
   ]);
 });
 
+test("natural catalog requests are recognized without an AI provider", () => {
+  assert.deepEqual(catalogTermGroupsFromText("Busco seguidores de Instagram"), [
+    ["instagram"],
+    ["seguidores", "seguidor", "followers", "follower", "suscriptores", "suscriptor"],
+  ]);
+  assert.deepEqual(catalogTermGroupsFromText("¿Tienen likes para Tik Tok?"), [
+    ["tiktok", "tik tok"], ["likes", "like", "me gusta"],
+  ]);
+  assert.deepEqual(catalogTermGroupsFromText("hola, necesito ayuda"), []);
+});
 test("natural quantities and confirmations used by WhatsApp are recognized", () => {
   assert.equal(quantityFromText("quiero los 1.000"), 1000);
   assert.equal(quantityFromText("necesito dos mil"), 2000);

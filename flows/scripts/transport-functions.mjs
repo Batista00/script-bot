@@ -16,12 +16,16 @@ export function normalizeEvolution(body,expectedInstance){
   return {contact,name:String(data.pushName||contact).slice(0,120),messageId:String(key.id).slice(0,128),text:String(text).slice(0,10000),image};
 }
 export function typebotText(response){
-  function plain(value){
-    if(Array.isArray(value))return value.map(plain).join("");
+  function plain(value,topLevel=false){
+    if(Array.isArray(value)){
+      const parts=value.map(item=>plain(item,false)).filter(Boolean);
+      return parts.join(topLevel?"\n":"");
+    }
     if(!value || typeof value!=="object")return "";
     if(typeof value.text==="string")return value.text;
-    const result=plain(value.children ?? value.content ?? []);
-    return value.type==="p" ? result+"\n" : result;
+    if(value.type==="br")return "\n";
+    return plain(value.children ?? value.content ?? [],false);
   }
-  return (response.messages ?? []).filter(m=>m.type==="text").map(m=>plain(m.content?.richText ?? [])).join("\n").trim();
+  return (response.messages ?? []).filter(m=>m.type==="text")
+    .map(m=>plain(m.content?.richText ?? [],true)).filter(Boolean).join("\n").replace(/\n{3,}/g,"\n\n").trim();
 }

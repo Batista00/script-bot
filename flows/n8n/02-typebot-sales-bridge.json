@@ -136,7 +136,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "const answer=$json.choices?.[0]?.message?.content; return [{json:{text:typeof answer==='string'&&answer.trim()?answer.slice(0,2500)+'\\nPara precio y compra, selecciona un producto del CATÁLOGO.':$('Sales message').first().json.text}}];"
+        "jsCode": "const answer=$json.choices?.[0]?.message?.content; return [{json:{text:typeof answer==='string'&&answer.trim()?answer.trim().slice(0,2500):$('Sales message').first().json.text}}];"
       }
     },
     {

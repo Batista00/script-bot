@@ -22,3 +22,12 @@ test("wrong instance, own messages, groups and unresolved LID cannot create cust
 test("Typebot rich text is translated to WhatsApp without HTML evaluation",()=>{
   assert.equal(typebotText({messages:[{type:"text",content:{richText:[{type:"p",children:[{text:"Hola "},{text:"cliente"}]}]}}]}),"Hola cliente");
 });
+test("Typebot keeps catalog rows separated for WhatsApp",()=>{
+  const response={messages:[{type:"text",content:{richText:[
+    {children:[{text:"Encontré estas opciones:"}]},
+    {children:[{text:"1. 500 seguidores — 1.990 CLP"}]},
+    {children:[{text:"2. 1.000 seguidores — 4.990 CLP"}]},
+  ]}}]};
+  assert.equal(typebotText(response),
+    "Encontré estas opciones:\n1. 500 seguidores — 1.990 CLP\n2. 1.000 seguidores — 4.990 CLP");
+});
