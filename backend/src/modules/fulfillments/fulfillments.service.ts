@@ -56,6 +56,7 @@ export class FulfillmentsService {
     businessId: string,
     orderId: string,
     input: DispatchFulfillmentInput,
+    expectedProviderServiceId?: string,
   ): Promise<Fulfillment> {
     const inputData = validateFulfillmentInput(input.input);
     let fulfillment: Fulfillment;
@@ -94,6 +95,10 @@ export class FulfillmentsService {
         if (provider.providerServiceStatus !== "active") {
           throw new AppError("Provider service is inactive", 409, "PROVIDER_SERVICE_INACTIVE");
         }
+        // Internal checkout snapshot guard; never supplied by the public HTTP caller.
+        if (expectedProviderServiceId && provider.providerServiceId !== expectedProviderServiceId) {
+          throw new AppError("El proveedor del producto cambió; se requiere revisión humana",409,"SALES_DELIVERY_CHANGED");
+        }
         if (provider.integrationStatus !== "active") {
           throw new AppError("Integration is inactive", 409, "INTEGRATION_INACTIVE");
         }
@@ -123,6 +128,9 @@ export class FulfillmentsService {
       const existing = await this.repository.findByOrderItem(businessId, input.orderItemId);
       if (!existing || existing.orderId !== orderId) throw alreadyExists();
       if (existing.status !== "pending") throw alreadyExists();
+      if (expectedProviderServiceId && existing.providerServiceId !== expectedProviderServiceId) {
+        throw new AppError("El proveedor del producto cambió; se requiere revisión humana",409,"SALES_DELIVERY_CHANGED");
+      }
       fulfillment = existing;
     }
     return this.submit(businessId, fulfillment, "dispatch");

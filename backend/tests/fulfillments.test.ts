@@ -143,6 +143,12 @@ test("dispatch snapshots provider context and uses OrderItem quantity", async ()
   assert.equal(stored.externalServiceId, "321");
 });
 
+test("sales checkout provider guard blocks mapping changes before any external order",async()=>{
+  const {adapter,service}=setup();
+  await rejectsCode(service.dispatch(businessA,orderA,{orderItemId:itemA,input:{link:"https://example.com/post"}},"a-different-service"),"SALES_DELIVERY_CHANGED");
+  assert.equal(adapter.createInputs.length,0);
+});
+
 test("global list is business-scoped, paginated, filtered, and omits input data", async () => {
   const { repository, service } = setup();
   const created = await service.dispatch(businessA, orderA, {

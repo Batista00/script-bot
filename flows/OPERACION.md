@@ -1,0 +1,65 @@
+# Operación y pruebas controladas
+
+## Recorrido comercial implementado
+
+```text
+WhatsApp → Evolution → webhook n8n → inbox PostgreSQL
+  → worker n8n → sesión acotada → Typebot → backend de ventas
+  → catálogo → cantidad + datos → cotización → confirmación → pedido
+  → Mercado Pago verificado / transferencia revisada por humano
+  → pedido pagado → worker → proveedor o entrega manual
+  → seguimiento → notificaciones WhatsApp y Telegram
+```
+
+El backend decide importes, moneda, disponibilidad y transiciones. OpenAI responde consultas/objeciones a partir de políticas del negocio; no tiene herramientas para modificar pedidos, aprobar pagos ni comprar al proveedor. No es una IA autónoma con permiso para operar dinero.
+
+## Comandos del cliente
+
+- `CATÁLOGO`, `MENÚ`, `HOLA`: lista productos comerciales disponibles, cinco por página.
+- `BUSCAR nombre`: busca nombre/SKU; `MÁS`: siguiente página.
+- Número del producto → cantidad → campos requeridos en orden. URLs HTTP/S válidas, fechas AAAA-MM-DD reales, comentarios uno por unidad en los servicios que lo requieren.
+- `CONFIRMAR`: acepta el snapshot de precio y crea el pedido. Después elegir el número del método de pago.
+- `ESTADO`: consulta la compra seleccionada más reciente. Volver al catálogo no borra ese pedido. Una nueva cotización pasa a ser la compra seleccionada; para otros pedidos usar atención humana/panel.
+- Imagen JPG/PNG de hasta 2 MB: comprobante del pago de transferencia seleccionado. No PDF, audio o vídeo en esta entrega.
+- `CANCELAR`: abandona la selección actual y vuelve al catálogo; **no cancela un pedido ya creado**. El humano puede cancelar uno pendiente desde Pedidos.
+- `HUMANO`: pausa respuestas conversacionales y avisa al equipo en Telegram. Reanudar desde el panel; pagos/entregas existentes conservan seguimiento.
+- `BAJA`/`STOP`: deja de responder y suprime notificaciones WhatsApp pendientes para ese contacto. `ALTA` restablece respuestas. No cancela compras. Un mensaje ya enviado al transportador no puede retirarse.
+
+## Qué comprobar antes de un pago real
+
+1. Acordar un negocio/cliente de prueba y mantener compra automática al proveedor apagada.
+2. Confirmar importación sin nodos desconocidos, credenciales asignadas y `GET /health` JSON 200.
+3. Enviar `HOLA`: recibir una sola respuesta. Repetir el mismo evento técnico: no duplicar pedido/respuesta en la cola.
+4. Probar negocio A/B: catálogos, pedidos, chats, runner y revisión de A no accesibles con credenciales de B.
+5. Seleccionar servicio SMM. Probar enlace inválido, cantidad fuera de rango y comentarios insuficientes. Debe rechazar antes de crear un cobro o llamar Raja.
+6. Confirmar precio retail del negocio, no rate del proveedor. Probar paquete fijo y precio unitario.
+7. Crear pedido de prueba y transferencia pendiente. Subir comprobante: el pago continúa pendiente. Si se habilitó lectura IA, su aviso separado debe decir **NO VERIFICADA**; probar imagen ilegible y monto diferente.
+8. Pulsar botón con usuario Telegram no vinculado, revisión expirada y rol revocado: rechazar, sin pago ni entrega.
+9. Verificar abono real en la cuenta bancaria antes de enviar `/abono … referencia`. Repetir acción: misma aprobación, sin compra adicional. La referencia debe identificar un abono único, no ser el UUID del pedido.
+10. En Mercado Pago, primero usar sus herramientas/cuentas de prueba. Un redirect o captura no aprueba; sólo el webhook firmado y consulta del backend pueden hacerlo. Validar monto/moneda.
+11. Después de autorización explícita, habilitar despacho de un servicio soportado y de coste acordado. Ver un solo pedido externo; seguirlo hasta estado terminal.
+12. Probar un producto sin mapping: requiere entrega humana. Sólo registrar entrega en el panel cuando se haya realizado y el pedido esté pagado; incluir una referencia/nota.
+13. Pausar/reanudar conversación y probar BAJA/ALTA. Reiniciar n8n entre pasos y verificar recuperación. No provocar compras repetidas para probar timeouts.
+
+## Recuperación y alertas
+
+Las colas usan identificadores únicos, leases de cinco minutos y máximo ocho intentos. El inbox mantiene el orden por contacto y bloquea mensajes posteriores si el primero falla. Corregir conexión/credenciales y usar **Reprocesar mensaje** en el panel. No borrar registros para reiniciar una venta.
+
+Las notificaciones se reconocen sólo tras respuesta satisfactoria del transportador. Si éste envía y el proceso cae antes del ACK, puede repetirse el mensaje: la garantía es **al menos una vez**, no exactly-once. Revisar el destinatario antes de reintentar manualmente una notificación agotada. Los reintentos de cola no son reintentos de compras Raja.
+
+`submission_unknown` o `submitting` tras un reinicio requieren conciliación humana con el proveedor. Nunca se reenvía `action=add` automáticamente en esos estados. Un rechazo `failed`, parcial o cancelado genera alerta operativa. No hay reintegro automático ni chargebacks implementados.
+
+Si cambia el mapping o se desactiva el producto/proveedor después de pagar, se detiene el despacho y avisa al administrador. Revisar la compra o compensación manualmente; no cambiar referencias para forzar otro proveedor.
+
+Si un comprobante caducó, no forzar la revisión con datos falsos: comprobar el pago desde el panel y usar el procedimiento administrativo existente. La aprobación Telegram guarda actor y referencia; la lectura IA jamás sustituye esa auditoría.
+
+## Privacidad y límites de esta entrega
+
+- Comprobantes cifrados con la clave de Integraciones; su eliminación programada afecta el ciphertext, no borra el historial financiero. Los hashes y la auditoría se conservan.
+- En n8n los exports desactivan guardado de ejecuciones y datos fijados. Revisar también logs del proxy/Evolution: los eventos de Evolution pueden incluir su API key. No registrar cuerpos ni headers sensibles.
+- Telegram y OpenAI son destinatarios externos de datos cuando se activan sus pasos. Usar chat privado restringido, acceso mínimo y política de retención. La retención local no elimina automáticamente copias ya enviadas a Telegram ni backups.
+- La lectura IA es optativa y puede equivocarse. Se conserva cifrada y se presenta como observación; ni el monto coincidente ni el texto del comprobante autorizan pagos.
+- El bot responde al cliente que inicia contacto; no se creó un sistema de campañas. Revisar consentimiento, políticas y restricciones de WhatsApp/proveedores y del sector antes de operar. Evolution no equivale por sí mismo a aprobación oficial de WhatsApp ni garantiza que cualquier servicio SMM sea admisible.
+- Sin tienda custom, Webpay, entrega automática de archivos/licencias, integración logística ni refunds. Los productos sin proveedor tienen entrega manual auditada.
+- El lenguaje libre sirve para asesoría; selección, cotización, pago y entrega son pasos determinísticos. No hay memoria ilimitada ni negociación automática de descuentos.
+- Sin un runtime n8n confirmado e importación real no se declara certificada la compatibilidad del despliegue. Las pruebas locales usan proveedores falsos; no comprueban credenciales, saldo, DNS o acceso de producción.

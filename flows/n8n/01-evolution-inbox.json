@@ -1,0 +1,130 @@
+{
+  "name": "BW 01 — Evolution 2.3.4 → bandeja durable",
+  "nodes": [
+    {
+      "id": "evolution-webhook",
+      "name": "Evolution webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bw-evolution-sales",
+        "authentication": "headerAuth",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "BW Evolution Webhook"
+        }
+      }
+    },
+    {
+      "id": "config",
+      "name": "Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const config={\"backendBaseUrl\":\"https://admin.pablete.xyz/api\",\"typebotBaseUrl\":\"https://bot.pablete.xyz\",\"typebotPublicId\":\"CONFIGURAR_PUBLIC_ID\",\"evolutionBaseUrl\":\"https://evo.pablete.xyz\",\"instance\":\"CONFIGURAR_INSTANCIA\",\"automationIntegrationId\":\"CONFIGURAR_UUID\",\"openaiModel\":\"CONFIGURAR_MODELO\",\"evidenceAiEnabled\":false}; return $input.all().map((item,i)=>({json:{...item.json,config},pairedItem:{item:i}}));"
+      }
+    },
+    {
+      "id": "normalize-incoming",
+      "name": "Normalize incoming",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "jsCode": "function normalizeEvolution(body,expectedInstance){\n  if(!body || body.instance!==expectedInstance)throw new Error(\"EVOLUTION_INSTANCE_MISMATCH\");\n  if(![\"messages.upsert\",\"MESSAGES_UPSERT\"].includes(body.event))return null;\n  const data=body.data;const key=data?.key;\n  if(!key || key.fromMe || !key.id)return null;\n  const remote=String(key.remoteJid ?? \"\");\n  if(remote.endsWith(\"@g.us\") || remote===\"status@broadcast\")return null;\n  const jid=remote.endsWith(\"@s.whatsapp.net\") ? remote : String(key.remoteJidAlt ?? \"\");\n  if(!/^[0-9]{8,15}(?::[0-9]+)?@s\\.whatsapp\\.net$/.test(jid))throw new Error(\"PHONE_IDENTITY_UNRESOLVED\");\n  const contact=jid.split(\"@\")[0].split(\":\")[0];\n  const message=data.message ?? {};\n  const image=Boolean(message.imageMessage);\n  const text=message.conversation ?? message.extendedTextMessage?.text ?? message.imageMessage?.caption ?? \"\";\n  if(!image && !text)return null;\n  return {contact,name:String(data.pushName||contact).slice(0,120),messageId:String(key.id).slice(0,128),text:String(text).slice(0,10000),image};\n}\nconst message=normalizeEvolution($json.body,$json.config.instance);return message?[{json:message}]:[];"
+      }
+    },
+    {
+      "id": "save-inbox",
+      "name": "Save inbox",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.config.backendBaseUrl + '/bot/v1/sales/inbox' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 60000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "BW Backend"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Evolution webhook": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Normalize incoming",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize incoming": {
+      "main": [
+        [
+          {
+            "node": "Save inbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none",
+    "saveManualExecutions": false,
+    "executionTimeout": 240
+  },
+  "pinData": {},
+  "tags": []
+}

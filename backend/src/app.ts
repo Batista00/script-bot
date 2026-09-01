@@ -62,6 +62,7 @@ import { ProviderProductImportService } from "./modules/provider-catalog/provide
 import { PostgresQuotesRepository } from "./modules/quotes/quotes.repository.js";
 import { quotesRoutes } from "./modules/quotes/quotes.routes.js";
 import { QuotesService } from "./modules/quotes/quotes.service.js";
+import { registerSalesAutomation } from "./modules/sales/sales.plugin.js";
 
 export async function buildApp(config: Env): Promise<FastifyInstance> {
   const app = Fastify({
@@ -180,6 +181,8 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   await app.register(ordersRoutes);
   await app.register(paymentsRoutes, { service: paymentsService });
   await app.register(paymentMethodsRoutes, { service: paymentMethodsService });
+  await registerSalesAutomation(app,config,botGatewayService,integrationsService,paymentsService,
+    new ProviderFulfillmentRegistry([new SmmRajaFulfillmentAdapter(integrationsService,smmRajaClient)]));
 
   return app;
 }

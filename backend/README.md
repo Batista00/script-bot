@@ -112,7 +112,7 @@ Authorization: Bearer <BOT_BACKEND_TOKEN>
 Content-Type: application/json
 ```
 
-El token deberá inyectarse posteriormente como secreto de ejecución; no debe incluirse en templates ni exports JSON de Typebot. Esta etapa no modifica ni configura Typebot.
+El token machine permanece en credenciales n8n; no se incluye en templates ni exports JSON de Typebot. El flujo nuevo usa tokens temporales acotados a una conversación. Ver [flujos importables](../flows/CONFIGURACION.md).
 
 ## Customers
 
@@ -203,7 +203,7 @@ El listado global admite `limit`, `offset` y `status`; está aislado por Busines
 
 El retry explícito `POST /businesses/:businessId/fulfillments/:fulfillmentId/retry` está limitado a `owner` y `admin` y únicamente acepta Fulfillments `failed`. Como SMM Raja no documenta una idempotency key para `action=add`, un timeout o una respuesta imposible de interpretar después del POST produce `submission_unknown`: no existe retry automático y ese estado tampoco admite retry manual, porque podría duplicar la compra externa.
 
-`action=status` persiste el estado externo sanitizado y métricas válidas. Un estado desconocido no inventa una transición local. `Completed` finaliza el Order cuando todos sus Fulfillments terminaron; `Partial` o `Cancelled` lo dejan `failed` para atención operativa. No hay polling, workers ni dispatch automático en esta etapa.
+`action=status` persiste el estado externo sanitizado y métricas válidas. Un estado desconocido no inventa una transición local. `Completed` finaliza el Order cuando todos sus Fulfillments terminaron; `Partial` o `Cancelled` lo dejan `failed` para atención operativa. El módulo opcional de ventas automatiza seguimiento y dispatch únicamente si el negocio lo habilita y ejecuta su worker autenticado.
 
 ## Pricing y Quotes
 
@@ -270,7 +270,25 @@ GET   /businesses/:businessId/integrations/:integrationId
 PATCH /businesses/:businessId/integrations/:integrationId
 ```
 
-Solo `owner` y `admin` pueden administrar integraciones. Los accesos internos por Business/provider y por ID exacto entregan configuración y credenciales descifradas únicamente a adapters; no están publicados como endpoints. Mercado Pago y el catálogo SMM Raja usan este contrato. Evolution todavía no está implementado.
+Solo `owner` y `admin` pueden administrar integraciones. Los accesos internos por Business/provider y por ID exacto entregan configuración y credenciales descifradas únicamente a adapters; no están publicados como endpoints. Mercado Pago, Raja, Telegram y el ejecutor de automatizaciones usan este contrato. Evolution se conecta mediante los workflows n8n versionados en `flows/`, no desde el dominio Orders.
+
+## Ventas conversacionales y revisión humana
+
+La migración `000015` agrega sesiones comerciales, inbox durable, checkouts con datos de entrega, revisión cifrada de comprobantes, revisores Telegram y cola de notificaciones. No se activa ninguna automatización al migrar.
+
+En el panel **Bot y automatizaciones**, owner/admin configura atención, pausa conversaciones, vincula su usuario Telegram, registra entregas manuales de pedidos pagados y recupera trabajos fallidos. Configuración, secretos y clientes se aíslan por negocio.
+
+- Machine API: `POST /bot/v1/sales/sessions` y `/bot/v1/sales/inbox`.
+- Token temporal de conversación: `POST /conversation/v1/message`, `/evidence`, `/evidence/analysis`.
+- Runner independiente: `POST /automation/v1/:integrationId/tick`, `/inbox/claim`, `/inbox/ack`, `/notifications/claim`, `/notifications/ack`.
+- Telegram: `POST /webhooks/telegram/:integrationId`, con header secreto y revisor humano autorizado.
+- Administración: `/businesses/:businessId/sales-automation` y sus subrutas protegidas; no hay una ruta pública de aprobación por IA.
+
+Producto/cantidad/datos de entrega se validan antes de ofrecer pago. El precio proviene de Pricing; las acciones financieras continúan en Payments/Orders. Las observaciones opcionales de OpenAI no autorizan nada. Una transferencia requiere verificación humana del abono y referencia bancaria; Mercado Pago conserva su verificación server-to-server.
+
+Los tests de ventas (`pnpm test:sales`) forman parte de `pnpm test`. PostgreSQL continúa serializado con `--test-concurrency=1`; sin `TEST_DATABASE_URL` se informa skip. Las pruebas no envían WhatsApp/Telegram ni compran servicios.
+
+Consultar [configuración e importación](../flows/CONFIGURACION.md), [operación y límites](../flows/OPERACION.md) y [arquitectura de ventas](docs/sales-automation.md). Los exports apuntan a Evolution 2.3.4 y formato Typebot 6.1; falta verificar su importación en las versiones reales del VPS, incluida n8n.
 
 ## Docker Compose
 

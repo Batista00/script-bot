@@ -25,6 +25,7 @@ import { QuotesPage } from "../features/quotes/QuotesPage";
 import { HomeRedirect, RequireAuth, RequireBusiness } from "../routes/guards";
 import { NotFoundPage } from "../routes/NotFoundPage";
 import { queryClient } from "./query-client";
+import { SalesAutomationPage } from "../features/automation/SalesAutomationPage";
 
 export function App() {
   return <ErrorBoundary><QueryClientProvider client={queryClient}><ToastProvider><BrowserRouter><AuthProvider><Routes>
@@ -49,6 +50,7 @@ export function App() {
           <Route path="integrations" element={<IntegrationsPage />} />
           <Route path="api-credentials" element={<ApiCredentialsPage />} />
           <Route path="settings" element={<BusinessSettingsPage />} />
+          <Route path="sales-automation" element={<SalesAutomationPage />} />
           <Route index element={<HomeRedirect />} />
         </Route>
       </Route>

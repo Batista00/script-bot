@@ -17,6 +17,7 @@ const safeMessages: Record<number, string> = {
 };
 
 const safeCodeMessages: Record<string, string> = {
+  PROVIDER_SERVICE_NOT_SUPPORTED: "Este servicio no admite envío automático. Impórtalo como inactivo hasta verificar su compatibilidad.",
   INVALID_REQUEST: "Hay campos inválidos o incompletos. Revisa los valores del formulario.",
   INVALID_CURRENCY: "La moneda debe tener un código válido de tres letras, por ejemplo CLP.",
   INVALID_MONEY_AMOUNT: "El precio retail debe ser un número entero mayor que cero.",

@@ -9,6 +9,7 @@ const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
 const expectedTables = [
   "auth_sessions",
+  "automation_notifications",
   "business_integrations",
   "business_payment_methods",
   "business_api_credentials",
@@ -20,12 +21,21 @@ const expectedTables = [
   "order_items",
   "orders",
   "payments",
+  "payment_reviewers",
+  "payment_reviews",
   "product_prices",
   "provider_catalog_states",
   "product_provider_mappings",
   "products",
   "provider_services",
   "quotes",
+  "sales_checkouts",
+  "sales_inbox",
+  "sales_manual_deliveries",
+  "sales_messages",
+  "sales_session_tokens",
+  "sales_sessions",
+  "sales_settings",
   "users",
 ] as const;
 
@@ -81,7 +91,7 @@ test(
     const migrationResult = await db.query<{ count: number }>(
       "SELECT count(*)::integer AS count FROM pgmigrations",
     );
-    assert.equal(migrationResult.rows[0]?.count, 14);
+    assert.equal(migrationResult.rows[0]?.count, 15);
 
     const tableResult = await db.query<{ table_name: string }>(
       `SELECT table_name

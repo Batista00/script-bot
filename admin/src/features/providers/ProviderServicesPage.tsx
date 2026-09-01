@@ -284,8 +284,8 @@ export function ProviderServicesPage() {
           <option value="unit">Por unidad</option><option value="fixed">Fijo</option>
         </SelectField>
         <Field label="Precio retail (entero en unidad mínima)" name="retailPrice" type="number" min="1" required />
-        <SelectField label="Estado inicial" name="status" defaultValue="active" required>
-          <option value="active">Activo</option><option value="inactive">Inactivo</option>
+          <SelectField label="Estado inicial" name="status" defaultValue={selected.orderCapabilities.supported ? "active" : "inactive"} required>
+            <option value="active" disabled={!selected.orderCapabilities.supported}>Activo</option><option value="inactive">Inactivo</option>
         </SelectField>
         <h3>Datos que entregará el cliente</h3>
         {requiredInputs.length === 0 ? <div className="alert">Este tipo no tiene campos comerciales verificados.</div>

@@ -140,8 +140,9 @@ export class BotGatewayService {
     businessId: string,
     orderId: string,
     input: BotDispatchFulfillmentInput,
+    expectedProviderServiceId?: string,
   ) {
-    return this.fulfillmentDto(await this.fulfillments.dispatch(businessId, orderId, input));
+    return this.fulfillmentDto(await this.fulfillments.dispatch(businessId, orderId, input, expectedProviderServiceId));
   }
 
   async listFulfillments(businessId: string, orderId: string) {

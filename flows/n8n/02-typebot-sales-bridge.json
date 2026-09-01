@@ -1,0 +1,243 @@
+{
+  "name": "BW 02 — Typebot → ventas y asesoría OpenAI",
+  "nodes": [
+    {
+      "id": "typebot-bridge",
+      "name": "Typebot bridge",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bw-sales-bridge",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "config",
+      "name": "Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const config={\"backendBaseUrl\":\"https://admin.pablete.xyz/api\",\"typebotBaseUrl\":\"https://bot.pablete.xyz\",\"typebotPublicId\":\"CONFIGURAR_PUBLIC_ID\",\"evolutionBaseUrl\":\"https://evo.pablete.xyz\",\"instance\":\"CONFIGURAR_INSTANCIA\",\"automationIntegrationId\":\"CONFIGURAR_UUID\",\"openaiModel\":\"CONFIGURAR_MODELO\",\"evidenceAiEnabled\":false}; return $input.all().map((item,i)=>({json:{...item.json,config},pairedItem:{item:i}}));"
+      }
+    },
+    {
+      "id": "sales-message",
+      "name": "Sales message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.config.backendBaseUrl + '/conversation/v1/message' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {messageId:$json.body.messageId,text:$json.body.text} }}",
+        "options": {
+          "timeout": 60000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $('Typebot bridge').first().json.headers.authorization }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "needs-advice",
+      "name": "Needs advice",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "Needs advice-condition",
+              "leftValue": "={{ Boolean($json.advice) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "openai-advisory",
+      "name": "OpenAI advisory",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {model:$('Config').first().json.config.openaiModel,messages:[{role:'system',content:$json.advice.instructions},{role:'user',content:$json.advice.question}],max_completion_tokens:400,store:false} }}",
+        "options": {
+          "timeout": 25000
+        }
+      },
+      "credentials": {
+        "openAiApi": {
+          "name": "OpenAI account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "advice-or-safe-fallback",
+      "name": "Advice or safe fallback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const answer=$json.choices?.[0]?.message?.content; return [{json:{text:typeof answer==='string'&&answer.trim()?answer.slice(0,2500)+'\\nPara precio y compra, selecciona un producto del CATÁLOGO.':$('Sales message').first().json.text}}];"
+      }
+    },
+    {
+      "id": "reply",
+      "name": "Reply",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1440,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {text:$json.text || ''} }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Typebot bridge": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Sales message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sales message": {
+      "main": [
+        [
+          {
+            "node": "Needs advice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs advice": {
+      "main": [
+        [
+          {
+            "node": "OpenAI advisory",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI advisory": {
+      "main": [
+        [
+          {
+            "node": "Advice or safe fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Advice or safe fallback": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none",
+    "saveManualExecutions": false,
+    "executionTimeout": 240
+  },
+  "pinData": {},
+  "tags": []
+}

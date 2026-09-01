@@ -8,6 +8,7 @@ import type { Integration } from "../../lib/api/types";
 import { useBusiness } from "../businesses/business-context";
 
 function nonEmpty(data: FormData, name: string): string | undefined { const value = String(data.get(name) ?? "").trim(); return value || undefined; }
+const knownProviders = ["mercado_pago", "smm_raja", "telegram", "automation_runner"];
 export function integrationPayload(form: HTMLFormElement, providerKey: string, creating: boolean): Record<string, unknown> {
   const data = new FormData(form); let config: Record<string, unknown> = {}; let credentials: Record<string, unknown> | undefined;
   if (providerKey === "mercado_pago") {
@@ -16,6 +17,18 @@ export function integrationPayload(form: HTMLFormElement, providerKey: string, c
     if (accessToken || webhookSecret) credentials = { ...(accessToken ? { accessToken } : {}), ...(webhookSecret ? { webhookSecret } : {}) };
   } else if (providerKey === "smm_raja") {
     const apiKey = nonEmpty(data, "apiKey"); if (apiKey) credentials = { apiKey };
+  } else if (providerKey === "telegram") {
+    const botToken = nonEmpty(data, "botToken"); const webhookSecret = nonEmpty(data, "webhookSecret");
+    if (botToken || webhookSecret) {
+      if (!botToken || !webhookSecret || webhookSecret.length < 32) throw new Error("Completa ambos secretos de Telegram.");
+      credentials = { botToken, webhookSecret };
+    }
+  } else if (providerKey === "automation_runner") {
+    const runnerSecret = nonEmpty(data, "runnerSecret");
+    if (runnerSecret) {
+      if (runnerSecret.length < 32) throw new Error("El secreto requiere al menos 32 caracteres.");
+      credentials = { runnerSecret };
+    }
   } else {
     const configText = nonEmpty(data, "configJson"); const credentialsText = nonEmpty(data, "credentialsJson");
     if (configText) config = JSON.parse(configText) as Record<string, unknown>;
@@ -38,9 +51,11 @@ export function IntegrationsPage() {
 export function IntegrationForm({ record, pending, error, onClose, onSave }: { record: Integration | "new"; pending: boolean; error: string; onClose: () => void; onSave: (body: Record<string, unknown>) => void }) {
   const [providerKey, setProviderKey] = useState(record === "new" ? "mercado_pago" : record.providerKey); const [formError, setFormError] = useState(""); const creating = record === "new"; const config = creating ? {} : record.config;
   function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setFormError(""); const data = new FormData(event.currentTarget); if (!creating && data.get("status") === "inactive" && record.status === "active" && !window.confirm("¿Desactivar esta integración?")) return; try { onSave(integrationPayload(event.currentTarget, providerKey, creating)); } catch { setFormError("Revisa el JSON y las credenciales requeridas."); } }
-  return <Modal title={creating ? "Configurar integración" : `Editar ${providerKey}`} onClose={onClose}><form onSubmit={submit} autoComplete="off">{creating ? <><SelectField label="Proveedor" value={["mercado_pago", "smm_raja", "generic"].includes(providerKey) ? providerKey : "generic"} onChange={(event) => setProviderKey(event.target.value === "generic" ? "" : event.target.value)}><option value="mercado_pago">Mercado Pago</option><option value="smm_raja">SMM Raja</option><option value="generic">Otro proveedor</option></SelectField>{providerKey === "" && <Field label="provider_key" value={providerKey} onChange={(event) => setProviderKey(event.target.value)} required pattern="[a-z0-9][a-z0-9_]*" />}</> : <SelectField label="Estado" name="status" defaultValue={record.status}><option value="active">Activo</option><option value="inactive">Inactivo</option></SelectField>}
+  return <Modal title={creating ? "Configurar integración" : `Editar ${providerKey}`} onClose={onClose}><form onSubmit={submit} autoComplete="off">{creating ? <><SelectField label="Proveedor" value={knownProviders.includes(providerKey) ? providerKey : "generic"} onChange={(event) => setProviderKey(event.target.value === "generic" ? "" : event.target.value)}><option value="mercado_pago">Mercado Pago</option><option value="smm_raja">SMM Raja</option><option value="telegram">Telegram (revisión humana)</option><option value="automation_runner">Automation Runner (n8n)</option><option value="generic">Otro proveedor</option></SelectField>{!knownProviders.includes(providerKey) && <Field label="provider_key" value={providerKey} onChange={(event) => setProviderKey(event.target.value)} required pattern="[a-z0-9][a-z0-9_]*" />}</> : <SelectField label="Estado" name="status" defaultValue={record.status}><option value="active">Activo</option><option value="inactive">Inactivo</option></SelectField>}
       {providerKey === "mercado_pago" && <><Field label="Success URL (config)" name="successUrl" type="url" defaultValue={String(config.successUrl ?? "")} /><Field label="Pending URL (config)" name="pendingUrl" type="url" defaultValue={String(config.pendingUrl ?? "")} /><Field label="Failure URL (config)" name="failureUrl" type="url" defaultValue={String(config.failureUrl ?? "")} /><Field label={creating ? "Access Token" : "Nuevo Access Token (opcional)"} name="accessToken" type="password" autoComplete="new-password" required={creating} /><Field label={creating ? "Webhook Secret" : "Nuevo Webhook Secret (opcional)"} name="webhookSecret" type="password" autoComplete="new-password" required={creating} /></>}
       {providerKey === "smm_raja" && <Field label={creating ? "API key" : "Nueva API key (opcional)"} name="apiKey" type="password" autoComplete="new-password" required={creating} />}
-      {providerKey !== "mercado_pago" && providerKey !== "smm_raja" && providerKey !== "" && <><TextAreaField label="Config JSON (sin secretos)" name="configJson" defaultValue={creating ? "{}" : JSON.stringify(config, null, 2)} /><TextAreaField label={creating ? "Credentials JSON" : "Nuevas credentials JSON (opcional)"} name="credentialsJson" required={creating} /></>}
+      {providerKey === "telegram" && <><Field label="Bot Token de Telegram" name="botToken" type="password" autoComplete="new-password" required={creating} /><Field label="Webhook Secret de Telegram" name="webhookSecret" type="password" minLength={32} autoComplete="new-password" required={creating} /><p className="muted">Usa el mismo bot que tu credencial Telegram Ventas Admin en n8n. Para rotar las credenciales completa ambos campos.</p></>}
+      {providerKey === "automation_runner" && <Field label="Runner Secret (32 caracteres o más)" name="runnerSecret" type="password" minLength={32} autoComplete="new-password" required={creating} />}
+      {!knownProviders.includes(providerKey) && providerKey !== "" && <><TextAreaField label="Config JSON (sin secretos)" name="configJson" defaultValue={creating ? "{}" : JSON.stringify(config, null, 2)} /><TextAreaField label={creating ? "Credentials JSON" : "Nuevas credentials JSON (opcional)"} name="credentialsJson" required={creating} /></>}
       {!creating && <p className="muted">Credenciales actuales: configuradas · ********. Solo se reemplazan si completas un campo nuevo.</p>}{(formError || error) && <div className="alert error">{formError || error}</div>}<div className="form-actions"><Button className="secondary" type="button" onClick={onClose}>Cancelar</Button><Button type="submit" disabled={pending || !providerKey}>Guardar</Button></div></form></Modal>;
 }

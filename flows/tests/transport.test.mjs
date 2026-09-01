@@ -1,0 +1,24 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { evidenceResponse } from "../scripts/evidence-response.mjs";
+
+test("invalid evidence replies do not block the contact; technical failures still retry",()=>{
+  assert.equal(evidenceResponse({error:{code:"INVALID_PAYMENT_EVIDENCE"}}).reviewId,null);
+  assert.match(evidenceResponse({error:{code:"PAYMENT_REQUIRED"}}).text,/transferencia/);
+  assert.deepEqual(evidenceResponse({reviewId:"fixture",text:"Recibido"}),{reviewId:"fixture",text:"Recibido"});
+  assert.throws(()=>evidenceResponse({error:{code:"INTERNAL_SERVER_ERROR",message:"private details"}}),/EVIDENCE_SERVICE_UNAVAILABLE/);
+});
+import { normalizeEvolution,typebotText } from "../scripts/transport-functions.mjs";
+const event={event:"messages.upsert",instance:"fixture",data:{key:{remoteJid:"56912345678@s.whatsapp.net",id:"ABC",fromMe:false},pushName:"Cliente",message:{conversation:"Hola"}}};
+test("Evolution 2.3.4 incoming identity is normalized and body credentials are not copied",()=>{
+  assert.deepEqual(normalizeEvolution({...event,apikey:"DO_NOT_COPY"},"fixture"),{contact:"56912345678",name:"Cliente",messageId:"ABC",text:"Hola",image:false});
+});
+test("wrong instance, own messages, groups and unresolved LID cannot create customer conversations",()=>{
+  assert.throws(()=>normalizeEvolution(event,"foreign"));
+  assert.equal(normalizeEvolution({...event,data:{...event.data,key:{...event.data.key,fromMe:true}}},"fixture"),null);
+  assert.equal(normalizeEvolution({...event,data:{...event.data,key:{...event.data.key,remoteJid:"123@g.us"}}},"fixture"),null);
+  assert.throws(()=>normalizeEvolution({...event,data:{...event.data,key:{...event.data.key,remoteJid:"123@lid"}}},"fixture"));
+});
+test("Typebot rich text is translated to WhatsApp without HTML evaluation",()=>{
+  assert.equal(typebotText({messages:[{type:"text",content:{richText:[{type:"p",children:[{text:"Hola "},{text:"cliente"}]}]}}]}),"Hola cliente");
+});

@@ -1,0 +1,524 @@
+{
+  "name": "BW 04 — Pagos, entregas y notificaciones durables",
+  "nodes": [
+    {
+      "id": "every-minute",
+      "name": "Every minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "config",
+      "name": "Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const config={\"backendBaseUrl\":\"https://admin.pablete.xyz/api\",\"typebotBaseUrl\":\"https://bot.pablete.xyz\",\"typebotPublicId\":\"CONFIGURAR_PUBLIC_ID\",\"evolutionBaseUrl\":\"https://evo.pablete.xyz\",\"instance\":\"CONFIGURAR_INSTANCIA\",\"automationIntegrationId\":\"CONFIGURAR_UUID\",\"openaiModel\":\"CONFIGURAR_MODELO\",\"evidenceAiEnabled\":false}; return $input.all().map((item,i)=>({json:{...item.json,config},pairedItem:{item:i}}));"
+      }
+    },
+    {
+      "id": "reconcile-paid-orders",
+      "name": "Reconcile paid orders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.config.backendBaseUrl + '/automation/v1/' + $('Config').first().json.config.automationIntegrationId + '/tick' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "timeout": 60000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "BW Automation Runner"
+        }
+      }
+    },
+    {
+      "id": "claim-notifications",
+      "name": "Claim notifications",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.config.backendBaseUrl + '/automation/v1/' + $('Config').first().json.config.automationIntegrationId + '/notifications/claim' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "timeout": 60000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "BW Automation Runner"
+        }
+      }
+    },
+    {
+      "id": "notification-items",
+      "name": "Notification items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "jsCode": "return ($json.items||[]).map(item=>({json:item}));"
+      }
+    },
+    {
+      "id": "each-notification",
+      "name": "Each notification",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "is-whatsapp",
+      "name": "Is WhatsApp",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1440,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "Is WhatsApp-condition",
+              "leftValue": "={{ $json.channel === 'whatsapp' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "send-whatsapp",
+      "name": "Send WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.config.evolutionBaseUrl + '/message/sendText/' + encodeURIComponent($('Config').first().json.config.instance) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {number:$json.payload.contact,text:$json.payload.text} }}",
+        "options": {
+          "timeout": 60000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Evolution API"
+        }
+      }
+    },
+    {
+      "id": "verify-whatsapp-result",
+      "name": "Verify WhatsApp result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        0
+      ],
+      "parameters": {
+        "jsCode": "if(!$json.key?.id)throw new Error('EVOLUTION_SEND_UNCONFIRMED');return $input.all();"
+      }
+    },
+    {
+      "id": "prepare-telegram",
+      "name": "Prepare Telegram",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const item=$json;const escape=s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');item.telegramText=escape(item.payload.text||'');const evidence=item.payload.evidence;return [{json:item,...(evidence?{binary:{data:{data:evidence.base64,mimeType:evidence.mimeType,fileName:evidence.mimeType==='image/png'?'comprobante.png':'comprobante.jpg'}}}:{})}];"
+      }
+    },
+    {
+      "id": "has-evidence",
+      "name": "Has evidence",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2400,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "Has evidence-condition",
+              "leftValue": "={{ Boolean($json.payload.evidence) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "send-telegram-text",
+      "name": "Send Telegram text",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2640,
+        0
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.payload.chatId }}",
+        "text": "={{ $json.telegramText }}",
+        "replyMarkup": "none",
+        "additionalFields": {
+          "parse_mode": "HTML",
+          "appendAttribution": false,
+          "protect_content": true
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "name": "Telegram Ventas Admin"
+        }
+      }
+    },
+    {
+      "id": "send-telegram-evidence",
+      "name": "Send Telegram evidence",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2880,
+        0
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendPhoto",
+        "chatId": "={{ $json.payload.chatId }}",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": "={{ {rows:$json.payload.replyMarkup.inline_keyboard.map(row=>({row:{buttons:row.map(button=>({text:button.text,additionalFields:{callback_data:button.callback_data}}))}}))} }}",
+        "additionalFields": {
+          "caption": "={{ $json.telegramText.slice(0,1000) }}",
+          "parse_mode": "HTML",
+          "protect_content": true
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "name": "Telegram Ventas Admin"
+        }
+      }
+    },
+    {
+      "id": "acknowledge-delivered",
+      "name": "Acknowledge delivered",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3120,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.config.backendBaseUrl + '/automation/v1/' + $('Config').first().json.config.automationIntegrationId + '/notifications/ack' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {id:$('Each notification').item.json.id,lease:$('Each notification').item.json.lease,success:true} }}",
+        "options": {
+          "timeout": 60000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "BW Automation Runner"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every minute": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Reconcile paid orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reconcile paid orders": {
+      "main": [
+        [
+          {
+            "node": "Claim notifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim notifications": {
+      "main": [
+        [
+          {
+            "node": "Notification items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notification items": {
+      "main": [
+        [
+          {
+            "node": "Each notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Each notification": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Is WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Verify WhatsApp result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify WhatsApp result": {
+      "main": [
+        [
+          {
+            "node": "Acknowledge delivered",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Telegram": {
+      "main": [
+        [
+          {
+            "node": "Has evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has evidence": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram evidence",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Telegram text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Telegram text": {
+      "main": [
+        [
+          {
+            "node": "Acknowledge delivered",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Telegram evidence": {
+      "main": [
+        [
+          {
+            "node": "Acknowledge delivered",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acknowledge delivered": {
+      "main": [
+        [
+          {
+            "node": "Each notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none",
+    "saveManualExecutions": false,
+    "executionTimeout": 240
+  },
+  "pinData": {},
+  "tags": []
+}

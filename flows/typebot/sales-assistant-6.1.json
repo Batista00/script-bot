@@ -1,0 +1,176 @@
+{
+  "version": "6.1",
+  "id": "bwtypesales61",
+  "name": "BW — Asistente de ventas 6.1",
+  "events": [
+    {
+      "id": "start",
+      "type": "start",
+      "graphCoordinates": {
+        "x": 0,
+        "y": 0
+      },
+      "outgoingEdgeId": "startedge"
+    }
+  ],
+  "groups": [
+    {
+      "id": "prepare",
+      "title": "Preparar solicitud segura",
+      "graphCoordinates": {
+        "x": 250,
+        "y": 0
+      },
+      "blocks": [
+        {
+          "id": "clearreply",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vbotreply",
+            "expressionToEvaluate": "No pudimos procesar el mensaje. Escribe HUMANO si el problema continúa."
+          }
+        },
+        {
+          "id": "buildbody",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vrequestbody",
+            "isCode": true,
+            "expressionToEvaluate": "JSON.stringify({messageId: {{message_id}}, text: {{customer_message}}})"
+          },
+          "outgoingEdgeId": "preparedge"
+        }
+      ]
+    },
+    {
+      "id": "request",
+      "title": "Consultar backend a través de n8n",
+      "graphCoordinates": {
+        "x": 600,
+        "y": 0
+      },
+      "blocks": [
+        {
+          "id": "callbridge",
+          "type": "Webhook",
+          "options": {
+            "isCustomBody": true,
+            "webhook": {
+              "url": "https://n8n.pablete.xyz/webhook/bw-sales-bridge",
+              "method": "POST",
+              "headers": [
+                {
+                  "id": "authheader",
+                  "key": "Authorization",
+                  "value": "Bearer {{session_token}}"
+                },
+                {
+                  "id": "jsonheader",
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{{request_body}}"
+            },
+            "responseVariableMapping": [
+              {
+                "id": "mapreply",
+                "bodyPath": "data.text",
+                "variableId": "vbotreply"
+              }
+            ]
+          },
+          "outgoingEdgeId": "replyedge"
+        }
+      ]
+    },
+    {
+      "id": "reply",
+      "title": "Respuesta al cliente",
+      "graphCoordinates": {
+        "x": 950,
+        "y": 0
+      },
+      "blocks": [
+        {
+          "id": "replytext",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "type": "p",
+                "children": [
+                  {
+                    "text": "{{bot_reply}}"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "startedge",
+      "from": {
+        "eventId": "start"
+      },
+      "to": {
+        "groupId": "prepare"
+      }
+    },
+    {
+      "id": "preparedge",
+      "from": {
+        "blockId": "buildbody"
+      },
+      "to": {
+        "groupId": "request"
+      }
+    },
+    {
+      "id": "replyedge",
+      "from": {
+        "blockId": "callbridge"
+      },
+      "to": {
+        "groupId": "reply"
+      }
+    }
+  ],
+  "variables": [
+    {
+      "id": "vsessiontoken",
+      "name": "session_token",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vmessageid",
+      "name": "message_id",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vcustomermessage",
+      "name": "customer_message",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vrequestbody",
+      "name": "request_body",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vbotreply",
+      "name": "bot_reply",
+      "isSessionVariable": true
+    }
+  ],
+  "theme": {},
+  "settings": {},
+  "selectedThemeTemplateId": null,
+  "publicId": null,
+  "isArchived": false,
+  "isClosed": false
+}
