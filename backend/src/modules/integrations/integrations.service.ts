@@ -93,7 +93,7 @@ export class IntegrationsService {
     try {
       return toPublic(await this.repository.create(businessId, {
         providerKey,
-        status: "active",
+        status: input.status ?? "active",
         config,
         credentialsEncrypted,
       }));

@@ -121,6 +121,8 @@ Payment approved + Order paid
 
 El webhook identifica la integración por UUID, exige que siga activa y que su provider sea exactamente `mercado_pago`. La notificación recibida solo aporta el identificador a consultar: estado y datos financieros provienen de la consulta server-to-server. Estados externos no soportados se registran como advertencia y no inventan transiciones locales.
 
+La configuración inicial de Mercado Pago se conserva `inactive` con Public Key y Access Token cifrados mientras el panel expone la URL de webhook derivada del UUID. Solo después de registrar esa URL, guardar la firma secreta emitida por Mercado Pago y activar explícitamente la integración puede Payments resolverla. Las URL de retorno son opcionales como conjunto y no participan en la aprobación.
+
 Integrations Core separa `config` no secreta de credenciales cifradas con AES-256-GCM. La clave maestra proviene exclusivamente del entorno y el ciphertext se autentica con el contexto Business/provider. Las APIs públicas nunca descifran ni serializan credenciales; el acceso descifrado existe solo como contrato interno para adapters.
 
 ## Catálogo de proveedores

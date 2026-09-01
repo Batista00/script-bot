@@ -253,13 +253,16 @@ Mercado Pago se configura como una integración activa del negocio con:
     "failureUrl": "https://commerce.example.com/payment/failure"
   },
   "credentials": {
+    "publicKey": "public-key-entregada-por-mercado-pago",
     "accessToken": "valor-entregado-por-mercado-pago",
     "webhookSecret": "firma-secreta-del-webhook"
   }
 }
 ```
 
-`accessToken` y `webhookSecret` quedan cifrados por Integrations Core. Las tres back URLs son opcionales, pero se envían juntas cuando están todas configuradas. `PUBLIC_API_BASE_URL` debe ser la base pública HTTPS del backend, sin secretos; se utiliza para construir `POST /webhooks/mercado-pago/:integrationId`. Fuera de tests no se admite HTTP.
+El alta desde el panel ocurre en dos pasos. Primero exige `publicKey` y `accessToken`, crea la integración `inactive` y muestra la URL generada `POST /webhooks/mercado-pago/:integrationId`. Después de registrar esa URL para el evento Pagos en Mercado Pago Developers, se reingresan ambas credenciales junto con el `webhookSecret` generado por Mercado Pago y se activa la integración. Ningún pago puede usarla mientras permanezca inactiva o incompleta.
+
+`publicKey`, `accessToken` y `webhookSecret` quedan cifrados por Integrations Core y nunca se devuelven por HTTP. El adapter normaliza un prefijo `Bearer` pegado por error y agrega exactamente un único esquema al llamar a Mercado Pago. Las tres back URLs son opcionales si todavía no existe una página de resultado, pero deben configurarse juntas y solo se envían cuando están completas. `PUBLIC_API_BASE_URL` debe ser la base pública HTTPS del backend, sin secretos; fuera de tests no se admite HTTP.
 
 El webhook es público porque Mercado Pago no posee una sesión del sistema, pero exige la firma HMAC de Mercado Pago. El body no aprueba pagos: el backend consulta `GET /v1/payments/:id` con el token interno y valida negocio, provider, referencia local, monto y moneda antes de aplicar una transición. Solo `approved` confirmado paga el Order en la misma transacción; los redirects del navegador nunca determinan aprobación. Refunds y chargebacks no se implementan en esta etapa.
 

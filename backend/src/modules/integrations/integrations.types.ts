@@ -21,6 +21,7 @@ export interface BusinessIntegrationRecord extends BusinessIntegration {
 
 export interface CreateIntegrationInput {
   providerKey: string;
+  status?: IntegrationStatus;
   config?: JsonObject;
   credentials: JsonObject;
 }
