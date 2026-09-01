@@ -17,6 +17,7 @@ const customerA = "f3193784-f634-4d89-adb8-8e97dac7095e";
 const categoryA = "bca3e535-c449-4ab3-8329-66b50c30dc26";
 const productA = "2434e937-20e5-4b78-a422-b397c8bcba3f";
 const productB = "097c28d0-ec18-416d-81a3-0077395d8289";
+const productC = "096eb320-561e-4bad-97ca-333369f80f2d";
 const quoteA = "59a47c62-c933-46d2-a280-d1a87804a3d8";
 const orderA = "91619cf5-fec6-47dc-81b5-a07fbcc600d2";
 const orderB = "c60f8e43-95f0-4d3e-ab44-f0facbd0704d";
@@ -48,6 +49,13 @@ function fixture() {
     providerCost: "must-not-leak",
   };
   const inactiveProduct = { ...activeProduct, id: productB, status: "inactive" as const };
+  const packageProduct = {
+    ...activeProduct,
+    id: productC,
+    name: "1000 Followers",
+    minQuantity: 1000,
+    maxQuantity: 1000,
+  };
   const price = {
     id: crypto.randomUUID(), businessId: businessA, productId: productA,
     pricingType: "unit" as const, currency: "CLP", fixedPrice: null, unitPrice: 2,
@@ -55,6 +63,13 @@ function fixture() {
     createdAt: now, updatedAt: now, providerRate: "0.001",
   };
   const inactivePrice = { ...price, id: crypto.randomUUID(), status: "inactive" as const };
+  const packagePrice = {
+    ...price,
+    id: crypto.randomUUID(),
+    productId: productC,
+    minQuantity: 1000,
+    maxQuantity: 1000,
+  };
   const quote = {
     id: quoteA, businessId: businessA, customerId: customerA, productId: productA,
     quantity: 100, productName: "Followers", currency: "CLP", pricingType: "unit" as const,
@@ -97,15 +112,15 @@ function fixture() {
       return [activeCategory, inactiveCategory]; } } as unknown as CategoriesService,
     {
       list: async (businessId: string) => { calls.push(["products", businessId]);
-        return [activeProduct, inactiveProduct]; },
+        return [activeProduct, packageProduct, inactiveProduct]; },
       getById: async (businessId: string, id: string) => {
         calls.push(["product", businessId]);
         if (id === productB) throw new AppError("Product not found", 404, "PRODUCT_NOT_FOUND");
-        return activeProduct;
+        return id === productC ? packageProduct : activeProduct;
       },
     } as unknown as ProductsService,
-    { list: async (businessId: string) => { calls.push(["prices", businessId]);
-      return [price, inactivePrice]; } } as unknown as PricingService,
+    { list: async (businessId: string, id: string) => { calls.push(["prices", businessId]);
+      return id === productC ? [packagePrice] : [price, inactivePrice]; } } as unknown as PricingService,
     ({ create: async (businessId: string) => {
       calls.push(["quote", businessId]); return quote;
     } }) as unknown as QuotesService,
@@ -153,7 +168,7 @@ test("Gateway exposes only active commercial catalog DTOs without provider data"
   assert.equal((await gateway.listCategories(businessA, {})).length, 1);
   const products = await gateway.listProducts(businessA, {});
   const prices = await gateway.listPrices(businessA, productA, {});
-  assert.equal(products.length, 1);
+  assert.equal(products.length, 2);
   assert.equal(prices.length, 1);
   const serialized = JSON.stringify({ products, prices });
   for (const forbidden of ["providerCost", "providerRate", "providerService", "rate"]) {
@@ -178,6 +193,23 @@ test("Gateway commercial flow reuses existing services with credential Business 
   assert.deepEqual(paymentRequests, [{
     orderId: orderA, providerKey: "mercado_pago", idempotencyKey: "typebot-request-1",
   }]);
+  assert.ok(calls.every(([, scopedBusiness]) => scopedBusiness === businessA));
+});
+
+test("Gateway exposes fixed-quantity catalog packages using retail prices", async () => {
+  const { gateway, calls } = fixture();
+  const result = await gateway.listCatalogPackages(businessA, categoryA);
+
+  assert.deepEqual(result, {
+    categoryId: categoryA,
+    packages: [{
+      productId: productC,
+      name: "1000 Followers",
+      quantity: 1000,
+      currency: "CLP",
+      price: 2000,
+    }],
+  });
   assert.ok(calls.every(([, scopedBusiness]) => scopedBusiness === businessA));
 });
 

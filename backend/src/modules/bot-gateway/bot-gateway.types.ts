@@ -23,6 +23,24 @@ export interface BotProductListQuery extends BotListQuery {
   categoryId?: string;
   type?: ProductType;
 }
+
+export interface BotCatalogPackagesQuery {
+  categoryId: string;
+}
+
+export interface BotCatalogPackageDto {
+  productId: string;
+  name: string;
+  quantity: number;
+  currency: string;
+  price: number;
+}
+
+export interface BotCatalogPackagesDto {
+  categoryId: string;
+  packages: BotCatalogPackageDto[];
+}
+
 export interface BotIdempotencyHeaders { "idempotency-key"?: string }
 
 export interface BotCustomerDto {

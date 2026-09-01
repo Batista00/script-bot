@@ -2,6 +2,8 @@
 
 Importa `bot-whatsap-commerce-v1.json` en Typebot 6.1. El template usa únicamente bloques `text`, `text input`, `choice input`, `Set variable`, `Condition` y `Webhook` observados en los laboratorios locales del proyecto.
 
+`bot-whatsap-ai-commerce-v1.json` es la variante ampliada recuperada del despliegue: añade clasificación asistida, catálogo por categorías y listas de paquetes con precios retail mediante `/bot/v1/catalog/packages`. `bot-whatsap-ai-commerce-v1.before-prices.json` es un punto de referencia anterior y no debe publicarse como flujo definitivo.
+
 ## Configuración requerida
 
 - `backend_base_url`: URL pública base del backend, sin barra final. No es secreta y debe configurarse al desplegar.
@@ -53,10 +55,10 @@ El validador usa solo Node.js estándar y revisa estructura, referencias, variab
 headers, ausencia de secretos, condiciones `Is empty`, rutas de arrays con corchetes y la
 conversión segura de cantidad en modo código.
 
-## Fuera de alcance
+## Alcance del template base
 
 - Evolution no está desplegado ni configurado en este repositorio.
 - El mecanismo seguro de provisionamiento del token en Typebot self-hosted queda pendiente del deployment.
-- No hay OpenAI, polling automático, workers, queues ni frontend.
+- El template base no usa OpenAI, polling automático, workers, queues ni frontend. La variante `ai-commerce` sí contiene bloques OpenAI y requiere seleccionar una credencial en Typebot después de importarla.
 - Typebot no llama Fulfillment ni conoce IDs, costes o inputs internos de proveedores.
 - Un pago aprobado solo muestra confirmación. La preparación automática del servicio se conectará en una etapa posterior.

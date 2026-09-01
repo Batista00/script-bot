@@ -18,6 +18,7 @@ import type { Product } from "../products/products.types.js";
 import type { QuotesService } from "../quotes/quotes.service.js";
 import type { Quote } from "../quotes/quotes.types.js";
 import type {
+  BotCatalogPackagesDto,
   BotCategoryDto,
   BotCreateOrderInput,
   BotCreateQuoteInput,
@@ -70,6 +71,76 @@ export class BotGatewayService {
       ...(query.type === undefined ? {} : { type: query.type }),
       ...(query.categoryId === undefined ? {} : { categoryId: query.categoryId }),
     })).filter((value) => value.status === "active").map((value) => this.productDto(value));
+  }
+
+  async listCatalogPackages(
+    businessId: string,
+    categoryId: string,
+  ): Promise<BotCatalogPackagesDto> {
+    const products = await this.listProducts(businessId, {
+      categoryId,
+      type: "service",
+      limit: "100",
+      offset: "0",
+    });
+
+    const packages = [];
+
+    for (const product of products) {
+      if (
+        product.minQuantity === null ||
+        product.maxQuantity === null ||
+        product.minQuantity !== product.maxQuantity
+      ) {
+        continue;
+      }
+
+      const quantity = product.minQuantity;
+      const prices = await this.listPrices(
+        businessId,
+        product.productId,
+        { limit: "100", offset: "0" },
+      );
+      const applicable = prices.find((price) =>
+        (price.minQuantity === null || price.minQuantity <= quantity) &&
+        (price.maxQuantity === null || price.maxQuantity >= quantity)
+      );
+
+      if (!applicable) continue;
+
+      let price: number | null = null;
+
+      if (
+        applicable.pricingType === "fixed" &&
+        applicable.fixedPrice !== null
+      ) {
+        price = applicable.fixedPrice;
+      }
+
+      if (
+        applicable.pricingType === "unit" &&
+        applicable.unitPrice !== null
+      ) {
+        const total = BigInt(applicable.unitPrice) * BigInt(quantity);
+        if (total <= BigInt(Number.MAX_SAFE_INTEGER)) {
+          price = Number(total);
+        }
+      }
+
+      if (price === null) continue;
+
+      packages.push({
+        productId: product.productId,
+        name: product.name,
+        quantity,
+        currency: applicable.currency,
+        price,
+      });
+    }
+
+    packages.sort((a, b) => a.quantity - b.quantity);
+
+    return { categoryId, packages };
   }
 
   async getProduct(businessId: string, productId: string) {

@@ -114,6 +114,10 @@ Content-Type: application/json
 
 El token machine permanece en credenciales n8n; no se incluye en templates ni exports JSON de Typebot. El flujo nuevo usa tokens temporales acotados a una conversación. Ver [flujos importables](../flows/CONFIGURACION.md).
 
+El catálogo también ofrece `GET /bot/v1/catalog/packages?categoryId=<uuid>` para servicios configurados como paquetes de cantidad fija. El precio expuesto es siempre el precio retail activo del negocio; nunca se publica el coste del proveedor.
+
+`POST /bot/v1/assistant/message` clasifica mensajes con Machine Auth y Structured Outputs. La integración es opcional: usa `OPENAI_API_KEY`, `OPENAI_MODEL` y `OPENAI_TIMEOUT_MS`; si no hay clave, devuelve un fallback seguro sin bloquear el resto del Gateway. La IA sólo interpreta intención y entidades, y no aprueba pagos ni ejecuta pedidos.
+
 ## Customers
 
 Los customers siempre pertenecen a un negocio y no dependen de proveedores externos. Los roles `owner`, `admin` y `operator` del negocio pueden crear, listar, consultar y actualizar mediante:

@@ -175,6 +175,43 @@ export const listBotProductsSchema = {
   response: { 200: { type: "array", items: product }, ...errors },
 } satisfies FastifySchema;
 
+const catalogPackage = {
+  type: "object",
+  additionalProperties: false,
+  required: ["productId", "name", "quantity", "currency", "price"],
+  properties: {
+    productId: uuid,
+    name: { type: "string" },
+    quantity: { type: "integer", minimum: 1 },
+    currency: { type: "string" },
+    price: { type: "integer", minimum: 1 },
+  },
+} as const;
+
+export const listBotCatalogPackagesSchema = {
+  querystring: {
+    type: "object",
+    additionalProperties: false,
+    required: ["categoryId"],
+    properties: { categoryId: uuid },
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["categoryId", "packages"],
+      properties: {
+        categoryId: uuid,
+        packages: {
+          type: "array",
+          items: catalogPackage,
+        },
+      },
+    },
+    ...errors,
+  },
+} satisfies FastifySchema;
+
 export const getBotProductSchema = {
   params: productParams, response: { 200: product, ...errors },
 } satisfies FastifySchema;
