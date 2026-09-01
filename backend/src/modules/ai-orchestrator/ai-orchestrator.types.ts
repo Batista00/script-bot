@@ -40,6 +40,7 @@ export interface AiEntities {
   quantity: number | null;
   urls: string[];
   paymentMethod: string | null;
+  searchTerms: string[];
 }
 
 export interface AiInterpretation {

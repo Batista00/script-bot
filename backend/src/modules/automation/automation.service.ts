@@ -30,6 +30,7 @@ export class AutomationService {
     const session=await this.sales.session(businessId,checkout.sessionId);
     let order=await this.gateway.getOrder(businessId,checkout.orderId!);
     let attention:string|null=null;
+    let providerOrderReference:string|null=null;
     if (order.status==="paid" || order.status==="processing" || order.status==="completed") {
       if (!session.state.optedOut) await this.notifications.enqueue(businessId,`paid:${order.orderId}`,"whatsapp",{
         contact:session.contact,text:`Tu pago fue confirmado. Pedido ${order.orderId}. Te informaremos de su entrega.`,
@@ -51,6 +52,7 @@ export class AutomationService {
           fulfillments=await this.gateway.listFulfillments(businessId,order.orderId);
         }
         for (const fulfillment of fulfillments) {
+          providerOrderReference=fulfillment.providerOrderReference ?? providerOrderReference;
           if (["submitted","in_progress"].includes(fulfillment.status)) await this.gateway.syncFulfillment(businessId,fulfillment.fulfillmentId);
           else if (["submission_unknown","submitting","failed","partial","cancelled"].includes(fulfillment.status)) {
             attention=`FULFILLMENT_${fulfillment.status.toUpperCase()}`;
@@ -65,7 +67,8 @@ export class AutomationService {
     if (!session.state.optedOut && checkout.lastOrderStatus!==order.status && ["processing","completed","failed","cancelled"].includes(order.status)) {
       const names:Record<string,string>={processing:"en proceso de entrega",completed:"entregado",failed:"requiere revisión del equipo",cancelled:"cancelado"};
       await this.notifications.enqueue(businessId,`order:${order.orderId}:${order.status}`,"whatsapp",{
-        contact:session.contact,text:`Tu pedido ${order.orderId} está ${names[order.status]}.`,
+        contact:session.contact,text:`Tu pedido ${order.orderId} está ${names[order.status]}.`+
+          (providerOrderReference ? `\nReferencia del proveedor: ${providerOrderReference}.` : ""),
       });
     }
     // Reconciliation derives work from durable Orders; payment webhooks need not notify n8n directly.

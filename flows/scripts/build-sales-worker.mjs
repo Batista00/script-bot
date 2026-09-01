@@ -18,15 +18,20 @@ export function salesWorker(){
   http(w,"Submit private evidence",backend("/conversation/v1/evidence"),"={{ {base64:$json.base64,mimeType:$json.mimetype} }}",null,
     {...scopedHeaders,options:{timeout:60000,redirect:{redirect:{followRedirects:false}},response:{response:{neverError:true}}}});
   node(w,"Validate evidence result","code",{jsCode:`${evidenceResponse.toString()}\nreturn [{json:evidenceResponse($json)}];`});
+  node(w,"Prepare Typebot start","code",{jsCode:`const opened=$('Open session').first().json;
+const payload=$('Each message').first().json.payload;
+if(typeof opened.sessionToken!=='string'||!/^cs_[A-Za-z0-9_-]{43}$/.test(opened.sessionToken))throw new Error('SALES_SESSION_TOKEN_MISSING');
+if(typeof payload?.messageId!=='string'||typeof payload?.text!=='string')throw new Error('SALES_MESSAGE_CONTEXT_MISSING');
+return [{json:{prefilledVariables:{session_token:opened.sessionToken,message_id:payload.messageId,customer_message:payload.text}}}];`});
   http(w,"Run Typebot",`={{ ${cfg("typebotBaseUrl")} + '/api/v1/typebots/' + encodeURIComponent(${cfg("typebotPublicId")}) + '/startChat' }}`,
-    `={{ {prefilledVariables:{session_token:$('Open session').item.json.sessionToken,message_id:$('Each message').item.json.payload.messageId,customer_message:$('Each message').item.json.payload.text}}} }}`,null);
+    "={{ $json }}",null);
   node(w,"Read Typebot reply","code",{jsCode:`${typebotText.toString()}\nconst text=typebotText($json);if(!Array.isArray($json.messages))throw new Error('TYPEBOT_INVALID_RESPONSE');return [{json:{text}}];`});
   http(w,"Finish inbox and queue reply",runner("/inbox/ack"),"={{ {id:$('Each message').item.json.id,lease:$('Each message').item.json.lease,text:$json.text||''} }}","BW Automation Runner");
   link(w,"Every 15 seconds","Config");link(w,"Config","Claim inbox");link(w,"Claim inbox","Inbox items");link(w,"Inbox items","Each message");
   link(w,"Each message","Open session",1);link(w,"Open session","Is image");
   link(w,"Is image","Read Evolution media",0);link(w,"Read Evolution media","Check media limits");link(w,"Check media limits","Media usable");
   link(w,"Media usable","Submit private evidence",0);link(w,"Media usable","Validate evidence result",1);link(w,"Submit private evidence","Validate evidence result");
-  link(w,"Is image","Run Typebot",1);link(w,"Run Typebot","Read Typebot reply");
+  link(w,"Is image","Prepare Typebot start",1);link(w,"Prepare Typebot start","Run Typebot");link(w,"Run Typebot","Read Typebot reply");
   link(w,"Read Typebot reply","Finish inbox and queue reply");addEvidenceAnalysis(w);
   link(w,"Finish inbox and queue reply","Each message");return w;
 }

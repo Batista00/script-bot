@@ -26,9 +26,11 @@ import { SalesAdminController } from "./sales-admin.controller.js";
 import { salesRoutes } from "./sales.routes.js";
 import { SalesInboxService } from "./sales-inbox.service.js";
 import { PostgresSalesInboxRepository } from "./sales-inbox.repository.js";
+import type { AiInterpreter } from "../ai-orchestrator/ai-orchestrator.types.js";
 
 export async function registerSalesAutomation(app:FastifyInstance,config:Env,gateway:BotGatewayService,
-  integrations:IntegrationsService,payments:PaymentsService,adapters:ProviderFulfillmentRegistry) {
+  integrations:IntegrationsService,payments:PaymentsService,adapters:ProviderFulfillmentRegistry,
+  interpreter?:AiInterpreter) {
   const sales=new PostgresSalesRepository(app.db);
   const inbox=new SalesInboxService(new PostgresSalesInboxRepository(app.db),sales);
   const notifications=new PostgresNotificationsRepository(app.db);
@@ -38,7 +40,7 @@ export async function registerSalesAutomation(app:FastifyInstance,config:Env,gat
   const reviews=new PaymentReviewsService(reviewRepository,sales,checkout,payments,new IntegrationCredentialsCrypto(config.INTEGRATIONS_ENCRYPTION_KEY),notifications);
   const automation=new AutomationService(sales,gateway,delivery,notifications,reviews);
   await app.register(salesRoutes,{
-    controller:new SalesController(new SalesAccessService(sales,gateway),new SalesConversationService(sales,gateway,checkout,notifications),reviews,inbox),
+    controller:new SalesController(new SalesAccessService(sales,gateway),new SalesConversationService(sales,gateway,checkout,notifications,interpreter),reviews,inbox),
     admin:new SalesAdminController(new SalesAdminService(sales,reviewRepository,notifications,new PostgresSalesInboxRepository(app.db))),
     automation:new AutomationController(automation,new AutomationAccessService(integrations),notifications,new TelegramService(integrations,reviews,sales),inbox),
     machineAuth:new MachineAuthService(new PostgresApiCredentialsRepository(app.db)),

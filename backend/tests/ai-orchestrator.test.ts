@@ -26,6 +26,7 @@ test("OpenAI client accepts valid structured output", async () => {
               quantity: 1000,
               urls: [],
               paymentMethod: null,
+              searchTerms: ["instagram", "seguidores"],
             },
           }),
         }],
@@ -168,6 +169,7 @@ test("orchestrator maps commercial intents to safe actions", async () => {
           quantity: null,
           urls: [],
           paymentMethod: null,
+          searchTerms: [],
         },
       }),
     );
@@ -193,6 +195,7 @@ test("buy product reports missing commercial fields", async () => {
         quantity: 1000,
         urls: [],
         paymentMethod: null,
+        searchTerms: [],
       },
     }),
   );
@@ -221,6 +224,7 @@ test("future or unknown intents cannot execute commercial actions", async () => 
           quantity: 1000,
           urls: [],
           paymentMethod: null,
+          searchTerms: ["instagram", "seguidores"],
         },
       }),
     );
@@ -254,6 +258,7 @@ test("customer text is sent as user input, not system instructions", async () =>
               quantity: null,
               urls: [],
               paymentMethod: null,
+              searchTerms: [],
             },
           }),
         }],

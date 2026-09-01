@@ -3,6 +3,7 @@ import type { BotGatewayService } from "../bot-gateway/bot-gateway.service.js";
 import type { SalesDeliveryService } from "./sales-delivery.service.js";
 import type { PostgresSalesRepository } from "./sales.repository.js";
 import type { SalesReply, SalesSession } from "./sales.types.js";
+import { formatMoney, normalizeText } from "./sales-catalog.js";
 
 export class SalesCheckoutService {
   constructor(private readonly repository: PostgresSalesRepository, private readonly gateway: BotGatewayService,
@@ -16,9 +17,9 @@ export class SalesCheckoutService {
     const checkout = await this.repository.createCheckout(session,quote.quoteId,delivery);
     session.state.checkoutId=checkout.id;
     session.state.phase="confirm";
-    return {text:`${quote.productName}\nCantidad: ${quote.quantity}\nTotal: ${quote.totalPrice} ${quote.currency}\n`+
+    return {text:`Resumen de tu compra:\nServicio: ${quote.productName}\nCantidad: ${quote.quantity}\nTotal: ${formatMoney(quote.totalPrice,quote.currency)}\n`+
       Object.entries(input).map(([key,value])=>`${product.requiredInputs.find(f=>f.key===key)?.label ?? key}: ${value}`).join("\n")+
-      "\nEscribe CONFIRMAR para crear el pedido, o CANCELAR para volver al catálogo."};
+      "\nConfírmame si los datos están correctos, o escribe CANCELAR para volver al catálogo."};
   }
   async confirm(session: SalesSession): Promise<SalesReply> {
     const checkout = await this.ownedCheckout(session);
@@ -32,15 +33,20 @@ export class SalesCheckoutService {
     const methods=await this.gateway.listPaymentMethods(session.businessId);
     session.state.phase="payment";
     session.state.paymentChoices=methods.map(m=>m.paymentMethodId);
-    return {text:`Pedido ${order.orderId}\nTotal: ${order.total} ${order.currency}\n`+
-      (methods.length ? "Elige el número del método de pago:\n"+methods.map((m,i)=>`${i+1}. ${m.name}`).join("\n")
+    return {text:`Pedido ${order.orderId}\nTotal: ${formatMoney(order.total,order.currency)}\n`+
+      (methods.length ? "¿Cómo deseas pagar?\n"+methods.map((m,i)=>`${i+1}. ${m.name}`).join("\n")
         :"No hay métodos de pago activos. Solicita atención humana.")};
   }
   async pay(session: SalesSession, selection: string): Promise<SalesReply> {
     const checkout=await this.ownedCheckout(session);
-    const index=/^[1-9][0-9]*$/.test(selection) ? Number(selection)-1 : -1;
+    const methods=await this.gateway.listPaymentMethods(session.businessId);
+    const index=/^[1-9][0-9]*$/.test(selection.trim()) ? Number(selection.trim())-1 : -1;
     const id=session.state.paymentChoices?.[index];
-    const method=(await this.gateway.listPaymentMethods(session.businessId)).find(m=>m.paymentMethodId===id);
+    const normalized=normalizeText(selection);
+    const method=methods.find(m=>m.paymentMethodId===id) ?? methods.find((candidate)=>{
+      if (candidate.type==="bank_transfer") return /transferencia|banco|cuenta/.test(normalized);
+      return /mercado\s*pago|tarjeta|credito|debito/.test(normalized);
+    }) ?? methods.find((candidate)=>normalized.includes(normalizeText(candidate.name)));
     if (!method || !checkout.orderId) return {text:"Selecciona el número de uno de los métodos ofrecidos."};
     await this.delivery.revalidate(session.businessId,session.state.quantity!,checkout.delivery);
     const {payment}=await this.gateway.createPayment(session.businessId,checkout.orderId,

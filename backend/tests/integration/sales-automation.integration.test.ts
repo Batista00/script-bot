@@ -47,6 +47,18 @@ test("Durable multi-business sales, manual payment review and delivery against P
     let messageIndex=0;
     const say=(text:string,id=`message-${++messageIndex}`)=>services.conversation.receive(businessA,opened.sessionId,{messageId:id,text});
 
+    await t.test("natural language searches the scoped catalog through the existing AI interpreter",async()=>{
+      const semantic=new SalesConversationService(services.sales,services.gateway,services.checkout,services.notifications,{
+        isConfigured:()=>true,
+        interpret:async()=>({intent:"buy_product",confidence:0.99,entities:{platform:null,service:null,
+          quantity:null,urls:[],paymentMethod:null,searchTerms:["producto","prueba"]}}),
+      });
+      const buyer=await services.access.open(businessA,"56910000000","Comprador semántico");
+      const reply=await semantic.receive(businessA,buyer.sessionId,{messageId:"semantic-search",text:"busco el producto de prueba"});
+      assert.match(reply.text,/Producto de prueba/);
+      assert.match(reply.text,/100 CLP por unidad/);
+    });
+
     await t.test("sessions are scoped, expired tokens and foreign business cannot access them",async()=>{
       assert.equal((await services.access.authenticate(`Bearer ${opened.sessionToken}`)).sessionId,opened.sessionId);
       await assert.rejects(()=>services.access.authenticate("Bearer invalid"),{code:"SALES_SESSION_UNAUTHORIZED"});
@@ -67,13 +79,13 @@ test("Durable multi-business sales, manual payment review and delivery against P
       assert.equal((await db.query("SELECT 1 FROM payments WHERE business_id=$1",[businessA])).rowCount,0);
     });
     await t.test("confirmation and duplicate message survive service reconstruction without duplicate order",async()=>{
-      const first=await say("CONFIRMAR","confirmation");
+      const first=await say("Sí, están bien","confirmation");
       const restarted=new SalesConversationService(services.sales,services.gateway,services.checkout,services.notifications);
-      const second=await restarted.receive(businessA,opened.sessionId,{messageId:"confirmation",text:"CONFIRMAR"});
+      const second=await restarted.receive(businessA,opened.sessionId,{messageId:"confirmation",text:"Sí, están bien"});
       assert.deepEqual(first,second);
       await assert.rejects(()=>say("CANCELAR","confirmation"),{code:"SALES_MESSAGE_CONFLICT"});
       assert.equal((await db.query("SELECT 1 FROM orders WHERE business_id=$1",[businessA])).rowCount,1);
-      await say("1");await services.automation.tick(businessA);assert.equal(externalOrders,0);
+      await say("transferencia bancaria");await services.automation.tick(businessA);assert.equal(externalOrders,0);
     });
     await t.test("returning to catalog preserves the order and its evidence destination",async()=>{
       const before=await services.checkout.ownedCheckout(await services.sales.session(businessA,opened.sessionId));
@@ -138,6 +150,9 @@ test("Durable multi-business sales, manual payment review and delivery against P
       assert.equal(externalOrders,1);
       const checkout=await services.checkout.ownedCheckout(await services.sales.session(businessA,opened.sessionId));
       assert.equal((await services.gateway.getOrder(businessA,checkout.orderId!)).status,"completed");
+      const delivered=await db.query<{text:string}>(`SELECT payload->>'text' AS text FROM automation_notifications
+        WHERE business_id=$1 AND channel='whatsapp' AND payload->>'text' LIKE '%Referencia del proveedor:%'`,[businessA]);
+      assert.match(delivered.rows[0]?.text ?? "",/Referencia del proveedor: 1/);
     });
     await t.test("notifications leases prevent concurrent claims and cross-business acknowledgements",async()=>{
       const [left,right]=await Promise.all([services.notifications.claim(businessA),services.notifications.claim(businessA)]);

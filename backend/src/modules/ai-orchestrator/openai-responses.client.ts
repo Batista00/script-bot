@@ -62,6 +62,11 @@ instagram, facebook, youtube, tiktok.
 Servicios permitidos:
 followers, likes, views, comments, live_views.
 
+Además devuelve searchTerms con hasta 6 palabras comerciales breves, en
+minúsculas y sin frases de acción. Incluye sólo términos útiles para buscar el
+producto en un catálogo (plataforma, servicio o variante). Esto permite buscar
+servicios no enumerados sin inventarlos. Nunca incluyas precios ni IDs.
+
 Usa:
 - followers para seguidores o suscriptores;
 - likes para me gusta;

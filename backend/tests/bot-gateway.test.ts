@@ -213,7 +213,7 @@ test("Gateway exposes fixed-quantity catalog packages using retail prices", asyn
   assert.ok(calls.every(([, scopedBusiness]) => scopedBusiness === businessA));
 });
 
-test("payment and fulfillment DTOs omit internal provider fields and sensitive inputs", async () => {
+test("payment and fulfillment DTOs omit internal fields and expose only the safe provider order reference", async () => {
   const { gateway } = fixture();
   const payment = await gateway.getPayment(businessA, paymentA);
   const fulfillment = await gateway.dispatchFulfillment(businessA, orderA, {
@@ -224,8 +224,9 @@ test("payment and fulfillment DTOs omit internal provider fields and sensitive i
   ]);
   assert.deepEqual(Object.keys(fulfillment).sort(), [
     "completedAt", "fulfillmentId", "lastStatusSyncedAt", "orderId", "orderItemId",
-    "productId", "status", "submittedAt",
+    "productId", "providerOrderReference", "status", "submittedAt",
   ]);
+  assert.equal(fulfillment.providerOrderReference, "999");
   const serialized = JSON.stringify({ payment, fulfillment });
   for (const forbidden of [
     "providerReferenceId", "providerPaymentId", "idempotencyKey", "providerCharge",

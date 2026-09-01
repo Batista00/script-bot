@@ -23,6 +23,7 @@ export const aiInterpretationSchemaZod = z.object({
     quantity: z.number().int().positive().nullable(),
     urls: z.array(z.string().url()).max(20),
     paymentMethod: z.string().trim().min(1).max(80).nullable(),
+    searchTerms: z.array(z.string().trim().min(1).max(40)).max(6),
   }).strict(),
 }).strict();
 
@@ -81,6 +82,7 @@ export const openAiInterpretationJsonSchema = {
         "quantity",
         "urls",
         "paymentMethod",
+        "searchTerms",
       ],
       properties: {
         platform: {
@@ -111,6 +113,11 @@ export const openAiInterpretationJsonSchema = {
             { type: "string", maxLength: 80 },
             { type: "null" },
           ],
+        },
+        searchTerms: {
+          type: "array",
+          maxItems: 6,
+          items: { type: "string", minLength: 1, maxLength: 40 },
         },
       },
     },

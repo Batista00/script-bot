@@ -122,6 +122,21 @@ export class PostgresSalesRepository {
       ORDER BY p.name,p.id LIMIT 6 OFFSET $3`,[businessId,search,offset]);
     return result.rows.map((row)=>row.id);
   }
+  async catalogByTermGroups(businessId: string, termGroups: string[][], offset: number): Promise<string[]> {
+    const result = await this.db.query<{ id: string }>(`SELECT p.id FROM products p
+      LEFT JOIN categories c ON c.business_id=p.business_id AND c.id=p.category_id
+      WHERE p.business_id=$1 AND p.status='active'
+      AND NOT EXISTS (
+        SELECT 1 FROM jsonb_array_elements($2::jsonb) AS search_group(value)
+        WHERE NOT EXISTS (
+          SELECT 1 FROM jsonb_array_elements_text(search_group.value) AS candidate(term)
+          WHERE strpos(lower(concat_ws(' ',p.name,p.description,p.sku,c.name)),lower(candidate.term))>0
+        )
+      )
+      AND EXISTS(SELECT 1 FROM product_prices pr WHERE pr.business_id=p.business_id AND pr.product_id=p.id AND pr.status='active')
+      ORDER BY p.name,p.id LIMIT 6 OFFSET $3`,[businessId,JSON.stringify(termGroups),offset]);
+    return result.rows.map((row)=>row.id);
+  }
   async cleanExpired(businessId: string, days: number): Promise<void> {
     await this.db.query("DELETE FROM sales_session_tokens WHERE business_id=$1 AND expires_at<now()",[businessId]);
     await this.db.query(`UPDATE payment_reviews SET evidence_encrypted=NULL WHERE business_id=$1

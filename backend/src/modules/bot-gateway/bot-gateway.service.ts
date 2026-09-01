@@ -280,7 +280,8 @@ export class BotGatewayService {
   private fulfillmentDto(value: Fulfillment): BotFulfillmentDto {
     return {
       fulfillmentId: value.id, orderId: value.orderId, orderItemId: value.orderItemId,
-      productId: value.productId, status: value.status, submittedAt: value.submittedAt,
+      productId: value.productId, providerOrderReference: value.providerOrderId,
+      status: value.status, submittedAt: value.submittedAt,
       lastStatusSyncedAt: value.lastStatusSyncedAt, completedAt: value.completedAt,
     };
   }

@@ -142,13 +142,12 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   const apiCredentialsService = new ApiCredentialsService(apiCredentialsRepository);
   const machineAuthService = new MachineAuthService(apiCredentialsRepository);
 
-  const aiOrchestratorService = new AiOrchestratorService(
-    new OpenAiResponsesClient({
-      apiKey: config.OPENAI_API_KEY,
-      model: config.OPENAI_MODEL ?? "gpt-5.4-nano",
-      timeoutMs: config.OPENAI_TIMEOUT_MS ?? 10_000,
-    }),
-  );
+  const aiInterpreter = new OpenAiResponsesClient({
+    apiKey: config.OPENAI_API_KEY,
+    model: config.OPENAI_MODEL ?? "gpt-5.4-nano",
+    timeoutMs: config.OPENAI_TIMEOUT_MS ?? 10_000,
+  });
+  const aiOrchestratorService = new AiOrchestratorService(aiInterpreter);
   const categoriesRepository = new PostgresCategoriesRepository(app.db);
   const customersRepository = new PostgresCustomersRepository(app.db);
   const productsRepository = new PostgresProductsRepository(app.db);
@@ -199,7 +198,7 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   await app.register(paymentsRoutes, { service: paymentsService });
   await app.register(paymentMethodsRoutes, { service: paymentMethodsService });
   await registerSalesAutomation(app,config,botGatewayService,integrationsService,paymentsService,
-    new ProviderFulfillmentRegistry([new SmmRajaFulfillmentAdapter(integrationsService,smmRajaClient)]));
+    new ProviderFulfillmentRegistry([new SmmRajaFulfillmentAdapter(integrationsService,smmRajaClient)]),aiInterpreter);
 
   return app;
 }

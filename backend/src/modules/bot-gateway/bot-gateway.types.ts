@@ -115,6 +115,7 @@ export interface BotFulfillmentDto {
   orderId: string;
   orderItemId: string;
   productId: string;
+  providerOrderReference: string | null;
   status: FulfillmentStatus;
   submittedAt: string | null;
   lastStatusSyncedAt: string | null;

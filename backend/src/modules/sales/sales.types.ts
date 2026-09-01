@@ -27,7 +27,10 @@ export interface SalesState {
   phase?: "browse" | "quantity" | "inputs" | "confirm" | "payment" | "awaiting";
   offset?: number;
   search?: string;
+  termGroups?: string[][];
   choices?: BotProductDto[];
+  choiceQuantities?: Array<number | null>;
+  choiceLabels?: string[];
   product?: BotProductDto;
   quantity?: number;
   input?: JsonObject;

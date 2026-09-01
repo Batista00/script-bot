@@ -47,3 +47,16 @@ test("Evolution ingress acknowledges ignored events without persisting them",()=
   const normalize=w.nodes.find(n=>n.name==="Normalize incoming");
   assert.match(normalize.parameters.jsCode,/message \?\? \{ignored:true\}/);
 });
+
+test("sales worker passes validated Typebot prefilled variables instead of an empty body",()=>{
+  const w=salesWorker();
+  const prepare=w.nodes.find(n=>n.name==="Prepare Typebot start");
+  const run=w.nodes.find(n=>n.name==="Run Typebot");
+  assert.ok(prepare);assert.ok(run);
+  assert.match(prepare.parameters.jsCode,/prefilledVariables/);
+  assert.match(prepare.parameters.jsCode,/SALES_SESSION_TOKEN_MISSING/);
+  assert.match(prepare.parameters.jsCode,/\$\('Open session'\)\.first\(\)/);
+  assert.equal(run.parameters.jsonBody,"={{ $json }}");
+  assert.deepEqual(w.connections["Is image"].main[1],[{node:"Prepare Typebot start",type:"main",index:0}]);
+  assert.deepEqual(w.connections["Prepare Typebot start"].main[0],[{node:"Run Typebot",type:"main",index:0}]);
+});

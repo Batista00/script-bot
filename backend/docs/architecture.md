@@ -203,11 +203,11 @@ MachineAuthContext { credentialId, businessId, credentialName }
 
 El token machine contiene al menos 256 bits aleatorios y solo se devuelve al crearlo; PostgreSQL guarda hash y prefijo. La administración de estas credenciales continúa bajo sesión humana `owner/admin`. Una cookie no autentica el Gateway y un Bearer machine no autoriza rutas administrativas.
 
-Bot Gateway no tiene repositories ni SQL: orquesta Customers, Categories, Products, Pricing, Quotes, Orders, Payments y Fulfillments. Todas las llamadas reciben el `businessId` del `MachineAuthContext`, nunca del cliente. Sus DTOs excluyen provider rates, referencias externas, credenciales, hashes, idempotency keys e inputs sensibles de fulfillment. Las reglas críticas —pago confirmado por provider y dispatch exclusivo desde Order `paid`— permanecen en sus respectivos servicios Core.
+Bot Gateway no tiene repositories ni SQL: orquesta Customers, Categories, Products, Pricing, Quotes, Orders, Payments y Fulfillments. Todas las llamadas reciben el `businessId` del `MachineAuthContext`, nunca del cliente. Sus DTOs excluyen provider rates, IDs de servicio externos, credenciales, hashes, idempotency keys e inputs sensibles de fulfillment. El DTO de entrega expone únicamente `providerOrderReference`, la referencia segura que puede comunicarse al comprador después del despacho; no permite elegirla ni reutilizarla para ejecutar una compra. Las reglas críticas —pago confirmado por provider y dispatch exclusivo desde Order `paid`— permanecen en sus respectivos servicios Core.
 
 ## Ventas multicanal y automatizaciones opcionales
 
-`modules/sales` conserva conversación, selección comercial y datos de entrega previos al pago; `modules/payment-reviews` gestiona comprobantes cifrados y decisiones humanas; `modules/automation` reconcilia Orders y distribuye trabajos durables. Telegram vive en su adapter. Evolution/Typebot/OpenAI son clientes/orquestadores a través de n8n, nunca autoridades financieras. Detalle en [sales-automation.md](sales-automation.md).
+`modules/sales` conserva conversación, selección comercial y datos de entrega previos al pago; reutiliza el intérprete estructurado de `ai-orchestrator` para convertir lenguaje natural en términos de búsqueda, pero consulta catálogo, precios y estado exclusivamente en PostgreSQL mediante los servicios existentes. `modules/payment-reviews` gestiona comprobantes cifrados y decisiones humanas; `modules/automation` reconcilia Orders y distribuye trabajos durables. Telegram vive en su adapter. Evolution, Typebot, n8n y OpenAI nunca son autoridades financieras. Detalle en [sales-automation.md](sales-automation.md).
 
 ## Propiedad de datos por negocio
 

@@ -80,8 +80,9 @@ function missingFields(value: AiInterpretation): string[] {
   const missing: string[] = [];
 
   if (value.intent === "buy_product" || value.intent === "ask_price") {
-    if (!value.entities.platform) missing.push("platform");
-    if (!value.entities.service) missing.push("service");
+    const hasCatalogTerms = value.entities.searchTerms.length > 0;
+    if (!value.entities.platform && !hasCatalogTerms) missing.push("platform");
+    if (!value.entities.service && !hasCatalogTerms) missing.push("service");
   }
 
   return missing;

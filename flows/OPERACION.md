@@ -11,14 +11,15 @@ WhatsApp → Evolution → webhook n8n → inbox PostgreSQL
   → seguimiento → notificaciones WhatsApp y Telegram
 ```
 
-El backend decide importes, moneda, disponibilidad y transiciones. OpenAI responde consultas/objeciones a partir de políticas del negocio; no tiene herramientas para modificar pedidos, aprobar pagos ni comprar al proveedor. No es una IA autónoma con permiso para operar dinero.
+El backend decide importes, moneda, disponibilidad y transiciones. OpenAI interpreta intención y términos de búsqueda y puede responder consultas/objeciones a partir de políticas del negocio; los resultados se contrastan contra el catálogo y Pricing del Business. No tiene herramientas para modificar pedidos, aprobar pagos ni comprar al proveedor. No es una IA autónoma con permiso para operar dinero.
 
 ## Comandos del cliente
 
-- `CATÁLOGO`, `MENÚ`, `HOLA`: lista productos comerciales disponibles, cinco por página.
+- `HOLA`: saluda y pregunta qué plataforma/servicio necesita el cliente. El cliente puede responder libremente, por ejemplo «busco seguidores de Instagram»; el backend muestra sólo coincidencias activas con su precio retail.
+- `CATÁLOGO`, `MENÚ`: lista productos comerciales disponibles, cinco por página.
 - `BUSCAR nombre`: busca nombre/SKU; `MÁS`: siguiente página.
-- Número del producto → cantidad → campos requeridos en orden. URLs HTTP/S válidas, fechas AAAA-MM-DD reales, comentarios uno por unidad en los servicios que lo requieren.
-- `CONFIRMAR`: acepta el snapshot de precio y crea el pedido. Después elegir el número del método de pago.
+- Número/nombre/cantidad ofrecida → campos requeridos en orden. Se aceptan frases como «quiero los 1.000». URLs HTTP/S válidas, fechas AAAA-MM-DD reales y comentarios uno por unidad en los servicios que lo requieren.
+- `CONFIRMAR` o una confirmación natural como «sí, están bien»: acepta el snapshot de precio y crea el pedido. Después puede elegirse el número o decir «transferencia bancaria», «tarjeta» o «Mercado Pago».
 - `ESTADO`: consulta la compra seleccionada más reciente. Volver al catálogo no borra ese pedido. Una nueva cotización pasa a ser la compra seleccionada; para otros pedidos usar atención humana/panel.
 - Imagen JPG/PNG de hasta 2 MB: comprobante del pago de transferencia seleccionado. No PDF, audio o vídeo en esta entrega.
 - `CANCELAR`: abandona la selección actual y vuelve al catálogo; **no cancela un pedido ya creado**. El humano puede cancelar uno pendiente desde Pedidos.
@@ -61,5 +62,5 @@ Si un comprobante caducó, no forzar la revisión con datos falsos: comprobar el
 - La lectura IA es optativa y puede equivocarse. Se conserva cifrada y se presenta como observación; ni el monto coincidente ni el texto del comprobante autorizan pagos.
 - El bot responde al cliente que inicia contacto; no se creó un sistema de campañas. Revisar consentimiento, políticas y restricciones de WhatsApp/proveedores y del sector antes de operar. Evolution no equivale por sí mismo a aprobación oficial de WhatsApp ni garantiza que cualquier servicio SMM sea admisible.
 - Sin tienda custom, Webpay, entrega automática de archivos/licencias, integración logística ni refunds. Los productos sin proveedor tienen entrega manual auditada.
-- El lenguaje libre sirve para asesoría; selección, cotización, pago y entrega son pasos determinísticos. No hay memoria ilimitada ni negociación automática de descuentos.
+- El lenguaje libre sirve para descubrir el catálogo y conversar; selección, cotización, pago y entrega permanecen como pasos determinísticos. No hay memoria ilimitada ni negociación automática de descuentos.
 - Sin un runtime n8n confirmado e importación real no se declara certificada la compatibilidad del despliegue. Las pruebas locales usan proveedores falsos; no comprueban credenciales, saldo, DNS o acceso de producción.

@@ -21,6 +21,7 @@ Nunca introducir claves en los JSON exportados, nodos Code, variables Typebot, U
 | Backend → Integraciones → Telegram | `botToken` + `webhookSecret` | Validar y responder acciones humanas de Telegram |
 | Backend → Integraciones → Automation Runner | `runnerSecret` | Ejecutar colas/reconciliación de **ese** negocio |
 | Backend → API Credentials | Token machine `bw_…` | Abrir conversaciones y persistir mensajes; no aprobar pagos |
+| Backend → entorno seguro | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_TIMEOUT_MS` | Interpretar intención y términos para buscar el catálogo; opcional |
 | n8n → `BW Backend` (Header Auth) | Header `Authorization`, valor `Bearer <token machine>` | Flujos 01 y 03 |
 | n8n → `BW Automation Runner` (Header Auth) | Header `Authorization`, valor `Bearer <runnerSecret>` | Flujos 03 y 04 |
 | n8n → `BW Evolution Webhook` (Header Auth) | Header `x-bw-webhook-secret`, secreto aleatorio propio | Autenticar entrada desde Evolution |
@@ -59,7 +60,7 @@ En **Bot y automatizaciones** del negocio:
    - `openaiModel`: modelo disponible en tu cuenta que admita Chat Completions; para lectura de imágenes debe admitir visión y Structured Outputs. No dejar `CONFIGURAR_MODELO`.
    - `evidenceAiEnabled`: `false` por defecto. Activar sólo después de informar sobre el envío del comprobante a OpenAI, revisar privacidad/costes y validar el modelo elegido.
 
-6. Comprobar que están presentes los nodos y conexiones. Los exports usan HTTP Request 4.2, Code 2, Webhook 2, Respond 1.4, Schedule 1.2, IF 2.2, Telegram 1.2 y Loop Over Items 3. **La versión instalada de n8n aún debe confirmarse**: no se ha validado la importación en ese runtime.
+6. Comprobar que están presentes los nodos y conexiones. Los exports usan HTTP Request 4.2, Code 2, Webhook 2, Respond 1.4, Schedule 1.2, IF 2.2, Telegram 1.2 y Loop Over Items 3. El workflow 03 debe incluir **Prepare Typebot start** entre `Is image` y `Run Typebot`: valida y envía `prefilledVariables.session_token`, `message_id` y `customer_message`. Un body `{}` crea una sesión visual, pero el bridge la rechaza correctamente por falta de autoridad. **La versión instalada de n8n aún debe confirmarse**: no se ha validado la importación en ese runtime.
 7. Mantener desactivado el guardado de datos de ejecuciones exitosas, fallidas y manuales. No fijar `pinData` con conversaciones, headers, imágenes ni tokens. Los resultados Typebot pueden contener un token temporal acotado a una conversación (24 horas); restringir acceso y retención. No dar acceso de edición a clientes finales.
 
 Los JSON de `typebot/` antiguo permanecen como referencia histórica. No activar simultáneamente el flujo viejo y el nuevo para la misma instancia.

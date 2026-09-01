@@ -7,6 +7,7 @@
 - Fulfillments: sigue siendo quien comprueba Order paid y evita duplicación de compras externas. Un parámetro interno opcional compara el servicio esperado por el checkout dentro de la transacción que crea el snapshot; no lo acepta HTTP.
 - PaymentReviews: guarda imagen y lectura opcional cifradas, hash de evidencia, revisión, actor y referencia. Un comprobante nunca es una confirmación bancaria.
 - Automation: obtiene trabajo desde filas persistidas, reconcilia estado pagado sin modificar el contrato de webhooks financieros y utiliza notificaciones con clave de evento única.
+- AiOrchestrator: interpreta intención, plataforma, servicio, cantidad y términos de búsqueda mediante salida estructurada. No recibe herramientas de pago o fulfillment; si OpenAI no está disponible, los comandos determinísticos siguen operativos.
 - n8n: transporte, coordinación Typebot, asesoría OpenAI y avisos. No calcula importes ni cambia directamente PostgreSQL.
 
 ## Autenticación
@@ -30,6 +31,7 @@ Los owners/admins son responsables de vincular correctamente sus identidades Tel
 - Los bloqueos advisory de sesión NO son transacciones: ninguna llamada a servicios externos ocurre dentro de una transacción SQL. Se reserva capacidad del pool para las consultas internas y se rechaza sobrecarga con `SALES_BUSY`.
 - El scheduler puede repetir reconciliación; las claves únicas de eventos impiden volver a encolar el mismo aviso. Un fallo después del envío externo y antes del ACK puede repetir una notificación (at-least-once).
 - Un fulfillment ambiguo jamás se reintenta automáticamente. Esta garantía financiera es independiente de la cola de mensajes.
+- La referencia de pedido del proveedor sólo se comunica después de existir un Fulfillment despachado; nunca se acepta desde WhatsApp como dato de autorización o idempotencia.
 
 ## Datos personales y validación
 

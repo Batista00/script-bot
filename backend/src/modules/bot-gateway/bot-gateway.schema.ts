@@ -136,11 +136,12 @@ const payment = {
 const fulfillment = {
   type: "object", additionalProperties: false,
   required: [
-    "fulfillmentId", "orderId", "orderItemId", "productId", "status",
+    "fulfillmentId", "orderId", "orderItemId", "productId", "providerOrderReference", "status",
     "submittedAt", "lastStatusSyncedAt", "completedAt",
   ],
   properties: {
     fulfillmentId: uuid, orderId: uuid, orderItemId: uuid, productId: uuid,
+    providerOrderReference: nullableString,
     status: { type: "string", enum: [
       "pending", "submitting", "submitted", "in_progress", "completed",
       "partial", "cancelled", "failed", "submission_unknown",
