@@ -17,7 +17,7 @@ export class PostgresSalesInboxRepository {
       SELECT i.id FROM sales_inbox i WHERE business_id=$1 AND completed_at IS NULL AND attempts<8
         AND available_at<=now() AND (lease_until IS NULL OR lease_until<now())
         AND NOT EXISTS(SELECT 1 FROM sales_inbox older WHERE older.business_id=i.business_id AND older.contact=i.contact
-          AND older.completed_at IS NULL AND (older.created_at,older.id)<(i.created_at,i.id))
+          AND older.completed_at IS NULL AND older.attempts<8 AND (older.created_at,older.id)<(i.created_at,i.id))
       ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1
     ) UPDATE sales_inbox i SET lease=$2,lease_until=now()+interval '5 minutes',attempts=i.attempts+1,
       available_at=now()+interval '5 minutes' FROM candidate c WHERE c.id=i.id

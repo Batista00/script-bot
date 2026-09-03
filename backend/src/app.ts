@@ -198,7 +198,7 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   await app.register(paymentsRoutes, { service: paymentsService });
   await app.register(paymentMethodsRoutes, { service: paymentMethodsService });
   await registerSalesAutomation(app,config,botGatewayService,integrationsService,paymentsService,
-    new ProviderFulfillmentRegistry([new SmmRajaFulfillmentAdapter(integrationsService,smmRajaClient)]),aiInterpreter);
+    new ProviderFulfillmentRegistry([new SmmRajaFulfillmentAdapter(integrationsService,smmRajaClient)]));
 
   return app;
 }

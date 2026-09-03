@@ -61,6 +61,13 @@ export class PostgresSalesRepository {
     await this.db.query(`UPDATE sales_sessions SET state=$3,paused=$4,updated_at=now() WHERE business_id=$1 AND id=$2`,
       [session.businessId, session.id, JSON.stringify(session.state), session.paused]);
   }
+  async setTypebotSession(businessId: string, sessionId: string, typebotSessionId: string | null): Promise<void> {
+    const result = await this.db.query(
+      "UPDATE sales_sessions SET typebot_session_id=$3,updated_at=now() WHERE business_id=$1 AND id=$2",
+      [businessId, sessionId, typebotSessionId],
+    );
+    if (!result.rowCount) throw new AppError("Conversación no encontrada", 404, "SALES_SESSION_NOT_FOUND");
+  }
   async addToken(session: SalesSession, hash: string): Promise<void> {
     await this.db.query("INSERT INTO sales_session_tokens(token_hash,business_id,session_id) VALUES($1,$2,$3)", [hash, session.businessId, session.id]);
   }

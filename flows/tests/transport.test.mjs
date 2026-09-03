@@ -8,7 +8,7 @@ test("invalid evidence replies do not block the contact; technical failures stil
   assert.deepEqual(evidenceResponse({reviewId:"fixture",text:"Recibido"}),{reviewId:"fixture",text:"Recibido"});
   assert.throws(()=>evidenceResponse({error:{code:"INTERNAL_SERVER_ERROR",message:"private details"}}),/EVIDENCE_SERVICE_UNAVAILABLE/);
 });
-import { normalizeEvolution,typebotText } from "../scripts/transport-functions.mjs";
+import { normalizeEvolution,typebotText,typebotMessages,encodeOutboxMessages,decodeOutboxMessages } from "../scripts/transport-functions.mjs";
 const event={event:"messages.upsert",instance:"fixture",data:{key:{remoteJid:"56912345678@s.whatsapp.net",id:"ABC",fromMe:false},pushName:"Cliente",message:{conversation:"Hola"}}};
 test("Evolution 2.3.4 incoming identity is normalized and body credentials are not copied",()=>{
   assert.deepEqual(normalizeEvolution({...event,apikey:"DO_NOT_COPY"},"fixture"),{contact:"56912345678",name:"Cliente",messageId:"ABC",text:"Hola",image:false});
@@ -30,4 +30,17 @@ test("Typebot keeps catalog rows separated for WhatsApp",()=>{
   ]}}]};
   assert.equal(typebotText(response),
     "Encontré estas opciones:\n1. 500 seguidores — 1.990 CLP\n2. 1.000 seguidores — 4.990 CLP");
+});
+test("Typebot text blocks and explicit bubble delimiters remain separate and ordered",()=>{
+  const response={messages:[
+    {type:"text",content:{richText:[{children:[{text:"Perfecto 😊"}]}]}},
+    {type:"text",content:{richText:[{children:[{text:"1. Opción — 1.990 CLP\n2. Opción — 4.990 CLP|||¿Cuál prefieres?"}]}]}},
+  ]};
+  assert.deepEqual(typebotMessages(response),["Perfecto 😊","1. Opción — 1.990 CLP\n2. Opción — 4.990 CLP","¿Cuál prefieres?"]);
+  const encoded=encodeOutboxMessages(typebotMessages(response));
+  assert.deepEqual(decodeOutboxMessages(encoded),typebotMessages(response));
+  assert.deepEqual(decodeOutboxMessages("Respuesta anterior compatible"),["Respuesta anterior compatible"]);
+});
+test("invalid versioned outbox payload is rejected instead of silently dropping messages",()=>{
+  assert.throws(()=>decodeOutboxMessages("__BW_MESSAGES_V1__not-json"),/OUTBOX_MESSAGES_INVALID/);
 });

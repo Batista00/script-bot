@@ -3,13 +3,14 @@ import { test } from "node:test";
 import { command } from "../src/modules/sales/sales-conversation.service.js";
 import { validateEvidence } from "../src/modules/payment-reviews/payment-reviews.service.js";
 import { verifySharedSecret } from "../src/integrations/telegram/telegram.service.js";
-import { inboxSchema,messageSchema,settingsSchema,validated } from "../src/modules/sales/sales.schema.js";
+import { inboxSchema,messageSchema,settingsSchema,typebotSessionSchema,validated } from "../src/modules/sales/sales.schema.js";
 import { defaultSalesSettings } from "../src/modules/sales/sales.types.js";
 import { SmmRajaFulfillmentAdapter } from "../src/integrations/smm-raja/smm-raja.fulfillment.adapter.js";
 import type { IntegrationsService } from "../src/modules/integrations/integrations.service.js";
 import type { SmmRajaFulfillmentHttpClient } from "../src/integrations/smm-raja/smm-raja.client.js";
 import { AutomationService } from "../src/modules/automation/automation.service.js";
 import { PostgresSalesRepository } from "../src/modules/sales/sales.repository.js";
+import { SalesAccessService } from "../src/modules/sales/sales-access.service.js";
 import type { BotGatewayService } from "../src/modules/bot-gateway/bot-gateway.service.js";
 import type { SalesDeliveryService } from "../src/modules/sales/sales-delivery.service.js";
 import type { PostgresNotificationsRepository } from "../src/modules/automation/notifications.repository.js";
@@ -44,6 +45,7 @@ test("sales HTTP endpoints deny absent session/machine/human authority; health r
   for(const url of ["/bot/v1/sales/sessions","/bot/v1/sales/inbox","/conversation/v1/message","/conversation/v1/evidence","/conversation/v1/evidence/analysis"]) {
     assert.equal((await app.inject({method:"POST",url,payload:{}})).statusCode,401,url);
   }
+  assert.equal((await app.inject({method:"PUT",url:"/conversation/v1/typebot-session",payload:{typebotSessionId:"typebot-session"}})).statusCode,401);
   assert.equal((await app.inject({method:"GET",url:"/businesses/30292e18-abfd-43c1-946d-8e18489a39a5/sales-automation"})).statusCode,401);
   assert.equal((await app.inject({method:"GET",url:"/health"})).statusCode,200);
 });
@@ -56,6 +58,20 @@ test("HTTP input rejects injected business/payment approval fields",()=>{
   assert.throws(()=>validated(messageSchema,{messageId:"1",text:"hola",approved:true}));
   assert.throws(()=>validated(inboxSchema,{messageId:"1",text:"hola",image:false,contact:"123@g.us"}));
   assert.throws(()=>validated(settingsSchema,{...defaultSalesSettings,botToken:"not-allowed"}));
+  assert.throws(()=>validated(typebotSessionSchema,{typebotSessionId:"typebot-session",businessId:"foreign"}));
+});
+test("Typebot session replacement uses the authenticated business and commercial session",async()=>{
+  const writes:Array<[string,string,string|null]>=[];
+  const repository={
+    token:async()=>({businessId:"business-a",sessionId:"sales-a"}),
+    setTypebotSession:async(businessId:string,sessionId:string,typebotSessionId:string|null)=>{writes.push([businessId,sessionId,typebotSessionId]);},
+  } as unknown as PostgresSalesRepository;
+  const service=new SalesAccessService(repository,{} as BotGatewayService);
+  const token=`cs_${"a".repeat(43)}`;
+  assert.deepEqual(await service.setTypebotSession(`Bearer ${token}`,"typebot-a"),{ok:true,typebotSessionId:"typebot-a"});
+  assert.deepEqual(writes,[["business-a","sales-a","typebot-a"]]);
+  await service.setTypebotSession(`Bearer ${token}`,null);
+  assert.deepEqual(writes[1],["business-a","sales-a",null]);
 });
 test("shared webhook authentication rejects absent, short or incorrect secrets",()=>{
   assert.equal(verifySharedSecret(undefined,"a".repeat(32)),false);

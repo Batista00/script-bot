@@ -1,6 +1,6 @@
 # Importación y configuración: Evolution 2.3.4 + Typebot 6.1 + n8n
 
-Estado de entrega: código y exports preparados en local. No se han importado ni activado en el VPS. Las pruebas de cuentas y dinero reales se harán después de revisar esta configuración.
+Estado de entrega: código y exports generados sin secretos. Se importan desactivados; las pruebas con dinero real sólo se hacen tras revisar esta configuración.
 
 ## 1. Preparar el backend y el negocio
 
@@ -21,12 +21,12 @@ Nunca introducir claves en los JSON exportados, nodos Code, variables Typebot, U
 | Backend → Integraciones → Telegram | `botToken` + `webhookSecret` | Validar y responder acciones humanas de Telegram |
 | Backend → Integraciones → Automation Runner | `runnerSecret` | Ejecutar colas/reconciliación de **ese** negocio |
 | Backend → API Credentials | Token machine `bw_…` | Abrir conversaciones y persistir mensajes; no aprobar pagos |
-| Backend → entorno seguro | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_TIMEOUT_MS` | Interpretar intención y términos para buscar el catálogo; opcional |
+| Typebot → credencial OpenAI | API key en el almacén seguro de Typebot | Único modelo conversacional de ventas (`Ask Model`) |
 | n8n → `BW Backend` (Header Auth) | Header `Authorization`, valor `Bearer <token machine>` | Flujos 01 y 03 |
 | n8n → `BW Automation Runner` (Header Auth) | Header `Authorization`, valor `Bearer <runnerSecret>` | Flujos 03 y 04 |
 | n8n → `BW Evolution Webhook` (Header Auth) | Header `x-bw-webhook-secret`, secreto aleatorio propio | Autenticar entrada desde Evolution |
 | n8n → `Evolution API` (Header Auth existente) | Header `apikey`, clave de Evolution | Descargar media y enviar WhatsApp |
-| n8n → `OpenAI account` (existente) | API key de OpenAI | Asesoría y lectura opcional de comprobantes |
+| n8n → `OpenAI account` (existente) | API key de OpenAI | Sólo lectura visual opcional y no autoritativa de comprobantes; no conversación |
 | n8n → `Telegram Ventas Admin` (existente) | Token del mismo bot Telegram del backend | Enviar avisos y comprobantes |
 
 Generar secretos diferentes de al menos 32 caracteres aleatorios para `runnerSecret`, `webhookSecret` y el webhook Evolution. Para Telegram usar caracteres admitidos por `secret_token` (letras, números, `_`, `-`), máximo 256. Guardarlos en el gestor seguro y pegar sólo en sus formularios. `N8N_ENCRYPTION_KEY` cifra el almacén de n8n: **no es una API key de OpenAI** y no va en ningún nodo.
@@ -47,12 +47,14 @@ En **Bot y automatizaciones** del negocio:
 
 1. En el builder Typebot importar `typebot/sales-assistant-6.1.json`. Su estructura es versión 6.1. El dominio `bot.pablete.xyz` debe servir la API del **viewer**; si sólo sirve el builder, usar el dominio viewer real en n8n.
 2. En el bloque HTTP comprobar destino fijo `https://n8n.pablete.xyz/webhook/bw-sales-bridge`. Para otro negocio usar una ruta propia. No convertir este destino en una variable prefijada por el cliente: permitiría elegir destinos de solicitudes server-side.
-3. Publicar al comenzar las pruebas autorizadas y copiar el `publicId` publicado (no el ID interno). El flujo Typebot es una presentación **sin memoria local entre mensajes**: inicia una ejecución por mensaje; el backend conserva estado, pedido e idempotencia. No añadir otro bloque de espera de WhatsApp.
-4. Importar los cuatro JSON de `n8n/`. Dejar todos desactivados. Seleccionar manualmente las credenciales de la tabla anterior en **cada nodo**; los exports contienen nombres, nunca IDs ni secretos.
-5. Editar el nodo **Config** de cada workflow:
+3. Abrir el bloque **Asesor comercial OpenAI**, seleccionar una credencial OpenAI de Typebot y revisar el modelo. El JSON no contiene `credentialsId` ni API key. Existe un solo `Ask Model`, con Response ID para contexto lingüístico; el backend conserva el estado comercial.
+4. Publicar al comenzar las pruebas autorizadas y copiar el `publicId` publicado (no el ID interno). El flujo espera el siguiente `text input`: `startChat` abre la sesión y `continueChat` entrega los turnos posteriores.
+5. Importar los cuatro JSON de `n8n/`. Dejar todos desactivados. Seleccionar manualmente las credenciales de la tabla anterior en **cada nodo**; los exports contienen nombres, nunca IDs ni secretos.
+6. Editar el nodo **Config** de cada workflow:
 
    - `backendBaseUrl`: `https://admin.pablete.xyz/api`, sin barra final.
    - `typebotBaseUrl`: `https://bot.pablete.xyz`, o viewer real, sin barra final.
+   - `n8nBaseUrl`: `https://n8n.pablete.xyz`, sin barra final; se usa sólo para disparos internos inmediatos autenticados.
    - `typebotPublicId`: publicId del bot publicado.
    - `evolutionBaseUrl`: `https://evo.pablete.xyz`, **sin `/manager`**.
    - `instance`: nombre exacto de la instancia WhatsApp de este negocio.
@@ -60,8 +62,8 @@ En **Bot y automatizaciones** del negocio:
    - `openaiModel`: modelo disponible en tu cuenta que admita Chat Completions; para lectura de imágenes debe admitir visión y Structured Outputs. No dejar `CONFIGURAR_MODELO`.
    - `evidenceAiEnabled`: `false` por defecto. Activar sólo después de informar sobre el envío del comprobante a OpenAI, revisar privacidad/costes y validar el modelo elegido.
 
-6. Comprobar que están presentes los nodos y conexiones. Los exports usan HTTP Request 4.2, Code 2, Webhook 2, Respond 1.4, Schedule 1.2, IF 2.2, Telegram 1.2 y Loop Over Items 3. El workflow 03 debe incluir **Prepare Typebot start** entre `Is image` y `Run Typebot`: valida y envía `prefilledVariables.session_token`, `message_id` y `customer_message`. Un body `{}` crea una sesión visual, pero el bridge la rechaza correctamente por falta de autoridad. **La versión instalada de n8n aún debe confirmarse**: no se ha validado la importación en ese runtime.
-7. Mantener desactivado el guardado de datos de ejecuciones exitosas, fallidas y manuales. No fijar `pinData` con conversaciones, headers, imágenes ni tokens. Los resultados Typebot pueden contener un token temporal acotado a una conversación (24 horas); restringir acceso y retención. No dar acceso de edición a clientes finales.
+7. Comprobar que están presentes `Prepare Typebot request`, `Continue Typebot`, `Start Typebot`, `Save Typebot session`, `Process now` y `Trigger immediate delivery`. El workflow 04 debe incluir `Deliver now` y `Expand WhatsApp bubbles`. Los exports usan HTTP Request 4.2, Code 2, Webhook 2, Respond 1.4, Schedule 1.2, IF 2.2, Telegram 1.2 y Loop Over Items 3, compatibles con n8n 2.36.7.
+8. Mantener desactivado el guardado de datos de ejecuciones exitosas, fallidas y manuales. No fijar `pinData` con conversaciones, headers, imágenes ni tokens. Los resultados Typebot contienen un token temporal acotado a una conversación; restringir acceso y retención. No dar acceso de edición a clientes finales.
 
 Los JSON de `typebot/` antiguo permanecen como referencia histórica. No activar simultáneamente el flujo viejo y el nuevo para la misma instancia.
 
@@ -77,7 +79,7 @@ Cuando comencemos las pruebas, configurar el webhook **de la instancia** (no el 
 
 No habilitar la integración nativa Evolution→Typebot ni otro respondedor paralelo para esa instancia. En este diseño **n8n es el único transportador** de mensajes y llama a Typebot. Se descartan mensajes propios, grupos y estados; un `@lid` sin teléfono alternativo resuelto se rechaza, no se inventa identidad.
 
-El webhook Evolution se confirma sólo después de persistir el mensaje. El worker reclama uno por ejecución y conserva el orden por contacto. Un reinicio no pierde mensajes ya persistidos.
+El webhook Evolution se confirma sólo después de persistir el mensaje y dispara `bw-sales-process` inmediatamente. El schedule de un minuto queda como recuperación. El worker reclama uno por contacto, conserva orden e idempotencia y un reinicio no pierde mensajes ya persistidos.
 
 ## 6. Telegram: webhook directo al backend
 
@@ -93,7 +95,7 @@ El aviso incluye imagen privada, pedido, monto esperado y tres botones. **Verifi
 
 ## 7. Activación controlada y prueba posterior
 
-Orden: backend/migración → credenciales → Typebot publicado → workflow 02 → workflows 03 y 04 → habilitar recepción del negocio → workflow 01 → webhook Evolution. Mantener `autoDispatch=false` hasta verificar pagos y acordar una compra de prueba.
+Orden: backend → credenciales → importar Typebot → asignar OpenAI y publicar → workflow 02 → workflows 03 y 04 → habilitar recepción del negocio → workflow 01 → webhook Evolution. Mantener `autoDispatch=false` hasta verificar pagos y acordar una compra de prueba.
 
 Antes de tocar cuentas reales seguir [OPERACION.md](OPERACION.md). Para cada negocio adicional, duplicar el conjunto con sus propias rutas webhook, Typebot publicado, credenciales, integración runner, instancia, chat y revisores. No mezclar un runner de A con el token machine de B.
 

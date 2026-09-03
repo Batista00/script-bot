@@ -21,7 +21,8 @@
         "httpHeaderAuth": {
           "name": "BW Evolution Webhook"
         }
-      }
+      },
+      "webhookId": "0bdc2cb0-4f7b-419e-865d-bb350a62a93a"
     },
     {
       "id": "config",
@@ -33,7 +34,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "const config={\"backendBaseUrl\":\"https://admin.pablete.xyz/api\",\"typebotBaseUrl\":\"https://bot.pablete.xyz\",\"typebotPublicId\":\"CONFIGURAR_PUBLIC_ID\",\"evolutionBaseUrl\":\"https://evo.pablete.xyz\",\"instance\":\"CONFIGURAR_INSTANCIA\",\"automationIntegrationId\":\"CONFIGURAR_UUID\",\"openaiModel\":\"CONFIGURAR_MODELO\",\"evidenceAiEnabled\":false}; return $input.all().map((item,i)=>({json:{...item.json,config},pairedItem:{item:i}}));"
+        "jsCode": "const config={\"backendBaseUrl\":\"https://admin.pablete.xyz/api\",\"typebotBaseUrl\":\"https://bot.pablete.xyz\",\"n8nBaseUrl\":\"https://n8n.pablete.xyz\",\"typebotPublicId\":\"CONFIGURAR_PUBLIC_ID\",\"evolutionBaseUrl\":\"https://evo.pablete.xyz\",\"instance\":\"CONFIGURAR_INSTANCIA\",\"automationIntegrationId\":\"CONFIGURAR_UUID\",\"openaiModel\":\"CONFIGURAR_MODELO\",\"evidenceAiEnabled\":false}; return $input.all().map((item,i)=>({json:{...item.json,config},pairedItem:{item:i}}));"
       }
     },
     {
@@ -116,12 +117,58 @@
       }
     },
     {
+      "id": "trigger-immediate-processing",
+      "name": "Trigger immediate processing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.config.n8nBaseUrl + '/webhook/bw-sales-process' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {source:'evolution'} }}",
+        "options": {
+          "timeout": 60000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "BW Evolution Webhook"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "accepted",
+      "name": "Accepted",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        0
+      ],
+      "parameters": {
+        "jsCode": "return [{json:{ok:true,accepted:true}}];"
+      }
+    },
+    {
       "id": "ignore-safely",
       "name": "Ignore safely",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
+        1680,
         0
       ],
       "parameters": {
@@ -175,6 +222,28 @@
         [
           {
             "node": "Ignore safely",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save inbox": {
+      "main": [
+        [
+          {
+            "node": "Trigger immediate processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger immediate processing": {
+      "main": [
+        [
+          {
+            "node": "Accepted",
             "type": "main",
             "index": 0
           }

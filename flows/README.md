@@ -1,17 +1,17 @@
 # Flujos de ventas multinegocio
 
-Estado: implementación local; sin activar, importar ni probar cuentas de producción.
+Estado: exports generados y validados; se importan desactivados y requieren asignar credenciales.
 
-- `typebot/sales-assistant-6.1.json`: presentación Typebot 6.1; una ejecución por mensaje. El estado comercial se conserva en el backend.
-- `n8n/01-evolution-inbox.json`: recibe Evolution 2.3.4 y persiste el mensaje antes de confirmar recepción.
-- `n8n/02-typebot-sales-bridge.json`: valida la sesión con el backend y usa OpenAI únicamente para asesoría.
-- `n8n/03-sales-worker.json`: procesa mensajes pendientes y comprobantes privados.
-- `n8n/04-notifications-worker.json`: reconcilia pedidos pagados, despacha servicios habilitados y envía notificaciones con confirmación de entrega.
+- `typebot/sales-assistant-6.1.json`: conversación externa persistente Typebot 6.1, espera el siguiente turno y contiene el único prompt maestro OpenAI de ventas.
+- `n8n/01-evolution-inbox.json`: recibe Evolution 2.3.4, persiste primero y dispara procesamiento inmediato.
+- `n8n/02-typebot-sales-bridge.json`: valida la sesión y comunica Typebot con el backend; no llama OpenAI.
+- `n8n/03-sales-worker.json`: usa `startChat` sólo al crear/reponer sesión y `continueChat` en turnos posteriores; procesa comprobantes sin IA financiera.
+- `n8n/04-notifications-worker.json`: intenta entrega inmediata en burbujas ordenadas y conserva el schedule como recuperación durable.
 
 Lee [CONFIGURACION.md](CONFIGURACION.md) antes de importar. Importar no sustituye desplegar backend/migraciones, seleccionar credenciales y configurar webhooks.
 
 Los exports no tienen claves, chat IDs reales, IDs de credenciales ni datos fijados de ejecuciones.
-La versión n8n instalada no se ha confirmado; los tipos/versiones de nodos están explícitos en los exports.
+Los tipos/versiones de nodos están explícitos y se verificaron contra n8n 2.36.7, Typebot 6.1 y Evolution API 2.3.4 del despliegue.
 
 Regeneración determinística desde la raíz: `node flows/scripts/generate.mjs`.
 Validación offline: `node --test flows/tests/*.test.mjs` (la lista explícita está documentada en CONFIGURACION para Windows).

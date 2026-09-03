@@ -22,16 +22,39 @@
       }
     },
     {
-      "id": "config",
-      "name": "Config",
-      "type": "n8n-nodes-base.code",
+      "id": "deliver-now",
+      "name": "Deliver now",
+      "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
         240,
         0
       ],
       "parameters": {
-        "jsCode": "const config={\"backendBaseUrl\":\"https://admin.pablete.xyz/api\",\"typebotBaseUrl\":\"https://bot.pablete.xyz\",\"typebotPublicId\":\"CONFIGURAR_PUBLIC_ID\",\"evolutionBaseUrl\":\"https://evo.pablete.xyz\",\"instance\":\"CONFIGURAR_INSTANCIA\",\"automationIntegrationId\":\"CONFIGURAR_UUID\",\"openaiModel\":\"CONFIGURAR_MODELO\",\"evidenceAiEnabled\":false}; return $input.all().map((item,i)=>({json:{...item.json,config},pairedItem:{item:i}}));"
+        "httpMethod": "POST",
+        "path": "bw-notifications-deliver",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "BW Evolution Webhook"
+        }
+      },
+      "webhookId": "e2a728f3-f39c-457c-b66a-3f3643e34085"
+    },
+    {
+      "id": "config",
+      "name": "Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const config={\"backendBaseUrl\":\"https://admin.pablete.xyz/api\",\"typebotBaseUrl\":\"https://bot.pablete.xyz\",\"n8nBaseUrl\":\"https://n8n.pablete.xyz\",\"typebotPublicId\":\"CONFIGURAR_PUBLIC_ID\",\"evolutionBaseUrl\":\"https://evo.pablete.xyz\",\"instance\":\"CONFIGURAR_INSTANCIA\",\"automationIntegrationId\":\"CONFIGURAR_UUID\",\"openaiModel\":\"CONFIGURAR_MODELO\",\"evidenceAiEnabled\":false}; return $input.all().map((item,i)=>({json:{...item.json,config},pairedItem:{item:i}}));"
       }
     },
     {
@@ -40,7 +63,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        480,
+        720,
         0
       ],
       "parameters": {
@@ -72,7 +95,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        720,
+        960,
         0
       ],
       "parameters": {
@@ -104,7 +127,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        960,
+        1200,
         0
       ],
       "parameters": {
@@ -117,7 +140,7 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        1200,
+        1440,
         0
       ],
       "parameters": {
@@ -131,7 +154,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1440,
+        1680,
         0
       ],
       "parameters": {
@@ -160,12 +183,25 @@
       }
     },
     {
+      "id": "expand-whatsapp-bubbles",
+      "name": "Expand WhatsApp bubbles",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        0
+      ],
+      "parameters": {
+        "jsCode": "function decodeOutboxMessages(value){\n  const outboxPrefix=\"__BW_MESSAGES_V1__\";\n  const text=String(value??\"\");\n  if(!text.startsWith(outboxPrefix))return text.trim() ? [text.trim()] : [];\n  try {\n    const messages=JSON.parse(text.slice(outboxPrefix.length));\n    if(!Array.isArray(messages))throw new Error(\"OUTBOX_MESSAGES_INVALID\");\n    return messages.map(item=>String(item).trim()).filter(Boolean).slice(0,3);\n  } catch {\n    throw new Error(\"OUTBOX_MESSAGES_INVALID\");\n  }\n}\nconst notification=$json;\nconst messages=decodeOutboxMessages(notification.payload?.text);\nif(!messages.length)throw new Error('WHATSAPP_EMPTY_MESSAGE');\nreturn messages.map((text,index)=>({json:{...notification,whatsappText:text,whatsappDelay:600+index*150}}));"
+      }
+    },
+    {
       "id": "send-whatsapp",
       "name": "Send WhatsApp",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1680,
+        2160,
         0
       ],
       "parameters": {
@@ -173,7 +209,7 @@
         "url": "={{ $('Config').first().json.config.evolutionBaseUrl + '/message/sendText/' + encodeURIComponent($('Config').first().json.config.instance) }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {number:$json.payload.contact,text:$json.payload.text} }}",
+        "jsonBody": "={{ {number:$json.payload.contact,text:$json.whatsappText,delay:$json.whatsappDelay} }}",
         "options": {
           "timeout": 60000,
           "redirect": {
@@ -197,11 +233,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1920,
+        2400,
         0
       ],
       "parameters": {
-        "jsCode": "if(!$json.key?.id)throw new Error('EVOLUTION_SEND_UNCONFIRMED');return $input.all();"
+        "jsCode": "const sent=$input.all();if(!sent.length||sent.some(item=>!item.json.key?.id))throw new Error('EVOLUTION_SEND_UNCONFIRMED');return [{json:{ok:true,count:sent.length}}];"
       }
     },
     {
@@ -210,7 +246,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2160,
+        2640,
         0
       ],
       "parameters": {
@@ -223,7 +259,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2400,
+        2880,
         0
       ],
       "parameters": {
@@ -257,7 +293,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        2640,
+        3120,
         0
       ],
       "parameters": {
@@ -284,7 +320,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        2880,
+        3360,
         0
       ],
       "parameters": {
@@ -313,7 +349,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3120,
+        3600,
         0
       ],
       "parameters": {
@@ -342,6 +378,17 @@
   ],
   "connections": {
     "Every minute": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deliver now": {
       "main": [
         [
           {
@@ -412,7 +459,7 @@
       "main": [
         [
           {
-            "node": "Send WhatsApp",
+            "node": "Expand WhatsApp bubbles",
             "type": "main",
             "index": 0
           }
@@ -420,6 +467,17 @@
         [
           {
             "node": "Prepare Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand WhatsApp bubbles": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp",
             "type": "main",
             "index": 0
           }

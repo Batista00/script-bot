@@ -2,8 +2,8 @@
   "name": "BW 03 — Procesar ventas y comprobantes",
   "nodes": [
     {
-      "id": "every-5-seconds",
-      "name": "Every 5 seconds",
+      "id": "every-minute",
+      "name": "Every minute",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
@@ -14,12 +14,35 @@
         "rule": {
           "interval": [
             {
-              "field": "seconds",
-              "secondsInterval": 5
+              "field": "minutes",
+              "minutesInterval": 1
             }
           ]
         }
       }
+    },
+    {
+      "id": "process-now",
+      "name": "Process now",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bw-sales-process",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "BW Evolution Webhook"
+        }
+      },
+      "webhookId": "a6063f4a-f60a-46a4-a2de-4c49e5c08b0b"
     },
     {
       "id": "config",
@@ -27,11 +50,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        240,
+        480,
         0
       ],
       "parameters": {
-        "jsCode": "const config={\"backendBaseUrl\":\"https://admin.pablete.xyz/api\",\"typebotBaseUrl\":\"https://bot.pablete.xyz\",\"typebotPublicId\":\"CONFIGURAR_PUBLIC_ID\",\"evolutionBaseUrl\":\"https://evo.pablete.xyz\",\"instance\":\"CONFIGURAR_INSTANCIA\",\"automationIntegrationId\":\"CONFIGURAR_UUID\",\"openaiModel\":\"CONFIGURAR_MODELO\",\"evidenceAiEnabled\":false}; return $input.all().map((item,i)=>({json:{...item.json,config},pairedItem:{item:i}}));"
+        "jsCode": "const config={\"backendBaseUrl\":\"https://admin.pablete.xyz/api\",\"typebotBaseUrl\":\"https://bot.pablete.xyz\",\"n8nBaseUrl\":\"https://n8n.pablete.xyz\",\"typebotPublicId\":\"CONFIGURAR_PUBLIC_ID\",\"evolutionBaseUrl\":\"https://evo.pablete.xyz\",\"instance\":\"CONFIGURAR_INSTANCIA\",\"automationIntegrationId\":\"CONFIGURAR_UUID\",\"openaiModel\":\"CONFIGURAR_MODELO\",\"evidenceAiEnabled\":false}; return $input.all().map((item,i)=>({json:{...item.json,config},pairedItem:{item:i}}));"
       }
     },
     {
@@ -40,7 +63,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        480,
+        720,
         0
       ],
       "parameters": {
@@ -72,7 +95,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        720,
+        960,
         0
       ],
       "parameters": {
@@ -85,7 +108,7 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        960,
+        1200,
         0
       ],
       "parameters": {
@@ -99,7 +122,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1200,
+        1440,
         0
       ],
       "parameters": {
@@ -131,7 +154,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1440,
+        1680,
         0
       ],
       "parameters": {
@@ -165,7 +188,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1680,
+        1920,
         0
       ],
       "parameters": {
@@ -197,7 +220,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1920,
+        2160,
         0
       ],
       "parameters": {
@@ -210,7 +233,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2160,
+        2400,
         0
       ],
       "parameters": {
@@ -244,7 +267,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2400,
+        2640,
         0
       ],
       "parameters": {
@@ -283,7 +306,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2640,
+        2880,
         0
       ],
       "parameters": {
@@ -291,25 +314,139 @@
       }
     },
     {
-      "id": "prepare-typebot-start",
-      "name": "Prepare Typebot start",
+      "id": "prepare-typebot-request",
+      "name": "Prepare Typebot request",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2880,
+        3120,
         0
       ],
       "parameters": {
-        "jsCode": "const opened=$('Open session').first().json;\nconst payload=$('Each message').first().json.payload;\nif(typeof opened.sessionToken!=='string'||!/^cs_[A-Za-z0-9_-]{43}$/.test(opened.sessionToken))throw new Error('SALES_SESSION_TOKEN_MISSING');\nif(typeof payload?.messageId!=='string'||typeof payload?.text!=='string')throw new Error('SALES_MESSAGE_CONTEXT_MISSING');\nreturn [{json:{prefilledVariables:{session_token:opened.sessionToken,message_id:payload.messageId,customer_message:payload.text}}}];"
+        "jsCode": "function typebotEnvelope(opened,payload){\n  if(typeof opened?.sessionToken!==\"string\"||!/^cs_[A-Za-z0-9_-]{43}$/.test(opened.sessionToken))\n    throw new Error(\"SALES_SESSION_TOKEN_MISSING\");\n  if(typeof payload?.messageId!==\"string\"||typeof payload?.text!==\"string\")\n    throw new Error(\"SALES_MESSAGE_CONTEXT_MISSING\");\n  return JSON.stringify({sessionToken:opened.sessionToken,messageId:payload.messageId,text:payload.text});\n}\nfunction typebotRequest(baseUrl,publicId,typebotSessionId,envelope){\n  const root=String(baseUrl).replace(/\\/$/,\"\");\n  if(typebotSessionId){\n    return {mode:\"continue\",url:`${root}/api/v1/sessions/${encodeURIComponent(typebotSessionId)}/continueChat`,body:{message:envelope}};\n  }\n  return {mode:\"start\",url:`${root}/api/v1/typebots/${encodeURIComponent(publicId)}/startChat`,body:{prefilledVariables:{incoming_payload:envelope}}};\n}\nconst opened=$('Open session').item.json;\nconst payload=$('Each message').item.json.payload;\nconst envelope=typebotEnvelope(opened,payload);\nconst request=typebotRequest($('Config').first().json.config.typebotBaseUrl,$('Config').first().json.config.typebotPublicId,opened.typebotSessionId,envelope);\nreturn [{json:{request,incomingPayload:envelope,previousSessionId:opened.typebotSessionId}}];"
       }
     },
     {
-      "id": "run-typebot",
-      "name": "Run Typebot",
+      "id": "has-typebot-session",
+      "name": "Has Typebot session",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3360,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "Has Typebot session-condition",
+              "leftValue": "={{ $json.request.mode === 'continue' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "continue-typebot",
+      "name": "Continue Typebot",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3120,
+        3600,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.request.url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.request.body }}",
+        "options": {
+          "timeout": 60000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true,
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "inspect-continued-session",
+      "name": "Inspect continued session",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3840,
+        0
+      ],
+      "parameters": {
+        "jsCode": "function typebotSessionMissing(response){\n  const statusCode=typeof response===\"number\"?response:Number(response?.statusCode??0);\n  if(statusCode===404||statusCode===410)return true;\n  if(statusCode!==400)return false;\n  const body=typeof response?.body===\"string\"?response.body:JSON.stringify(response?.body??{});\n  return /session.{0,40}(not found|expired|invalid)|invalid.{0,40}session/i.test(body);\n}\nconst incomingPayload=$('Prepare Typebot request').item.json.incomingPayload;\nconst status=Number($json.statusCode||0);\nif(typebotSessionMissing($json))return [{json:{recover:true,incomingPayload},pairedItem:{item:0}}];\nif(status<200||status>=300)return [{json:{recover:true,incomingPayload},pairedItem:{item:0}}];\nconst rawBody=$json.body??$json;\nlet body=rawBody;\nif(typeof rawBody===\"string\"){try{body=JSON.parse(rawBody);}catch{return [{json:{recover:true,incomingPayload},pairedItem:{item:0}}];}}\nif(typeof body?.sessionId!==\"string\"||!body.sessionId||!Array.isArray(body.messages))return [{json:{recover:true,incomingPayload},pairedItem:{item:0}}];\nreturn [{json:{recover:false,response:{...$json,body},incomingPayload},pairedItem:{item:0}}];"
+      }
+    },
+    {
+      "id": "session-missing",
+      "name": "Session missing",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4080,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "Session missing-condition",
+              "leftValue": "={{ $json.recover === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "start-typebot",
+      "name": "Start Typebot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4320,
         0
       ],
       "parameters": {
@@ -317,7 +454,86 @@
         "url": "={{ $('Config').first().json.config.typebotBaseUrl + '/api/v1/typebots/' + encodeURIComponent($('Config').first().json.config.typebotPublicId) + '/startChat' }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ $json }}",
+        "jsonBody": "={{ {prefilledVariables:{incoming_payload:$json.incomingPayload}} }}",
+        "options": {
+          "timeout": 60000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true,
+              "responseFormat": "text"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "validate-typebot-response",
+      "name": "Validate Typebot response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4560,
+        0
+      ],
+      "parameters": {
+        "jsCode": "function validateTypebotResponse(response,previousSessionId=null){\n  const status=Number(response?.statusCode??200);\n  if(status<200||status>=300)throw new Error(`TYPEBOT_HTTP_${status}`);\n  const rawBody=response?.body??response;\n  let body=rawBody;\n  if(typeof rawBody===\"string\"){\n    try{body=JSON.parse(rawBody);}catch{throw new Error(\"TYPEBOT_INVALID_RESPONSE\");}\n  }\n  if(typeof body?.sessionId!==\"string\"||!body.sessionId||!Array.isArray(body.messages))\n    throw new Error(\"TYPEBOT_INVALID_RESPONSE\");\n  return {response:body,typebotSessionId:body.sessionId,sessionChanged:body.sessionId!==previousSessionId};\n}\nconst previous=$('Prepare Typebot request').item.json.previousSessionId;\nreturn [{json:validateTypebotResponse($json.response||$json,previous)}];"
+      }
+    },
+    {
+      "id": "session-changed",
+      "name": "Session changed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4800,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "Session changed-condition",
+              "leftValue": "={{ $json.sessionChanged === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "save-typebot-session",
+      "name": "Save Typebot session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5040,
+        0
+      ],
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $('Config').first().json.config.backendBaseUrl + '/conversation/v1/typebot-session' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {typebotSessionId:$json.typebotSessionId} }}",
         "options": {
           "timeout": 60000,
           "redirect": {
@@ -325,6 +541,15 @@
               "followRedirects": false
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $('Open session').item.json.sessionToken }}"
+            }
+          ]
         }
       }
     },
@@ -334,11 +559,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3360,
+        5280,
         0
       ],
       "parameters": {
-        "jsCode": "function typebotText(response){\n  function plain(value,topLevel=false){\n    if(Array.isArray(value)){\n      const parts=value.map(item=>plain(item,false)).filter(Boolean);\n      return parts.join(topLevel?\"\\n\":\"\");\n    }\n    if(!value || typeof value!==\"object\")return \"\";\n    if(typeof value.text===\"string\")return value.text;\n    if(value.type===\"br\")return \"\\n\";\n    return plain(value.children ?? value.content ?? [],false);\n  }\n  return (response.messages ?? []).filter(m=>m.type===\"text\")\n    .map(m=>plain(m.content?.richText ?? [],true)).filter(Boolean).join(\"\\n\").replace(/\\n{3,}/g,\"\\n\\n\").trim();\n}\nconst text=typebotText($json);if(!Array.isArray($json.messages))throw new Error('TYPEBOT_INVALID_RESPONSE');return [{json:{text}}];"
+        "jsCode": "function typebotText(response){\n  function plain(value,topLevel=false){\n    if(Array.isArray(value)){\n      const parts=value.map(item=>plain(item,false)).filter(Boolean);\n      return parts.join(topLevel?\"\\n\":\"\");\n    }\n    if(!value || typeof value!==\"object\")return \"\";\n    if(typeof value.text===\"string\")return value.text;\n    if(value.type===\"br\")return \"\\n\";\n    return plain(value.children ?? value.content ?? [],false);\n  }\n  return (response.messages ?? []).filter(m=>m.type===\"text\")\n    .map(m=>plain(m.content?.richText ?? [],true)).filter(Boolean).join(\"\\n\").replace(/\\n{3,}/g,\"\\n\\n\").trim();\n}\nfunction typebotMessages(response){\n  return (response.messages??[]).filter(message=>message.type===\"text\")\n    .flatMap(message=>typebotText({messages:[message]}).split(/\\s*\\|\\|\\|\\s*/))\n    .map(text=>text.trim()).filter(Boolean).slice(0,3);\n}\nfunction encodeOutboxMessages(messages){\n  const outboxPrefix=\"__BW_MESSAGES_V1__\";\n  const safe=(Array.isArray(messages)?messages:[]).map(text=>String(text).trim()).filter(Boolean).slice(0,3);\n  if(!safe.length)return \"\";\n  return safe.length===1 ? safe[0] : outboxPrefix+JSON.stringify(safe);\n}\nconst result=$('Validate Typebot response').item.json;\nconst messages=typebotMessages(result.response);\nconst safeMessages=messages.length?messages:['No pude completar esa consulta en este momento. Puedo intentarlo nuevamente o derivarte con una persona.'];\nreturn [{json:{messages:safeMessages,text:encodeOutboxMessages(safeMessages)}}];"
       }
     },
     {
@@ -347,7 +572,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3600,
+        5520,
         0
       ],
       "parameters": {
@@ -374,12 +599,45 @@
       }
     },
     {
+      "id": "trigger-immediate-delivery",
+      "name": "Trigger immediate delivery",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5760,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.config.n8nBaseUrl + '/webhook/bw-notifications-deliver' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {source:'sales-worker'} }}",
+        "options": {
+          "timeout": 60000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "BW Evolution Webhook"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
       "id": "optional-evidence-reading",
       "name": "Optional evidence reading",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        3840,
+        6000,
         0
       ],
       "parameters": {
@@ -413,7 +671,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        4080,
+        6240,
         0
       ],
       "parameters": {
@@ -441,7 +699,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4320,
+        6480,
         0
       ],
       "parameters": {
@@ -454,7 +712,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        4560,
+        6720,
         0
       ],
       "parameters": {
@@ -488,7 +746,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        4800,
+        6960,
         0
       ],
       "parameters": {
@@ -523,7 +781,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5040,
+        7200,
         0
       ],
       "parameters": {
@@ -532,7 +790,18 @@
     }
   ],
   "connections": {
-    "Every 5 seconds": {
+    "Every minute": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process now": {
       "main": [
         [
           {
@@ -610,7 +879,7 @@
         ],
         [
           {
-            "node": "Prepare Typebot start",
+            "node": "Prepare Typebot request",
             "type": "main",
             "index": 0
           }
@@ -668,18 +937,116 @@
         ]
       ]
     },
-    "Prepare Typebot start": {
+    "Prepare Typebot request": {
       "main": [
         [
           {
-            "node": "Run Typebot",
+            "node": "Has Typebot session",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Run Typebot": {
+    "Has Typebot session": {
+      "main": [
+        [
+          {
+            "node": "Continue Typebot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Start Typebot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Continue Typebot": {
+      "main": [
+        [
+          {
+            "node": "Inspect continued session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inspect continued session": {
+      "main": [
+        [
+          {
+            "node": "Session missing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Session missing": {
+      "main": [
+        [
+          {
+            "node": "Start Typebot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validate Typebot response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Typebot": {
+      "main": [
+        [
+          {
+            "node": "Validate Typebot response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Typebot response": {
+      "main": [
+        [
+          {
+            "node": "Session changed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Session changed": {
+      "main": [
+        [
+          {
+            "node": "Save Typebot session",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read Typebot reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Typebot session": {
       "main": [
         [
           {
@@ -793,6 +1160,17 @@
       ]
     },
     "Finish inbox and queue reply": {
+      "main": [
+        [
+          {
+            "node": "Trigger immediate delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger immediate delivery": {
       "main": [
         [
           {

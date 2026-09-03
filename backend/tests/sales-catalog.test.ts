@@ -44,6 +44,7 @@ test("natural catalog requests are recognized without an AI provider", () => {
   ]);
   assert.deepEqual(catalogTermGroupsFromText("hola, necesito ayuda"), []);
 });
+
 test("natural quantities and confirmations used by WhatsApp are recognized", () => {
   assert.equal(quantityFromText("quiero los 1.000"), 1000);
   assert.equal(quantityFromText("necesito dos mil"), 2000);

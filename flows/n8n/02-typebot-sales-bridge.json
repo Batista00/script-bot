@@ -1,5 +1,5 @@
 {
-  "name": "BW 02 — Typebot → ventas y asesoría OpenAI",
+  "name": "BW 02 — Typebot → backend comercial",
   "nodes": [
     {
       "id": "typebot-bridge",
@@ -15,7 +15,8 @@
         "path": "bw-sales-bridge",
         "responseMode": "responseNode",
         "options": {}
-      }
+      },
+      "webhookId": "f1fe0605-78ee-4267-849e-3945082592c2"
     },
     {
       "id": "config",
@@ -27,7 +28,20 @@
         0
       ],
       "parameters": {
-        "jsCode": "const config={\"backendBaseUrl\":\"https://admin.pablete.xyz/api\",\"typebotBaseUrl\":\"https://bot.pablete.xyz\",\"typebotPublicId\":\"CONFIGURAR_PUBLIC_ID\",\"evolutionBaseUrl\":\"https://evo.pablete.xyz\",\"instance\":\"CONFIGURAR_INSTANCIA\",\"automationIntegrationId\":\"CONFIGURAR_UUID\",\"openaiModel\":\"CONFIGURAR_MODELO\",\"evidenceAiEnabled\":false}; return $input.all().map((item,i)=>({json:{...item.json,config},pairedItem:{item:i}}));"
+        "jsCode": "const config={\"backendBaseUrl\":\"https://admin.pablete.xyz/api\",\"typebotBaseUrl\":\"https://bot.pablete.xyz\",\"n8nBaseUrl\":\"https://n8n.pablete.xyz\",\"typebotPublicId\":\"CONFIGURAR_PUBLIC_ID\",\"evolutionBaseUrl\":\"https://evo.pablete.xyz\",\"instance\":\"CONFIGURAR_INSTANCIA\",\"automationIntegrationId\":\"CONFIGURAR_UUID\",\"openaiModel\":\"CONFIGURAR_MODELO\",\"evidenceAiEnabled\":false}; return $input.all().map((item,i)=>({json:{...item.json,config},pairedItem:{item:i}}));"
+      }
+    },
+    {
+      "id": "validate-sales-turn",
+      "name": "Validate sales turn",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const body=$json.body&&typeof $json.body==='object'?$json.body:{};\nconst sessionToken=typeof body.sessionToken==='string'?body.sessionToken:'';\nif(!/^cs_[A-Za-z0-9_-]{43}$/.test(sessionToken))throw new Error('SALES_TURN_TOKEN_MISSING');\nif(typeof body.messageId!=='string'||!body.messageId||typeof body.text!=='string')throw new Error('SALES_TURN_CONTEXT_MISSING');\nreturn [{json:{messageId:body.messageId,text:body.text,authorization:'Bearer '+sessionToken}}];"
       }
     },
     {
@@ -36,7 +50,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        480,
+        720,
         0
       ],
       "parameters": {
@@ -44,12 +58,19 @@
         "url": "={{ $('Config').first().json.config.backendBaseUrl + '/conversation/v1/message' }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {messageId:$json.body.messageId,text:$json.body.text} }}",
+        "jsonBody": "={{ {messageId:$json.messageId,text:$json.text} }}",
         "options": {
           "timeout": 60000,
           "redirect": {
             "redirect": {
               "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true,
+              "responseFormat": "json"
             }
           }
         },
@@ -58,85 +79,23 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "={{ $('Typebot bridge').first().json.headers.authorization }}"
+              "value": "={{ $json.authorization }}"
             }
           ]
         }
       }
     },
     {
-      "id": "needs-advice",
-      "name": "Needs advice",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        720,
-        0
-      ],
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "Needs advice-condition",
-              "leftValue": "={{ Boolean($json.advice) }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      }
-    },
-    {
-      "id": "openai-advisory",
-      "name": "OpenAI advisory",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "id": "prepare-safe-response",
+      "name": "Prepare safe response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         960,
         0
       ],
       "parameters": {
-        "method": "POST",
-        "url": "https://api.openai.com/v1/chat/completions",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "openAiApi",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ {model:$('Config').first().json.config.openaiModel,messages:[{role:'system',content:$json.advice.instructions},{role:'user',content:$json.advice.question}],max_completion_tokens:400,store:false} }}",
-        "options": {
-          "timeout": 25000
-        }
-      },
-      "credentials": {
-        "openAiApi": {
-          "name": "OpenAI account"
-        }
-      },
-      "onError": "continueRegularOutput"
-    },
-    {
-      "id": "advice-or-safe-fallback",
-      "name": "Advice or safe fallback",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1200,
-        0
-      ],
-      "parameters": {
-        "jsCode": "const answer=$json.choices?.[0]?.message?.content; return [{json:{text:typeof answer==='string'&&answer.trim()?answer.trim().slice(0,2500):$('Sales message').first().json.text}}];"
+        "jsCode": "const statusCode=Number($json.statusCode??200);\nconst candidate=$json.body&&typeof $json.body==='object'?$json.body:\n  $json.response&&typeof $json.response==='object'?$json.response:$json;\nconst successful=statusCode>=200&&statusCode<300&&candidate&&typeof candidate==='object';\nconst reply=successful?candidate:{};\nconst advice=reply.advice&&typeof reply.advice==='object'?reply.advice:null;\nconst fallback='No pude completar esa consulta en este momento. Puedo intentarlo nuevamente o derivarte con una persona.';\nconst hasText=typeof reply.text==='string'&&reply.text.trim().length>0;\nconst text=hasText?reply.text.trim():fallback;\nconst customerText=$('Validate sales turn').item.json.text;\nconst authorizedContext=[text,advice?String(advice.instructions||''):''].filter(Boolean).join('\\n\\n').slice(0,6000);\nreturn [{json:{\n  text,\n  needsAi:successful&&hasText&&reply.paused!==true?'yes':'no',\n  aiContext:successful&&hasText?authorizedContext:'',\n  aiQuestion:(advice&&typeof advice.question==='string'&&advice.question.trim()?advice.question:customerText).slice(0,2000)\n}}];"
       }
     },
     {
@@ -145,12 +104,12 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        1440,
+        1200,
         0
       ],
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ {text:$json.text || ''} }}",
+        "responseBody": "={{ $json }}",
         "options": {}
       }
     }
@@ -171,6 +130,17 @@
       "main": [
         [
           {
+            "node": "Validate sales turn",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate sales turn": {
+      "main": [
+        [
+          {
             "node": "Sales message",
             "type": "main",
             "index": 0
@@ -182,43 +152,14 @@
       "main": [
         [
           {
-            "node": "Needs advice",
+            "node": "Prepare safe response",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Needs advice": {
-      "main": [
-        [
-          {
-            "node": "OpenAI advisory",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Reply",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "OpenAI advisory": {
-      "main": [
-        [
-          {
-            "node": "Advice or safe fallback",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Advice or safe fallback": {
+    "Prepare safe response": {
       "main": [
         [
           {

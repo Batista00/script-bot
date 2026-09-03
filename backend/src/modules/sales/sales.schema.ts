@@ -10,6 +10,7 @@ export function validated<T>(schema:z.ZodType<T>,value:unknown):T {
 export const uuid=z.string().uuid();
 export const messageSchema=z.object({messageId:z.string().min(1).max(128),text:z.string().min(1).max(10_000)}).strict();
 export const openSessionSchema=z.object({contact:z.string().regex(/^[0-9]{8,15}$/),name:z.string().trim().min(1).max(120).optional()}).strict();
+export const typebotSessionSchema=z.object({typebotSessionId:z.string().trim().min(1).max(256).nullable()}).strict();
 export const settingsSchema=z.object({
   enabled:z.boolean(),displayName:z.string().trim().min(1).max(120),welcome:z.string().trim().min(1).max(500),
   policies:z.string().max(8000),humanContact:z.string().max(500),telegramChatId:z.string().regex(/^-?[0-9]{1,20}$|^$/),

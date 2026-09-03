@@ -29,3 +29,29 @@ export function typebotText(response){
   return (response.messages ?? []).filter(m=>m.type==="text")
     .map(m=>plain(m.content?.richText ?? [],true)).filter(Boolean).join("\n").replace(/\n{3,}/g,"\n\n").trim();
 }
+
+export function typebotMessages(response){
+  return (response.messages??[]).filter(message=>message.type==="text")
+    .flatMap(message=>typebotText({messages:[message]}).split(/\s*\|\|\|\s*/))
+    .map(text=>text.trim()).filter(Boolean).slice(0,3);
+}
+
+export function encodeOutboxMessages(messages){
+  const outboxPrefix="__BW_MESSAGES_V1__";
+  const safe=(Array.isArray(messages)?messages:[]).map(text=>String(text).trim()).filter(Boolean).slice(0,3);
+  if(!safe.length)return "";
+  return safe.length===1 ? safe[0] : outboxPrefix+JSON.stringify(safe);
+}
+
+export function decodeOutboxMessages(value){
+  const outboxPrefix="__BW_MESSAGES_V1__";
+  const text=String(value??"");
+  if(!text.startsWith(outboxPrefix))return text.trim() ? [text.trim()] : [];
+  try {
+    const messages=JSON.parse(text.slice(outboxPrefix.length));
+    if(!Array.isArray(messages))throw new Error("OUTBOX_MESSAGES_INVALID");
+    return messages.map(item=>String(item).trim()).filter(Boolean).slice(0,3);
+  } catch {
+    throw new Error("OUTBOX_MESSAGES_INVALID");
+  }
+}

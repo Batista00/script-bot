@@ -12,6 +12,7 @@ export const salesRoutes:FastifyPluginAsync<Options>=async(app,{controller,admin
   app.post("/bot/v1/sales/sessions",{preHandler:requireMachineCredential(machineAuth)},controller.open);
   app.post("/bot/v1/sales/inbox",{preHandler:requireMachineCredential(machineAuth)},controller.accept);
   app.post("/conversation/v1/message",controller.message);
+  app.put("/conversation/v1/typebot-session",controller.typebotSession);
   app.post("/conversation/v1/evidence",{bodyLimit:2_900_000},controller.evidence);
   app.post("/conversation/v1/evidence/analysis",controller.analyze);
   const preHandler=[requireAuthenticatedUser(app.authService),requireBusinessMembership(app.membershipsRepository),requireBusinessRole(["owner","admin"])];

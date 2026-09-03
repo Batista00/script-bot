@@ -3,15 +3,16 @@
 ## Recorrido comercial implementado
 
 ```text
-WhatsApp → Evolution → webhook n8n → inbox PostgreSQL
-  → worker n8n → sesión acotada → Typebot → backend de ventas
+WhatsApp → Evolution → webhook n8n → inbox PostgreSQL → disparo inmediato
+  → worker n8n → sesión acotada → Typebot startChat/continueChat → backend de ventas
   → catálogo → cantidad + datos → cotización → confirmación → pedido
   → Mercado Pago verificado / transferencia revisada por humano
   → pedido pagado → worker → proveedor o entrega manual
-  → seguimiento → notificaciones WhatsApp y Telegram
+  → outbox durable → intento inmediato → Evolution → WhatsApp
+  → schedules de recuperación para inbox/outbox pendientes
 ```
 
-El backend decide importes, moneda, disponibilidad y transiciones. OpenAI interpreta intención y términos de búsqueda y puede responder consultas/objeciones a partir de políticas del negocio; los resultados se contrastan contra el catálogo y Pricing del Business. No tiene herramientas para modificar pedidos, aprobar pagos ni comprar al proveedor. No es una IA autónoma con permiso para operar dinero.
+El backend decide importes, moneda, disponibilidad y transiciones. El único OpenAI conversacional está en el bloque Typebot **Ask Model** y sólo redacta asesoría a partir del contexto autorizado del turno; el descubrimiento y avance comercial siguen pasando por el backend. No tiene herramientas para modificar pedidos, aprobar pagos ni comprar al proveedor. La lectura visual opcional de comprobantes es otra función no autoritativa y no conversa con el cliente.
 
 ## Comandos del cliente
 
@@ -44,7 +45,11 @@ El backend decide importes, moneda, disponibilidad y transiciones. OpenAI interp
 
 ## Recuperación y alertas
 
-Las colas usan identificadores únicos, leases de cinco minutos y máximo ocho intentos. El inbox mantiene el orden por contacto y bloquea mensajes posteriores si el primero falla. Corregir conexión/credenciales y usar **Reprocesar mensaje** en el panel. No borrar registros para reiniciar una venta.
+Las colas usan identificadores únicos, leases de cinco minutos y máximo ocho intentos. El camino normal dispara procesamiento y entrega de inmediato; los schedules de un minuto sólo recuperan pendientes si falla ese disparo o un servicio está caído. El inbox mantiene el orden por contacto y bloquea mensajes posteriores si el primero falla. Corregir conexión/credenciales y usar **Reprocesar mensaje** en el panel. No borrar registros para reiniciar una venta.
+
+La asociación `business + contacto → sales_session → typebot_session_id` se guarda en PostgreSQL. Si Typebot responde que la sesión no existe, expiró o es inválida, el worker crea otra con `startChat`, sustituye sólo ese ID y conserva producto, cotización, pedido y pago del backend.
+
+Las respuestas Typebot se conservan como hasta tres burbujas versionadas dentro del outbox. Evolution las recibe en orden con pausas de 600, 750 y 900 ms. El ACK del outbox se realiza una sola vez después de confirmar todas las burbujas.
 
 Las notificaciones se reconocen sólo tras respuesta satisfactoria del transportador. Si éste envía y el proceso cae antes del ACK, puede repetirse el mensaje: la garantía es **al menos una vez**, no exactly-once. Revisar el destinatario antes de reintentar manualmente una notificación agotada. Los reintentos de cola no son reintentos de compras Raja.
 

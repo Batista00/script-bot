@@ -1,5 +1,6 @@
 // Deterministic export helpers; generated JSON contains credential NAMES only, never secrets.
 export const config={backendBaseUrl:"https://admin.pablete.xyz/api",typebotBaseUrl:"https://bot.pablete.xyz",
+  n8nBaseUrl:"https://n8n.pablete.xyz",
   typebotPublicId:"CONFIGURAR_PUBLIC_ID",
   evolutionBaseUrl:"https://evo.pablete.xyz",instance:"CONFIGURAR_INSTANCIA",automationIntegrationId:"CONFIGURAR_UUID",
   openaiModel:"CONFIGURAR_MODELO",evidenceAiEnabled:false};

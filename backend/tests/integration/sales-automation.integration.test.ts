@@ -35,7 +35,7 @@ test("Durable multi-business sales, manual payment review and delivery against P
     await services.reviewRepository.setReviewer(businessA,"555",userId);
     const integration=await services.integrations.create(businessA,{providerKey:"test_delivery",credentials:{testOnly:"fixture"}});
     const productResult=await db.query<{id:string}>(`INSERT INTO products(business_id,name,type,status,min_quantity,max_quantity,required_inputs)
-      VALUES($1,'Producto de prueba','service','active',1,20,$2) RETURNING id`,[businessA,JSON.stringify([{key:"targetUrl",label:"Enlace",helpText:null,type:"url",required:true,position:0,validation:{maxLength:2048}}])]);
+      VALUES($1,'Seguidores de Instagram','service','active',1,2000,$2) RETURNING id`,[businessA,JSON.stringify([{key:"targetUrl",label:"Enlace",helpText:null,type:"url",required:true,position:0,validation:{maxLength:2048}}])]);
     const productId=productResult.rows[0]!.id;
     await db.query("INSERT INTO product_prices(business_id,product_id,pricing_type,currency,unit_price,min_quantity,max_quantity,status) VALUES($1,$2,'unit','CLP',100,1,20,'active')",[businessA,productId]);
     const provider=await db.query<{id:string}>(`INSERT INTO provider_services(business_id,integration_id,provider_key,external_service_id,name,service_type,min_quantity,max_quantity,provider_status,last_synced_at,order_capabilities)
@@ -47,20 +47,22 @@ test("Durable multi-business sales, manual payment review and delivery against P
     let messageIndex=0;
     const say=(text:string,id=`message-${++messageIndex}`)=>services.conversation.receive(businessA,opened.sessionId,{messageId:id,text});
 
-    await t.test("natural language searches the scoped catalog through the existing AI interpreter",async()=>{
-      const semantic=new SalesConversationService(services.sales,services.gateway,services.checkout,services.notifications,{
-        isConfigured:()=>true,
-        interpret:async()=>({intent:"buy_product",confidence:0.99,entities:{platform:null,service:null,
-          quantity:null,urls:[],paymentMethod:null,searchTerms:["producto","prueba"]}}),
-      });
+    await t.test("natural WhatsApp wording finds the real scoped catalog without a second OpenAI call",async()=>{
       const buyer=await services.access.open(businessA,"56910000000","Comprador semántico");
-      const reply=await semantic.receive(businessA,buyer.sessionId,{messageId:"semantic-search",text:"busco el producto de prueba"});
-      assert.match(reply.text,/Producto de prueba/);
+      assert.match((await services.conversation.receive(businessA,buyer.sessionId,{messageId:"greeting",text:"Hola"})).text,/plataforma/i);
+      const reply=await services.conversation.receive(businessA,buyer.sessionId,{messageId:"semantic-search",text:"cuánto salen 1000 seguidores de instagram"});
+      assert.match(reply.text,/Seguidores de Instagram/);
       assert.match(reply.text,/100 CLP por unidad/);
     });
 
     await t.test("sessions are scoped, expired tokens and foreign business cannot access them",async()=>{
       assert.equal((await services.access.authenticate(`Bearer ${opened.sessionToken}`)).sessionId,opened.sessionId);
+      await services.access.setTypebotSession(`Bearer ${opened.sessionToken}`,"typebot-business-a");
+      assert.equal((await services.sales.session(businessA,opened.sessionId)).typebotSessionId,"typebot-business-a");
+      const sameContactOtherBusiness=await services.access.open(businessB,"56912345678","Cliente test");
+      await services.access.setTypebotSession(`Bearer ${sameContactOtherBusiness.sessionToken}`,"typebot-business-b");
+      assert.equal((await services.sales.session(businessB,sameContactOtherBusiness.sessionId)).typebotSessionId,"typebot-business-b");
+      assert.equal((await services.sales.session(businessA,opened.sessionId)).typebotSessionId,"typebot-business-a");
       await assert.rejects(()=>services.access.authenticate("Bearer invalid"),{code:"SALES_SESSION_UNAUTHORIZED"});
       await assert.rejects(()=>services.sales.session(businessB,opened.sessionId),{code:"SALES_SESSION_NOT_FOUND"});
       const expired=await services.access.open(businessA,"56911111111");
@@ -68,7 +70,7 @@ test("Durable multi-business sales, manual payment review and delivery against P
       await assert.rejects(()=>services.access.authenticate(`Bearer ${expired.sessionToken}`),{code:"SALES_SESSION_UNAUTHORIZED"});
     });
     await t.test("capture valid delivery data and obtain a quote before any payment or dispatch",async()=>{
-      assert.match((await say("catalogo")).text,/Producto de prueba/);
+      assert.match((await say("catalogo")).text,/Seguidores de Instagram/);
       await say("1");await say("2");
       assert.match((await say("not-a-url")).text,/Revisa/);
       assert.equal(externalOrders,0);
@@ -180,6 +182,18 @@ test("Durable multi-business sales, manual payment review and delivery against P
       assert.equal(await services.inboxRepository.retryFailed(businessB,accepted.id),false);
       assert.equal(await services.inboxRepository.retryFailed(businessA,accepted.id),true);
       assert.equal((await services.inboxRepository.failures(businessA)).length,0);
+      const recovered=(await services.inbox.claim(businessA))[0]!;
+      assert.equal(recovered.id,accepted.id);
+      await services.inbox.finish(businessA,recovered.id,recovered.lease,"");
+    });
+    await t.test("an exhausted inbox head remains visible without blocking later messages",async()=>{
+      const contact="56933333334";
+      const first=await services.inbox.accept(businessA,{contact,messageId:"exhausted-head",text:"malformed historical turn",image:false});
+      await services.inbox.accept(businessA,{contact,messageId:"after-exhausted",text:"hola",image:false});
+      await db.query("UPDATE sales_inbox SET attempts=8,lease=NULL,lease_until=NULL WHERE id=$1",[first.id]);
+      const job=(await services.inbox.claim(businessA))[0];
+      assert.equal(job?.payload.messageId,"after-exhausted");
+      assert.equal((await services.inboxRepository.failures(businessA)).some(row=>row.id===first.id),true);
     });
     await t.test("opt-out suppresses queued WhatsApp messages and human handoff requires admin resume",async()=>{
       await say("baja");

@@ -24,4 +24,9 @@ export class SalesAccessService {
     if (!result) throw new AppError("Conversación expirada o no autorizada",401,"SALES_SESSION_UNAUTHORIZED");
     return result;
   }
+  async setTypebotSession(authorization: unknown, typebotSessionId: string | null) {
+    const context = await this.authenticate(authorization);
+    await this.repository.setTypebotSession(context.businessId, context.sessionId, typebotSessionId);
+    return { ok: true, typebotSessionId };
+  }
 }

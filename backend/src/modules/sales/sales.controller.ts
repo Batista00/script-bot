@@ -3,7 +3,7 @@ import { AppError } from "../../core/errors/app-error.js";
 import type { SalesAccessService } from "./sales-access.service.js";
 import type { SalesConversationService } from "./sales-conversation.service.js";
 import type { PaymentReviewsService } from "../payment-reviews/payment-reviews.service.js";
-import { evidenceSchema,messageSchema,openSessionSchema,validated,inboxSchema,analysisSchema } from "./sales.schema.js";
+import { evidenceSchema,messageSchema,openSessionSchema,typebotSessionSchema,validated,inboxSchema,analysisSchema } from "./sales.schema.js";
 import type { SalesInboxService } from "./sales-inbox.service.js";
 
 export class SalesController {
@@ -18,6 +18,10 @@ export class SalesController {
   message=async(request:FastifyRequest)=>{
     const context=await this.access.authenticate(request.headers.authorization);
     return this.conversation.receive(context.businessId,context.sessionId,validated(messageSchema,request.body));
+  };
+  typebotSession=async(request:FastifyRequest)=>{
+    const body=validated(typebotSessionSchema,request.body);
+    return this.access.setTypebotSession(request.headers.authorization,body.typebotSessionId);
   };
   evidence=async(request:FastifyRequest)=>{
     const context=await this.access.authenticate(request.headers.authorization);
