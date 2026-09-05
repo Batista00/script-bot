@@ -80,7 +80,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\"mode\":\"prepare\",\"remoteJid\":\"{{remoteJid}}\",\"pushName\":\"{{pushName}}\",\"userMessage\":\"{{user_message}}\",\"catalogContext\":\"{{catalog_context}}\"}"
+              "body": "{\"payload\":\"{{request_payload}}\"}"
             },
             "responseVariableMapping": [
               {

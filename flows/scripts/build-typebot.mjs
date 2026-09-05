@@ -102,7 +102,7 @@ Si OPERACION_BACKEND contiene un resultado nuevo, úsalo como autoridad para res
         {id:"nextinput",type:"text input",options:{labels:{placeholder:"Escríbeme con tus palabras..."},variableId:variableId("user_message")},outgoingEdgeId:"inputedge"},
         setVariable("resetaction","action","continuar"),setVariable("resetdecision","decision_payload","none"),setVariable("resetcompleted","action_completed","no"),
         setVariable("buildpreparepayload","request_payload",'encodeURIComponent(JSON.stringify({mode:"prepare",remoteJid:String("{{remoteJid}}"),pushName:String("{{pushName}}"),userMessage:String("{{user_message}}"),catalogContext:String("{{catalog_context}}")}))'),
-        {id:"prepareturn",type:"Webhook",options:{isCustomBody:true,webhook:{url:"https://n8n.pablete.xyz/webhook/bw-sales-bridge",method:"POST",headers:[{id:"prepareheader",key:"Content-Type",value:"application/json"}],body:'{"mode":"prepare","remoteJid":"{{remoteJid}}","pushName":"{{pushName}}","userMessage":"{{user_message}}","catalogContext":"{{catalog_context}}"}'},responseVariableMapping:prepareMappings},outgoingEdgeId:"preparedge"},
+        {id:"prepareturn",type:"Webhook",options:{isCustomBody:true,webhook:{url:"https://n8n.pablete.xyz/webhook/bw-sales-bridge",method:"POST",headers:[{id:"prepareheader",key:"Content-Type",value:"application/json"}],body:'{"payload":"{{request_payload}}"}'},responseVariableMapping:prepareMappings},outgoingEdgeId:"preparedge"},
       ]},
       {id:"agent",title:"01 — OpenAI vendedor",graphCoordinates:{x:700,y:0},blocks:[
         setVariable("continueaction","action","continuar"),setVariable("continuedecision","decision_payload","none"),
