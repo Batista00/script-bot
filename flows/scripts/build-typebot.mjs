@@ -1,6 +1,6 @@
 export function typebot(){
   const names=[
-    "request_payload","decision_payload","turn_id","user_message","assistant_message","action","action_completed",
+    "incoming_payload","message_id","request_payload","decision_payload","turn_id","user_message","assistant_message","action","action_completed",
     "category","product","quantity","retail_price","product_id","catalog_context","target_url",
     "order_id","order_status","payment_method","payment_status","remoteJid","pushName",
     "human_handoff_reason","operation_result","continue_agent","openai_response_id",
@@ -99,10 +99,15 @@ Si OPERACION_BACKEND contiene un resultado nuevo, úsalo como autoridad para res
     events:[{id:"start",type:"start",graphCoordinates:{x:0,y:0},outgoingEdgeId:"startedge"}],
     groups:[
       {id:"prepare",title:"00 — Entrada conversacional",graphCoordinates:{x:260,y:0},blocks:[
-        {id:"nextinput",type:"text input",options:{labels:{placeholder:"Escríbeme con tus palabras..."},variableId:variableId("user_message")},outgoingEdgeId:"inputedge"},
+        {id:"nextinput",type:"text input",options:{labels:{placeholder:"Escríbeme con tus palabras..."},variableId:variableId("incoming_payload")},outgoingEdgeId:"inputedge"},
+        setVariable("readmessageid","message_id",'String(JSON.parse(decodeURIComponent("{{incoming_payload}}")).messageId||"")'),
+        setVariable("readmessage","user_message",'String(JSON.parse(decodeURIComponent("{{incoming_payload}}")).text||"")'),
+        setVariable("readremote","remoteJid",'String(JSON.parse(decodeURIComponent("{{incoming_payload}}")).remoteJid||"")'),
+        setVariable("readname","pushName",'String(JSON.parse(decodeURIComponent("{{incoming_payload}}")).pushName||"")'),
+        setVariable("clearincoming","incoming_payload",'""'),
         setVariable("resetaction","action","continuar"),setVariable("resetdecision","decision_payload","none"),setVariable("resetcompleted","action_completed","no"),
-        setVariable("buildpreparepayload","request_payload",'encodeURIComponent(JSON.stringify({mode:"prepare",remoteJid:String("{{remoteJid}}"),pushName:String("{{pushName}}"),userMessage:String("{{user_message}}"),catalogContext:String("{{catalog_context}}")}))'),
-        {id:"prepareturn",type:"Webhook",options:{isCustomBody:true,webhook:{url:"https://n8n.pablete.xyz/webhook/bw-sales-bridge",method:"POST",headers:[{id:"prepareheader",key:"Content-Type",value:"application/json"}],body:'{"payload":"{{request_payload}}"}'},responseVariableMapping:prepareMappings},outgoingEdgeId:"preparedge"},
+        setVariable("buildpreparepayload","request_payload",'encodeURIComponent(JSON.stringify({mode:"prepare",messageId:String("{{message_id}}"),remoteJid:String("{{remoteJid}}"),pushName:String("{{pushName}}"),userMessage:String("{{user_message}}"),catalogContext:String("{{catalog_context}}")}))'),
+        {id:"prepareturn",type:"Webhook",options:{isCustomBody:true,webhook:{url:"https://n8n.pablete.xyz/webhook/bw-sales-bridge",method:"POST",headers:[{id:"prepareheader",key:"Content-Type",value:"text/plain"}],body:"{{request_payload}}"},responseVariableMapping:prepareMappings},outgoingEdgeId:"preparedge"},
       ]},
       {id:"agent",title:"01 — OpenAI vendedor",graphCoordinates:{x:700,y:0},blocks:[
         setVariable("continueaction","action","continuar"),setVariable("continuedecision","decision_payload","none"),
@@ -112,24 +117,24 @@ Si OPERACION_BACKEND contiene un resultado nuevo, úsalo como autoridad para res
         {id:"routeaction",type:"Condition",outgoingEdgeId:"replyedge",items:routeItems},
       ]},
       {id:"operation",title:"02 — Ejecutar acción autorizada",graphCoordinates:{x:1080,y:0},blocks:[
-        setVariable("buildactionpayload","request_payload",'encodeURIComponent(JSON.stringify({mode:"act",remoteJid:String("{{remoteJid}}"),pushName:String("{{pushName}}"),userMessage:String("{{user_message}}"),turnId:String("{{turn_id}}"),decisionPayload:String("{{decision_payload}}"),catalogContext:String("{{catalog_context}}"),actionCompleted:String("{{action_completed}}")}))'),
-        {id:"executeaction",type:"Webhook",options:{isCustomBody:true,webhook:{url:"https://n8n.pablete.xyz/webhook/bw-sales-bridge",method:"POST",headers:[{id:"actionheader",key:"Content-Type",value:"application/json"}],body:'{"payload":"{{request_payload}}"}'},responseVariableMapping:actionMappings}},
+        setVariable("buildactionpayload","request_payload",'encodeURIComponent(JSON.stringify({mode:"act",messageId:String("{{message_id}}"),remoteJid:String("{{remoteJid}}"),pushName:String("{{pushName}}"),userMessage:String("{{user_message}}"),turnId:String("{{turn_id}}"),decisionPayload:String("{{decision_payload}}"),catalogContext:String("{{catalog_context}}"),actionCompleted:String("{{action_completed}}")}))'),
+        {id:"executeaction",type:"Webhook",options:{isCustomBody:true,webhook:{url:"https://n8n.pablete.xyz/webhook/bw-sales-bridge",method:"POST",headers:[{id:"actionheader",key:"Content-Type",value:"text/plain"}],body:"{{request_payload}}"},responseVariableMapping:actionMappings}},
         {id:"routeoperation",type:"Condition",outgoingEdgeId:"operationreplyedge",items:[{id:"continueitem",outgoingEdgeId:"continueedge",content:{comparisons:[{id:"continuecomparison",variableId:variableId("continue_agent"),comparisonOperator:"Equal to",value:"yes"}]}}]},
       ]},
       {id:"reply",title:"03 — Respuesta y siguiente turno",graphCoordinates:{x:1480,y:0},blocks:[
         {id:"agentreply",type:"text",content:{richText:[{type:"p",children:[{text:"{{assistant_message}}"}]}]}},
-        {id:"waitinput",type:"text input",options:{labels:{placeholder:"Escríbeme con tus palabras..."},variableId:variableId("user_message")},outgoingEdgeId:"waitedge"},
+        {id:"waitinput",type:"text input",options:{labels:{placeholder:"Escríbeme con tus palabras..."},variableId:variableId("incoming_payload")},outgoingEdgeId:"waitedge"},
       ]},
     ],
     edges:[
       {id:"startedge",from:{eventId:"start"},to:{groupId:"prepare",blockId:"nextinput"}},
-      {id:"inputedge",from:{blockId:"nextinput"},to:{groupId:"prepare",blockId:"resetaction"}},
+      {id:"inputedge",from:{blockId:"nextinput"},to:{groupId:"prepare",blockId:"readmessageid"}},
       {id:"preparedge",from:{blockId:"prepareturn"},to:{groupId:"agent"}},
       ...routeItems.map(item=>({id:item.outgoingEdgeId,from:{blockId:"routeaction",itemId:item.id},to:{groupId:"operation"}})),
       {id:"replyedge",from:{blockId:"routeaction"},to:{groupId:"reply"}},
       {id:"continueedge",from:{blockId:"routeoperation",itemId:"continueitem"},to:{groupId:"agent"}},
       {id:"operationreplyedge",from:{blockId:"routeoperation"},to:{groupId:"reply"}},
-      {id:"waitedge",from:{blockId:"waitinput"},to:{groupId:"prepare",blockId:"resetaction"}},
+      {id:"waitedge",from:{blockId:"waitinput"},to:{groupId:"prepare",blockId:"readmessageid"}},
     ],
     variables,theme:{},settings:{},selectedThemeTemplateId:null,publicId:null,isArchived:false,isClosed:false,
   };

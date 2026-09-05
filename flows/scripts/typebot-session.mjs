@@ -4,7 +4,6 @@ export function typebotEnvelope(opened,payload){
   if(typeof payload?.messageId!=="string"||typeof payload?.text!=="string")
     throw new Error("SALES_MESSAGE_CONTEXT_MISSING");
   return encodeURIComponent(JSON.stringify({
-    sessionToken:opened.sessionToken,
     messageId:payload.messageId,
     text:payload.text,
     remoteJid:payload.contact,
@@ -17,7 +16,7 @@ export function typebotRequest(baseUrl,publicId,typebotSessionId,envelope){
   if(typebotSessionId){
     return {mode:"continue",url:`${root}/api/v1/sessions/${encodeURIComponent(typebotSessionId)}/continueChat`,body:{message:envelope}};
   }
-  return {mode:"start",url:`${root}/api/v1/typebots/${encodeURIComponent(publicId)}/startChat`,body:{prefilledVariables:{incoming_payload:envelope}}};
+  return {mode:"start",url:`${root}/api/v1/typebots/${encodeURIComponent(publicId)}/startChat`,body:{message:envelope}};
 }
 
 export function typebotSessionMissing(response){

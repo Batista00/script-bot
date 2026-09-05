@@ -29,9 +29,49 @@
             "labels": {
               "placeholder": "Escríbeme con tus palabras..."
             },
-            "variableId": "vusermessage"
+            "variableId": "vincomingpayload"
           },
           "outgoingEdgeId": "inputedge"
+        },
+        {
+          "id": "readmessageid",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vmessageid",
+            "expressionToEvaluate": "String(JSON.parse(decodeURIComponent(\"{{incoming_payload}}\")).messageId||\"\")"
+          }
+        },
+        {
+          "id": "readmessage",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vusermessage",
+            "expressionToEvaluate": "String(JSON.parse(decodeURIComponent(\"{{incoming_payload}}\")).text||\"\")"
+          }
+        },
+        {
+          "id": "readremote",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vremoteJid",
+            "expressionToEvaluate": "String(JSON.parse(decodeURIComponent(\"{{incoming_payload}}\")).remoteJid||\"\")"
+          }
+        },
+        {
+          "id": "readname",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vpushName",
+            "expressionToEvaluate": "String(JSON.parse(decodeURIComponent(\"{{incoming_payload}}\")).pushName||\"\")"
+          }
+        },
+        {
+          "id": "clearincoming",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vincomingpayload",
+            "expressionToEvaluate": "\"\""
+          }
         },
         {
           "id": "resetaction",
@@ -62,7 +102,7 @@
           "type": "Set variable",
           "options": {
             "variableId": "vrequestpayload",
-            "expressionToEvaluate": "encodeURIComponent(JSON.stringify({mode:\"prepare\",remoteJid:String(\"{{remoteJid}}\"),pushName:String(\"{{pushName}}\"),userMessage:String(\"{{user_message}}\"),catalogContext:String(\"{{catalog_context}}\")}))"
+            "expressionToEvaluate": "encodeURIComponent(JSON.stringify({mode:\"prepare\",messageId:String(\"{{message_id}}\"),remoteJid:String(\"{{remoteJid}}\"),pushName:String(\"{{pushName}}\"),userMessage:String(\"{{user_message}}\"),catalogContext:String(\"{{catalog_context}}\")}))"
           }
         },
         {
@@ -77,10 +117,10 @@
                 {
                   "id": "prepareheader",
                   "key": "Content-Type",
-                  "value": "application/json"
+                  "value": "text/plain"
                 }
               ],
-              "body": "{\"payload\":\"{{request_payload}}\"}"
+              "body": "{{request_payload}}"
             },
             "responseVariableMapping": [
               {
@@ -281,7 +321,7 @@
           "type": "Set variable",
           "options": {
             "variableId": "vrequestpayload",
-            "expressionToEvaluate": "encodeURIComponent(JSON.stringify({mode:\"act\",remoteJid:String(\"{{remoteJid}}\"),pushName:String(\"{{pushName}}\"),userMessage:String(\"{{user_message}}\"),turnId:String(\"{{turn_id}}\"),decisionPayload:String(\"{{decision_payload}}\"),catalogContext:String(\"{{catalog_context}}\"),actionCompleted:String(\"{{action_completed}}\")}))"
+            "expressionToEvaluate": "encodeURIComponent(JSON.stringify({mode:\"act\",messageId:String(\"{{message_id}}\"),remoteJid:String(\"{{remoteJid}}\"),pushName:String(\"{{pushName}}\"),userMessage:String(\"{{user_message}}\"),turnId:String(\"{{turn_id}}\"),decisionPayload:String(\"{{decision_payload}}\"),catalogContext:String(\"{{catalog_context}}\"),actionCompleted:String(\"{{action_completed}}\")}))"
           }
         },
         {
@@ -296,10 +336,10 @@
                 {
                   "id": "actionheader",
                   "key": "Content-Type",
-                  "value": "application/json"
+                  "value": "text/plain"
                 }
               ],
-              "body": "{\"payload\":\"{{request_payload}}\"}"
+              "body": "{{request_payload}}"
             },
             "responseVariableMapping": [
               {
@@ -444,7 +484,7 @@
             "labels": {
               "placeholder": "Escríbeme con tus palabras..."
             },
-            "variableId": "vusermessage"
+            "variableId": "vincomingpayload"
           },
           "outgoingEdgeId": "waitedge"
         }
@@ -469,7 +509,7 @@
       },
       "to": {
         "groupId": "prepare",
-        "blockId": "resetaction"
+        "blockId": "readmessageid"
       }
     },
     {
@@ -586,11 +626,21 @@
       },
       "to": {
         "groupId": "prepare",
-        "blockId": "resetaction"
+        "blockId": "readmessageid"
       }
     }
   ],
   "variables": [
+    {
+      "id": "vincomingpayload",
+      "name": "incoming_payload",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vmessageid",
+      "name": "message_id",
+      "isSessionVariable": true
+    },
     {
       "id": "vrequestpayload",
       "name": "request_payload",

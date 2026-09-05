@@ -42,7 +42,7 @@ if(typeof body?.sessionId!=="string"||!body.sessionId||!Array.isArray(body.messa
 return [{json:{recover:false,response:{...$json,body},incomingPayload},pairedItem:{item:0}}];`});
   branch(w,"Session missing","={{ $json.recover === true }}");
   http(w,"Start Typebot",`={{ ${cfg("typebotBaseUrl")} + '/api/v1/typebots/' + encodeURIComponent(${cfg("typebotPublicId")}) + '/startChat' }}`,
-    "={{ ({prefilledVariables:{incoming_payload:$json.incomingPayload}}) }}",null,responseOptions);
+    "={{ ({message:$json.incomingPayload}) }}",null,responseOptions);
   node(w,"Validate Typebot response","code",{jsCode:`${source(validateTypebotResponse)}
 const previous=$('Prepare Typebot request').item.json.previousSessionId;
 return [{json:validateTypebotResponse($json.response||$json,previous)}];`});

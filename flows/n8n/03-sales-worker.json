@@ -323,7 +323,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "function typebotEnvelope(opened,payload){\n  if(typeof opened?.sessionToken!==\"string\"||!/^cs_[A-Za-z0-9_-]{43}$/.test(opened.sessionToken))\n    throw new Error(\"SALES_SESSION_TOKEN_MISSING\");\n  if(typeof payload?.messageId!==\"string\"||typeof payload?.text!==\"string\")\n    throw new Error(\"SALES_MESSAGE_CONTEXT_MISSING\");\n  return encodeURIComponent(JSON.stringify({\n    sessionToken:opened.sessionToken,\n    messageId:payload.messageId,\n    text:payload.text,\n    remoteJid:payload.contact,\n    pushName:typeof payload.name===\"string\"?payload.name:\"\",\n  }));\n}\nfunction typebotRequest(baseUrl,publicId,typebotSessionId,envelope){\n  const root=String(baseUrl).replace(/\\/$/,\"\");\n  if(typebotSessionId){\n    return {mode:\"continue\",url:`${root}/api/v1/sessions/${encodeURIComponent(typebotSessionId)}/continueChat`,body:{message:envelope}};\n  }\n  return {mode:\"start\",url:`${root}/api/v1/typebots/${encodeURIComponent(publicId)}/startChat`,body:{prefilledVariables:{incoming_payload:envelope}}};\n}\nconst opened=$('Open session').item.json;\nconst payload=$('Each message').item.json.payload;\nconst envelope=typebotEnvelope(opened,payload);\nconst request=typebotRequest($('Config').first().json.config.typebotBaseUrl,$('Config').first().json.config.typebotPublicId,opened.typebotSessionId,envelope);\nreturn [{json:{request,incomingPayload:envelope,previousSessionId:opened.typebotSessionId}}];"
+        "jsCode": "function typebotEnvelope(opened,payload){\n  if(typeof opened?.sessionToken!==\"string\"||!/^cs_[A-Za-z0-9_-]{43}$/.test(opened.sessionToken))\n    throw new Error(\"SALES_SESSION_TOKEN_MISSING\");\n  if(typeof payload?.messageId!==\"string\"||typeof payload?.text!==\"string\")\n    throw new Error(\"SALES_MESSAGE_CONTEXT_MISSING\");\n  return encodeURIComponent(JSON.stringify({\n    messageId:payload.messageId,\n    text:payload.text,\n    remoteJid:payload.contact,\n    pushName:typeof payload.name===\"string\"?payload.name:\"\",\n  }));\n}\nfunction typebotRequest(baseUrl,publicId,typebotSessionId,envelope){\n  const root=String(baseUrl).replace(/\\/$/,\"\");\n  if(typebotSessionId){\n    return {mode:\"continue\",url:`${root}/api/v1/sessions/${encodeURIComponent(typebotSessionId)}/continueChat`,body:{message:envelope}};\n  }\n  return {mode:\"start\",url:`${root}/api/v1/typebots/${encodeURIComponent(publicId)}/startChat`,body:{message:envelope}};\n}\nconst opened=$('Open session').item.json;\nconst payload=$('Each message').item.json.payload;\nconst envelope=typebotEnvelope(opened,payload);\nconst request=typebotRequest($('Config').first().json.config.typebotBaseUrl,$('Config').first().json.config.typebotPublicId,opened.typebotSessionId,envelope);\nreturn [{json:{request,incomingPayload:envelope,previousSessionId:opened.typebotSessionId}}];"
       }
     },
     {
@@ -454,7 +454,7 @@
         "url": "={{ $('Config').first().json.config.typebotBaseUrl + '/api/v1/typebots/' + encodeURIComponent($('Config').first().json.config.typebotPublicId) + '/startChat' }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ ({prefilledVariables:{incoming_payload:$json.incomingPayload}}) }}",
+        "jsonBody": "={{ ({message:$json.incomingPayload}) }}",
         "options": {
           "timeout": 60000,
           "redirect": {

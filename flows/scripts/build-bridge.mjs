@@ -19,11 +19,13 @@ const contact=String(payload.remoteJid??'').split('@')[0].split(':')[0].replace(
 if(!/^[0-9]{8,15}$/.test(contact))throw new Error('TYPEBOT_CONTACT_INVALID');
 const pushName=typeof payload.pushName==='string'?payload.pushName.trim().slice(0,120):'';
 const userMessage=typeof payload.userMessage==='string'?payload.userMessage.trim().slice(0,10000):'';
+const messageId=typeof payload.messageId==='string'?payload.messageId.trim().slice(0,96):'';
+if(!/^[A-Za-z0-9._:-]{1,96}$/.test(messageId))throw new Error('TYPEBOT_MESSAGE_ID_INVALID');
 if(mode==='prepare'&&!userMessage)throw new Error('TYPEBOT_MESSAGE_MISSING');
 const turnId=mode==='prepare'?'tb-'+String($execution.id):String(payload.turnId??'');
 if(!/^tb-[A-Za-z0-9_-]{1,100}$/.test(turnId))throw new Error('TYPEBOT_TURN_ID_INVALID');
 const decision=parsePayload(payload.decisionPayload)??payload.decision??null;
-return [{json:{mode,contact,pushName,userMessage,turnId,decision,
+return [{json:{mode,contact,pushName,userMessage,messageId,turnId,decision,
   catalogContext:typeof payload.catalogContext==='string'?payload.catalogContext.slice(0,6000):'',
   actionCompleted:payload.actionCompleted==='yes'?'yes':'no'}}];`});
   http(w,"Open current sales session",backend("/bot/v1/sales/sessions"),
@@ -31,7 +33,7 @@ return [{json:{mode,contact,pushName,userMessage,turnId,decision,
   branch(w,"Is agent action","={{ $('Validate Typebot turn').item.json.mode === 'act' }}");
   node(w,"Prepare conversational turn","code",{jsCode:`const turn=$('Validate Typebot turn').item.json;
 return [{json:{
-  userMessage:turn.userMessage,turnId:turn.turnId,operationResult:'',catalogContext:turn.catalogContext,
+  userMessage:turn.userMessage,messageId:turn.messageId,turnId:turn.turnId,operationResult:'',catalogContext:turn.catalogContext,
   remoteJid:turn.contact,pushName:turn.pushName,actionCompleted:'no',continueAgent:'yes',assistantMessage:'',action:'responder'
 }}];`});
   node(w,"Resolve agent decision","code",{jsCode:`const turn=$('Validate Typebot turn').item.json;
@@ -59,7 +61,7 @@ if(action==='consultar_pedido') backendText='estado';
 if(action==='derivar_humano') backendText='humano';
 const requiresBackend=action!=='responder'&&turn.actionCompleted!=='yes'&&Boolean(backendText);
 return [{json:{...turn,action,category,product,quantity:number,targetUrl,paymentMethod,humanHandoffReason,
-  assistantMessage:'',backendText,requiresBackend,messageId:(turn.turnId+':'+action).slice(0,128)}}];`});
+  assistantMessage:'',backendText,requiresBackend,messageId:(turn.messageId+':'+action).slice(0,128)}}];`});
   branch(w,"Requires backend","={{ $json.requiresBackend === true }}");
   node(w,"Return safe fallback","code",{jsCode:`const requested=$('Resolve agent decision').item.json;
 return [{json:{assistantMessage:requested.action==='responder'?'¿En qué servicio te puedo ayudar?':'Necesito un dato más para continuar. ¿Puedes indicármelo?',
