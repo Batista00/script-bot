@@ -1,5 +1,5 @@
 {
-  "name": "BW 02 — Typebot → backend comercial",
+  "name": "BW 02 — Typebot agente → backend comercial",
   "nodes": [
     {
       "id": "typebot-bridge",
@@ -28,12 +28,12 @@
         0
       ],
       "parameters": {
-        "jsCode": "const config={\"backendBaseUrl\":\"https://admin.pablete.xyz/api\",\"typebotBaseUrl\":\"https://bot.pablete.xyz\",\"n8nBaseUrl\":\"https://n8n.pablete.xyz\",\"typebotPublicId\":\"CONFIGURAR_PUBLIC_ID\",\"evolutionBaseUrl\":\"https://evo.pablete.xyz\",\"instance\":\"CONFIGURAR_INSTANCIA\",\"automationIntegrationId\":\"CONFIGURAR_UUID\",\"openaiModel\":\"CONFIGURAR_MODELO\",\"evidenceAiEnabled\":false}; return $input.all().map((item,i)=>({json:{...item.json,config},pairedItem:{item:i}}));"
+        "jsCode": "const config={\"backendBaseUrl\":\"https://admin.pablete.xyz/api\",\"typebotBaseUrl\":\"https://bot.pablete.xyz\",\"n8nBaseUrl\":\"https://n8n.pablete.xyz\",\"typebotPublicId\":\"CONFIGURAR_PUBLIC_ID\",\"evolutionBaseUrl\":\"https://evo.pablete.xyz\",\"instance\":\"CONFIGURAR_INSTANCIA\",\"automationIntegrationId\":\"CONFIGURAR_UUID\",\"telegramIntegrationId\":\"CONFIGURAR_TELEGRAM_UUID\",\"openaiModel\":\"CONFIGURAR_MODELO\",\"evidenceAiEnabled\":true}; return $input.all().map((item,i)=>({json:{...item.json,config},pairedItem:{item:i}}));"
       }
     },
     {
-      "id": "validate-sales-turn",
-      "name": "Validate sales turn",
+      "id": "validate-typebot-turn",
+      "name": "Validate Typebot turn",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -41,12 +41,12 @@
         0
       ],
       "parameters": {
-        "jsCode": "const body=$json.body&&typeof $json.body==='object'?$json.body:{};\nconst sessionToken=typeof body.sessionToken==='string'?body.sessionToken:'';\nif(!/^cs_[A-Za-z0-9_-]{43}$/.test(sessionToken))throw new Error('SALES_TURN_TOKEN_MISSING');\nif(typeof body.messageId!=='string'||!body.messageId||typeof body.text!=='string')throw new Error('SALES_TURN_CONTEXT_MISSING');\nreturn [{json:{messageId:body.messageId,text:body.text,authorization:'Bearer '+sessionToken}}];"
+        "jsCode": "function parsePayload(value){\n  if(value&&typeof value==='object')return value;\n  if(typeof value!=='string'||!value)return null;\n  try{return JSON.parse(value);}catch{}\n  try{return JSON.parse(decodeURIComponent(value));}catch{return null;}\n}\nlet body=$json.body??$json;\nif(typeof body==='string')body=parsePayload(body);\nif(!body||typeof body!=='object')body={};\nconst payload=parsePayload(body.payload)??body;\nconst mode=payload.mode==='act'?'act':'prepare';\nconst contact=String(payload.remoteJid??'').split('@')[0].split(':')[0].replace(/\\D/g,'');\nif(!/^[0-9]{8,15}$/.test(contact))throw new Error('TYPEBOT_CONTACT_INVALID');\nconst pushName=typeof payload.pushName==='string'?payload.pushName.trim().slice(0,120):'';\nconst userMessage=typeof payload.userMessage==='string'?payload.userMessage.trim().slice(0,10000):'';\nif(mode==='prepare'&&!userMessage)throw new Error('TYPEBOT_MESSAGE_MISSING');\nconst turnId=mode==='prepare'?'tb-'+String($execution.id):String(payload.turnId??'');\nif(!/^tb-[A-Za-z0-9_-]{1,100}$/.test(turnId))throw new Error('TYPEBOT_TURN_ID_INVALID');\nconst decision=parsePayload(payload.decisionPayload)??payload.decision??null;\nreturn [{json:{mode,contact,pushName,userMessage,turnId,decision,\n  catalogContext:typeof payload.catalogContext==='string'?payload.catalogContext.slice(0,6000):'',\n  actionCompleted:payload.actionCompleted==='yes'?'yes':'no'}}];"
       }
     },
     {
-      "id": "sales-message",
-      "name": "Sales message",
+      "id": "open-current-sales-session",
+      "name": "Open current sales session",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -55,10 +55,149 @@
       ],
       "parameters": {
         "method": "POST",
+        "url": "={{ $('Config').first().json.config.backendBaseUrl + '/bot/v1/sales/sessions' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {contact:$json.contact,...($json.pushName?{name:$json.pushName}:{})} }}",
+        "options": {
+          "timeout": 60000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "BW Backend"
+        }
+      }
+    },
+    {
+      "id": "is-agent-action",
+      "name": "Is agent action",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "Is agent action-condition",
+              "leftValue": "={{ $('Validate Typebot turn').item.json.mode === 'act' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "prepare-conversational-turn",
+      "name": "Prepare conversational turn",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const turn=$('Validate Typebot turn').item.json;\nreturn [{json:{\n  userMessage:turn.userMessage,turnId:turn.turnId,operationResult:'',catalogContext:turn.catalogContext,\n  remoteJid:turn.contact,pushName:turn.pushName,actionCompleted:'no',continueAgent:'yes',assistantMessage:'',action:'responder'\n}}];"
+      }
+    },
+    {
+      "id": "resolve-agent-decision",
+      "name": "Resolve agent decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const turn=$('Validate Typebot turn').item.json;\nlet decision=turn.decision;\nif(typeof decision==='string'){\n  let clean=decision.trim();const fence=String.fromCharCode(96).repeat(3);\n  if(clean.startsWith(fence))clean=clean.slice(3).replace(/^json\\s*/i,'');\n  if(clean.endsWith(fence))clean=clean.slice(0,-3).trim();\n  try{decision=JSON.parse(clean);}catch{decision=null;}\n}\nconst allowed=new Set(['responder','consultar_catalogo','seleccionar_producto','capturar_destino','crear_pedido','elegir_pago','consultar_pedido','derivar_humano']);\nconst action=turn.mode==='prepare'?'procesar_mensaje':(allowed.has(decision?.action)?decision.action:'responder');\nconst text=value=>typeof value==='string'?value.trim().slice(0,1000):'';\nconst number=Number.isSafeInteger(Number(decision?.quantity))&&Number(decision.quantity)>0?Number(decision.quantity):null;\nconst category=text(decision?.category),product=text(decision?.product),targetUrl=text(decision?.target_url);\nconst paymentMethod=text(decision?.payment_method),humanHandoffReason=text(decision?.human_handoff_reason);\nlet backendText='';\nif(action==='procesar_mensaje') backendText=turn.userMessage;\nif(action==='consultar_catalogo') backendText=['buscar',category,product,number].filter(Boolean).join(' ').trim();\nif(action==='seleccionar_producto') backendText=number?String(number):['buscar',category,product].filter(Boolean).join(' ').trim();\nif(action==='capturar_destino') backendText=/^https?:\\/\\/[^\\s]+$/i.test(targetUrl)?targetUrl:'';\nif(action==='crear_pedido') backendText='si';\nif(action==='elegir_pago') backendText=paymentMethod||'transferencia';\nif(action==='consultar_pedido') backendText='estado';\nif(action==='derivar_humano') backendText='humano';\nconst requiresBackend=action!=='responder'&&turn.actionCompleted!=='yes'&&Boolean(backendText);\nreturn [{json:{...turn,action,category,product,quantity:number,targetUrl,paymentMethod,humanHandoffReason,\n  assistantMessage:'',backendText,requiresBackend,messageId:(turn.turnId+':'+action).slice(0,128)}}];"
+      }
+    },
+    {
+      "id": "requires-backend",
+      "name": "Requires backend",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1680,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "Requires backend-condition",
+              "leftValue": "={{ $json.requiresBackend === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "return-safe-fallback",
+      "name": "Return safe fallback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const requested=$('Resolve agent decision').item.json;\nreturn [{json:{assistantMessage:requested.action==='responder'?'¿En qué servicio te puedo ayudar?':'Necesito un dato más para continuar. ¿Puedes indicármelo?',\n  action:requested.action,operationResult:'',catalogContext:requested.catalogContext,category:requested.category,product:requested.product,\n  quantity:requested.quantity,retailPrice:'',productId:'',targetUrl:requested.targetUrl,orderId:'',orderStatus:'',\n  paymentMethod:requested.paymentMethod,paymentStatus:'',humanHandoffReason:requested.humanHandoffReason,\n  continueAgent:'no',actionCompleted:'yes',turnId:requested.turnId}}];"
+      }
+    },
+    {
+      "id": "execute-authorized-operation",
+      "name": "Execute authorized operation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2160,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
         "url": "={{ $('Config').first().json.config.backendBaseUrl + '/conversation/v1/message' }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {messageId:$json.messageId,text:$json.text} }}",
+        "jsonBody": "={{ {messageId:$json.messageId,text:$json.backendText} }}",
         "options": {
           "timeout": 60000,
           "redirect": {
@@ -79,23 +218,23 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "={{ $json.authorization }}"
+              "value": "={{ 'Bearer ' + $('Open current sales session').item.json.sessionToken }}"
             }
           ]
         }
       }
     },
     {
-      "id": "prepare-safe-response",
-      "name": "Prepare safe response",
+      "id": "prepare-authorized-result",
+      "name": "Prepare authorized result",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        960,
+        2400,
         0
       ],
       "parameters": {
-        "jsCode": "const statusCode=Number($json.statusCode??200);\nconst candidate=$json.body&&typeof $json.body==='object'?$json.body:\n  $json.response&&typeof $json.response==='object'?$json.response:$json;\nconst successful=statusCode>=200&&statusCode<300&&candidate&&typeof candidate==='object';\nconst reply=successful?candidate:{};\nconst advice=reply.advice&&typeof reply.advice==='object'?reply.advice:null;\nconst fallback='No pude completar esa consulta en este momento. Puedo intentarlo nuevamente o derivarte con una persona.';\nconst hasText=typeof reply.text==='string'&&reply.text.trim().length>0;\nconst text=hasText?reply.text.trim():fallback;\nconst customerText=$('Validate sales turn').item.json.text;\nconst authorizedContext=[text,advice?String(advice.instructions||''):''].filter(Boolean).join('\\n\\n').slice(0,6000);\nreturn [{json:{\n  text,\n  needsAi:successful&&hasText&&reply.paused!==true?'yes':'no',\n  aiContext:successful&&hasText?authorizedContext:'',\n  aiQuestion:(advice&&typeof advice.question==='string'&&advice.question.trim()?advice.question:customerText).slice(0,2000)\n}}];"
+        "jsCode": "const statusCode=Number($json.statusCode??200);\nconst candidate=$json.body&&typeof $json.body==='object'?$json.body:$json;\nconst source=typeof candidate?.text==='string'?candidate.text:'';\nconst clean=source.split(/\\r?\\n/)\n  .filter(line=>!/^\\s*(?:Escribe|También puedes escribir|Para comprar,|Elige una opción o|MÁS|BUSCAR|HUMANO|BAJA)\\b/i.test(line))\n  .map(line=>line.replace(/^\\s*\\d+\\.\\s*/, '').replace(/\\s*\\(\\d+\\s*[–-]\\s*\\d+\\)\\s*/g,' ').trim())\n  .filter(Boolean).slice(0,12).join('\\n').slice(0,6000);\nconst requested=$('Resolve agent decision').item.json;\nif(statusCode<200||statusCode>=300||!clean){return [{json:{assistantMessage:'No pude completar esa operación ahora. ¿Quieres intentarlo nuevamente o hablar con una persona?',\n  action:requested.action,operationResult:'',catalogContext:requested.catalogContext,category:requested.category,product:requested.product,\n  quantity:requested.quantity,retailPrice:'',productId:'',targetUrl:requested.targetUrl,orderId:'',orderStatus:'',\n  paymentMethod:requested.paymentMethod,paymentStatus:'',humanHandoffReason:requested.humanHandoffReason,\n  continueAgent:'no',actionCompleted:'yes',turnId:requested.turnId}}];}\nconst order=/\\bPedido\\s+([A-Za-z0-9-]{6,64})/i.exec(source)?.[1]||'';\nconst amount=/(?:Total|valor)(?:\\s+pedido)?\\s*:?\\s*([^\\n]+)/i.exec(source)?.[1]?.trim()||'';\nconst isCatalog=requested.action==='consultar_catalogo';\nreturn [{json:{assistantMessage:'',action:requested.action,operationResult:clean,\n  catalogContext:isCatalog?clean:requested.catalogContext,category:requested.category,product:requested.product,\n  quantity:requested.quantity,retailPrice:amount,productId:'',targetUrl:requested.targetUrl,orderId:order,orderStatus:'',\n  paymentMethod:requested.paymentMethod,paymentStatus:'',humanHandoffReason:requested.humanHandoffReason,\n  continueAgent:'yes',actionCompleted:'yes',turnId:requested.turnId}}];"
       }
     },
     {
@@ -104,12 +243,12 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        1200,
+        2640,
         0
       ],
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ $json }}",
+        "responseBody": "={{ {data:$json} }}",
         "options": {}
       }
     }
@@ -130,36 +269,105 @@
       "main": [
         [
           {
-            "node": "Validate sales turn",
+            "node": "Validate Typebot turn",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Validate sales turn": {
+    "Validate Typebot turn": {
       "main": [
         [
           {
-            "node": "Sales message",
+            "node": "Open current sales session",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Sales message": {
+    "Open current sales session": {
       "main": [
         [
           {
-            "node": "Prepare safe response",
+            "node": "Is agent action",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Prepare safe response": {
+    "Is agent action": {
+      "main": [
+        [
+          {
+            "node": "Resolve agent decision",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resolve agent decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve agent decision": {
+      "main": [
+        [
+          {
+            "node": "Requires backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Requires backend": {
+      "main": [
+        [
+          {
+            "node": "Execute authorized operation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return safe fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute authorized operation": {
+      "main": [
+        [
+          {
+            "node": "Prepare authorized result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare authorized result": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Return safe fallback": {
       "main": [
         [
           {

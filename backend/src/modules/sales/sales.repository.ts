@@ -150,7 +150,8 @@ export class PostgresSalesRepository {
       AND created_at<now()-make_interval(days=>$2) AND evidence_encrypted IS NOT NULL`,[businessId,days]);
   }
   async adminSessions(businessId:string) {
-    const result=await this.db.query(`SELECT id,contact,paused,updated_at AS "updatedAt" FROM sales_sessions
+    const result=await this.db.query(`SELECT id,contact,paused,state->>'phase' AS phase,
+      state->'humanResolutions' AS resolutions,updated_at AS "updatedAt" FROM sales_sessions
       WHERE business_id=$1 ORDER BY updated_at DESC LIMIT 50`,[businessId]);
     return result.rows;
   }

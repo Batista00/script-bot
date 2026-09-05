@@ -3,8 +3,8 @@
 ## Recorrido comercial implementado
 
 ```text
-WhatsApp → Evolution → webhook n8n → inbox PostgreSQL → disparo inmediato
-  → worker n8n → sesión acotada → Typebot startChat/continueChat → backend de ventas
+WhatsApp → Evolution → Typebot startChat/continueChat → OpenAI conversacional
+  → puente n8n → sesión comercial vigente → backend de ventas → Typebot → Evolution → WhatsApp
   → catálogo → cantidad + datos → cotización → confirmación → pedido
   → Mercado Pago verificado / transferencia revisada por humano
   → pedido pagado → worker → proveedor o entrega manual
@@ -47,7 +47,7 @@ El backend decide importes, moneda, disponibilidad y transiciones. El único Ope
 
 Las colas usan identificadores únicos, leases de cinco minutos y máximo ocho intentos. El camino normal dispara procesamiento y entrega de inmediato; los schedules de un minuto sólo recuperan pendientes si falla ese disparo o un servicio está caído. El inbox mantiene el orden por contacto y bloquea mensajes posteriores si el primero falla. Corregir conexión/credenciales y usar **Reprocesar mensaje** en el panel. No borrar registros para reiniciar una venta.
 
-La asociación `business + contacto → sales_session → typebot_session_id` se guarda en PostgreSQL. Si Typebot responde que la sesión no existe, expiró o es inválida, el worker crea otra con `startChat`, sustituye sólo ese ID y conserva producto, cotización, pedido y pago del backend.
+Evolution conserva el `sessionId` de Typebot para continuar el diálogo. La sesión comercial del backend se resuelve por `business + contacto`; n8n abre/refresca su token antes de cada operación. El `sessionId` de Typebot puede persistir, pero un token `cs_` nunca se almacena allí ni se reutiliza como credencial permanente.
 
 Las respuestas Typebot se conservan como hasta tres burbujas versionadas dentro del outbox. Evolution las recibe en orden con pausas de 600, 750 y 900 ms. El ACK del outbox se realiza una sola vez después de confirmar todas las burbujas.
 

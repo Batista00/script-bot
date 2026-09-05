@@ -34,6 +34,23 @@ export class SalesAdminService {
       session.paused=paused; await this.sales.saveSession(session); return {ok:true};
     });
   }
+  async resolveHumanHandoff(businessId:string,sessionId:string,userId:string,input:{
+    outcome:"sale_completed"|"no_sale"|"follow_up"|"other";note:string;resumeBot:boolean;
+  }) {
+    return this.sales.exclusive(sessionId,async()=>{
+      const session=await this.sales.session(businessId,sessionId);
+      if (!session.paused) {
+        throw new AppError("La conversación no está en atención humana",409,"SALES_SESSION_NOT_IN_HUMAN_HANDOFF");
+      }
+      const resolution={
+        outcome:input.outcome,note:input.note,resolvedAt:new Date().toISOString(),resolvedBy:userId,
+      };
+      session.state.humanResolutions=[...(session.state.humanResolutions ?? []),resolution].slice(-20);
+      session.paused=!input.resumeBot;
+      await this.sales.saveSession(session);
+      return {ok:true,paused:session.paused,resolution};
+    });
+  }
   async completeManual(businessId:string,checkoutId:string,userId:string,note:string) {
     await this.sales.completeManual(businessId,checkoutId,userId,note); return {ok:true};
   }

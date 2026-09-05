@@ -39,6 +39,10 @@ Quotes, Orders, Payments y Fulfillments son históricos y no ofrecen eliminació
 
 La moneda global se edita en Configuración y se reutiliza en Pricing, importación de servicios y Quotes. Métodos de pago permite configurar Mercado Pago o transferencia chilena (RUT, titular, banco, tipo y número de cuenta, correo opcional). Las transferencias quedan pendientes hasta confirmación humana por owner/admin.
 
+**Catálogo de proveedores** muestra la referencia técnica, el costo mayorista y las métricas operativas sincronizadas, pero la importación siempre crea un producto y un precio retail propios del negocio. Un mismo servicio externo puede originar varios paquetes comerciales de forma explícita. Los productos sin vínculo externo continúan disponibles para ventas y entregas manuales.
+
+**Ventas por WhatsApp** reúne estado del canal, Telegram, conversaciones derivadas y pedidos en seguimiento. El prompt principal no se edita en esta pantalla: vive en Typebot. El panel conserva solamente respuestas de respaldo y controles determinísticos del backend. Cuando una persona toma una conversación, puede registrar el resultado de la gestión y decidir explícitamente si reanuda el bot.
+
 ## Desarrollo
 
 Requiere Node.js 24 y pnpm 11.19.0.

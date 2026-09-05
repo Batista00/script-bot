@@ -21,6 +21,7 @@ export const salesRoutes:FastifyPluginAsync<Options>=async(app,{controller,admin
   app.post("/businesses/:businessId/sales-automation/reviewers",{preHandler},admin.reviewer);
   app.delete("/businesses/:businessId/sales-automation/reviewers",{preHandler},admin.removeReviewer);
   app.patch("/businesses/:businessId/sales-automation/sessions/:sessionId",{preHandler},admin.pause);
+  app.post("/businesses/:businessId/sales-automation/sessions/:sessionId/resolution",{preHandler},admin.resolve);
   app.post("/businesses/:businessId/sales-automation/checkouts/:checkoutId/complete",{preHandler},admin.complete);
   app.post("/businesses/:businessId/sales-automation/jobs/retry",{preHandler},admin.retry);
   app.post("/automation/v1/:integrationId/tick",automation.tick);

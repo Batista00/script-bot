@@ -11,6 +11,7 @@ import {
   commercialInputsFromProvider,
   providerImportPayload,
   providerImportValidationMessage,
+  providerOperationalFacts,
 } from "./ProviderServicesPage";
 
 const providerServiceId = "0112b819-6653-4234-821a-6a2fce393c3f";
@@ -56,6 +57,19 @@ test("translates provider capabilities into editable commercial fields", () => {
   ])).toEqual([
     expect.objectContaining({ key: "targetUrl", label: "Enlace de destino", position: 0 }),
     expect.objectContaining({ key: "comments", label: "Comentarios", position: 1 }),
+  ]);
+});
+
+test("presents operational provider metadata without turning it into retail data", () => {
+  expect(providerOperationalFacts({
+    ...providerService,
+    metadata: { refill: true, cancel: false, extra_parameter: { start_time: "~6m", speed: "5-6k/day", reliability: "Medium" } },
+  })).toEqual([
+    { label: "Inicio estimado", value: "~6m" },
+    { label: "Velocidad", value: "5-6k/day" },
+    { label: "Fiabilidad", value: "Medium" },
+    { label: "Reposición", value: "Sí" },
+    { label: "Cancelación", value: "No" },
   ]);
 });
 
@@ -107,7 +121,7 @@ test("successful import invalidates every affected Business view", async () => {
     expect.objectContaining({ externalServiceId: "123" }),
   ));
   await userEvent.click(await screen.findByRole("button", { name: "Importar" }));
-  await userEvent.type(screen.getByLabelText("Precio retail (entero en unidad mínima)"), "25");
+  await userEvent.type(screen.getByLabelText(/Precio retail/), "25");
   await userEvent.click(screen.getAllByRole("button", { name: "Importar" }).at(-1)!);
 
   await waitFor(() => expect(importCall).toHaveBeenCalledWith(

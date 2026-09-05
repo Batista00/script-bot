@@ -283,7 +283,7 @@ Solo `owner` y `admin` pueden administrar integraciones. Los accesos internos po
 
 La migración `000015` agrega sesiones comerciales, inbox durable, checkouts con datos de entrega, revisión cifrada de comprobantes, revisores Telegram y cola de notificaciones. No se activa ninguna automatización al migrar.
 
-En el panel **Bot y automatizaciones**, owner/admin configura atención, pausa conversaciones, vincula su usuario Telegram, registra entregas manuales de pedidos pagados y recupera trabajos fallidos. Configuración, secretos y clientes se aíslan por negocio.
+En el panel **Ventas por WhatsApp**, owner/admin controla la recepción, pausa conversaciones, vincula su usuario Telegram, registra el resultado de una atención humana, registra entregas manuales de pedidos pagados y recupera trabajos fallidos. La identidad, bienvenida y políticas visibles allí son respuestas de respaldo del backend; el prompt conversacional principal continúa versionado en Typebot. Configuración, secretos y clientes se aíslan por negocio.
 
 - Machine API: `POST /bot/v1/sales/sessions` y `/bot/v1/sales/inbox`.
 - Token temporal de conversación: `POST /conversation/v1/message`, `/evidence`, `/evidence/analysis`.
@@ -292,6 +292,8 @@ En el panel **Bot y automatizaciones**, owner/admin configura atención, pausa c
 - Administración: `/businesses/:businessId/sales-automation` y sus subrutas protegidas; no hay una ruta pública de aprobación por IA.
 
 El cliente puede describir el servicio en lenguaje natural; OpenAI propone términos y el backend busca sólo productos activos, precios retail y categorías del Business. La opción elegida, cantidad y datos de entrega se validan antes de ofrecer pago. Frases como «quiero los 1.000», «sí, están bien» o «transferencia bancaria» avanzan por el mismo flujo determinístico. Las acciones financieras continúan en Payments/Orders: una transferencia requiere verificación humana del abono y referencia bancaria; Mercado Pago conserva su verificación server-to-server. Después del despacho, el aviso al cliente puede incluir la referencia segura del pedido externo, nunca credenciales, rate o ID técnico del servicio.
+
+Cuando el cliente solicita una persona, el backend pausa la sesión y encola la alerta de Telegram. El operador atiende en el mismo WhatsApp y puede registrar en el panel el resultado (`venta finalizada`, `no concretada`, `seguimiento` u `otro`) con una nota; reanudar el bot es una decisión explícita. Los últimos veinte resultados se conservan dentro del estado business-scoped de la sesión.
 
 Los tests de ventas (`pnpm test:sales`) forman parte de `pnpm test`. PostgreSQL continúa serializado con `--test-concurrency=1`; sin `TEST_DATABASE_URL` se informa skip. Las pruebas no envían WhatsApp/Telegram ni compran servicios.
 

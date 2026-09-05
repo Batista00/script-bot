@@ -3,6 +3,7 @@ import { ingress } from "./build-ingress.mjs";
 import { bridge } from "./build-bridge.mjs";
 import { salesWorker } from "./build-sales-worker.mjs";
 import { notifications } from "./build-notifications.mjs";
+import { telegramAdmin } from "./build-telegram-admin.mjs";
 import { typebot } from "./build-typebot.mjs";
 
 for(const [path,value] of [
@@ -10,6 +11,7 @@ for(const [path,value] of [
   ["n8n/02-typebot-sales-bridge.json",bridge()],
   ["n8n/03-sales-worker.json",salesWorker()],
   ["n8n/04-notifications-worker.json",notifications()],
+  ["n8n/05-telegram-admin.json",telegramAdmin()],
   ["typebot/sales-assistant-6.1.json",typebot()],
 ]) {
   const target=new URL(`../${path}`,import.meta.url);

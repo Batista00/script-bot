@@ -1,6 +1,6 @@
 import type { FastifyRequest } from "fastify";
 import type { SalesAdminService } from "./sales-admin.service.js";
-import { manualSchema,pauseSchema,reviewerSchema,settingsSchema,uuid,validated,retryJobSchema } from "./sales.schema.js";
+import { humanResolutionSchema,manualSchema,pauseSchema,reviewerSchema,settingsSchema,uuid,validated,retryJobSchema } from "./sales.schema.js";
 export class SalesAdminController {
   constructor(private readonly service:SalesAdminService) {}
   private business(request:FastifyRequest) { return validated(uuid,(request.params as {businessId:string}).businessId); }
@@ -9,6 +9,7 @@ export class SalesAdminController {
   reviewer=async(request:FastifyRequest)=>this.service.bindReviewer(this.business(request),validated(reviewerSchema,request.body).telegramUserId,request.authenticatedUser!.id);
   removeReviewer=async(request:FastifyRequest)=>this.service.unbindReviewer(this.business(request),validated(reviewerSchema,request.body).telegramUserId);
   pause=async(request:FastifyRequest)=>this.service.pause(this.business(request),validated(uuid,(request.params as {sessionId:string}).sessionId),validated(pauseSchema,request.body).paused);
+  resolve=async(request:FastifyRequest)=>this.service.resolveHumanHandoff(this.business(request),validated(uuid,(request.params as {sessionId:string}).sessionId),request.authenticatedUser!.id,validated(humanResolutionSchema,request.body));
   complete=async(request:FastifyRequest)=>this.service.completeManual(this.business(request),validated(uuid,(request.params as {checkoutId:string}).checkoutId),request.authenticatedUser!.id,validated(manualSchema,request.body).note);
   retry=async(request:FastifyRequest)=>{
     const body=validated(retryJobSchema,request.body);

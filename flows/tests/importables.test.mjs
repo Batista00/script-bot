@@ -5,10 +5,11 @@ import { ingress } from "../scripts/build-ingress.mjs";
 import { bridge } from "../scripts/build-bridge.mjs";
 import { salesWorker } from "../scripts/build-sales-worker.mjs";
 import { notifications } from "../scripts/build-notifications.mjs";
+import { telegramAdmin } from "../scripts/build-telegram-admin.mjs";
 import { typebot } from "../scripts/build-typebot.mjs";
 import { typebotEnvelope,typebotRequest,typebotSessionMissing,validateTypebotResponse } from "../scripts/typebot-session.mjs";
 
-for(const [path,build] of [["01-evolution-inbox",ingress],["02-typebot-sales-bridge",bridge],["03-sales-worker",salesWorker],["04-notifications-worker",notifications]]){
+for(const [path,build] of [["01-evolution-inbox",ingress],["02-typebot-sales-bridge",bridge],["03-sales-worker",salesWorker],["04-notifications-worker",notifications],["05-telegram-admin",telegramAdmin]]){
   test(`${path}: deterministic inactive export, valid nodes and credential references`,async()=>{
     const w=JSON.parse(await readFile(new URL(`../n8n/${path}.json`,import.meta.url),"utf8"));assert.deepEqual(w,build());
     assert.equal(w.active,false);assert.deepEqual(w.pinData,{});
@@ -36,16 +37,18 @@ test("Typebot 6.1 presentation has valid references and no business/provider cre
   const target=webhookDefinition.url;
   assert.equal(target,"https://n8n.pablete.xyz/webhook/bw-sales-bridge");
   assert.ok(!target.includes("{{"),"customer-prefilled variables must never choose a server-side request destination");
-  assert.equal(webhookDefinition.body,"{{incoming_payload}}","Typebot must forward the original typed turn envelope without rebuilding it");
-  assert.equal(t.groups.flatMap(g=>g.blocks).some(b=>b.id==="buildbody"),false);
+  assert.match(webhookDefinition.body,/"remoteJid":"{{remoteJid}}"/);
+  assert.match(webhookDefinition.body,/"userMessage":"{{user_message}}"/);
+  assert.ok(t.groups.flatMap(g=>g.blocks).some(b=>b.id==="buildpreparepayload"));
   assert.equal(t.variables.some(variable=>variable.name==="session_token"),false,"backend cs_ tokens must not persist as a Typebot session variable");
-  const webhook=t.groups.flatMap(g=>g.blocks).find(b=>b.id==="callbridge");
-  assert.equal(webhook.options.webhook.headers.some(header=>header.key.toLowerCase()==="authorization"),false);
-  assert.ok(t.groups.flatMap(g=>g.blocks).some(b=>b.id==="clearincoming"));
-  assert.equal(t.groups.flatMap(g=>g.blocks).some(b=>b.id==="clearrequest"),false);
+  assert.equal(raw.includes("sessionToken"),false,"backend session tokens must never reach Typebot");
+  const webhooks=t.groups.flatMap(g=>g.blocks).filter(b=>b.type==="Webhook");
+  assert.ok(webhooks.every(webhook=>webhook.options.webhook.headers.every(header=>header.key.toLowerCase()!=="authorization")));
   const inputBlock=t.groups.flatMap(g=>g.blocks).find(b=>b.id==="nextinput");
   assert.equal(inputBlock.type,"text input");
   assert.ok(t.edges.some(edge=>edge.to.blockId==="nextinput"),"the external chat must wait for continueChat input");
+  assert.equal(inputBlock.options.variableId,t.variables.find(variable=>variable.name==="user_message").id);
+  assert.ok(t.variables.some(variable=>variable.name==="remoteJid"),"Evolution must prefill the WhatsApp contact");
 });
 
 test("Evolution ingress acknowledges ignored events without persisting them",()=>{
@@ -94,12 +97,16 @@ test("immediate and recovery processing open the current sales session before Ty
   assert.match(prepare.parameters.jsCode,/SALES_SESSION_TOKEN_MISSING/);
 
   const salesBridge=bridge();
-  const validator=salesBridge.nodes.find(node=>node.name==="Validate sales turn");
-  const conversation=salesBridge.nodes.find(node=>node.name==="Sales message");
-  assert.match(validator.parameters.jsCode,/SALES_TURN_TOKEN_MISSING/);
-  assert.match(validator.parameters.jsCode,/\^cs_/);
-  assert.equal(conversation.parameters.headerParameters.parameters[0].value,"={{ $json.authorization }}");
-  assert.doesNotMatch(JSON.stringify(salesBridge),/headers\.authorization/);
+  const bridgeNext=(name,output=0)=>(salesBridge.connections[name]?.main?.[output]??[]).map(edge=>edge.node);
+  const validator=salesBridge.nodes.find(node=>node.name==="Validate Typebot turn");
+  const open=salesBridge.nodes.find(node=>node.name==="Open current sales session");
+  const conversation=salesBridge.nodes.find(node=>node.name==="Execute authorized operation");
+  assert.match(validator.parameters.jsCode,/TYPEBOT_CONTACT_INVALID/);
+  assert.deepEqual(bridgeNext("Validate Typebot turn"),["Open current sales session"]);
+  assert.deepEqual(bridgeNext("Open current sales session"),["Is agent action"]);
+  assert.match(open.parameters.url,/sales\/sessions/);
+  assert.equal(conversation.parameters.headerParameters.parameters[0].value,"={{ 'Bearer ' + $('Open current sales session').item.json.sessionToken }}");
+  assert.doesNotMatch(JSON.stringify(typebot()),/cs_\[|sessionToken|Authorization/);
 });
 
 test("Typebot session request contract supports first turn, continuation and expiry recovery",()=>{
@@ -119,8 +126,18 @@ test("Typebot session request contract supports first turn, continuation and exp
     {response:{sessionId:"session-1",messages:[]},typebotSessionId:"session-1",sessionChanged:false});
   assert.equal(validateTypebotResponse({statusCode:200,body:{sessionId:"session-2",messages:[]}},"session-1").sessionChanged,true);
   const inspect=salesWorker().nodes.find(node=>node.name==="Inspect continued session").parameters.jsCode;
+  const continuation=salesWorker().nodes.find(node=>node.name==="Continue Typebot");
+  const restart=salesWorker().nodes.find(node=>node.name==="Start Typebot");
   assert.match(inspect,/typeof body\?\.sessionId/);
   assert.match(inspect,/Array\.isArray\(body\.messages\).*recover:true/);
+  assert.match(inspect,/status<200\|\|status>=300\)return \[\{json:\{recover:true,incomingPayload\}/);
+  assert.equal(continuation.parameters.options.response.response.responseFormat,"text");
+  assert.equal(continuation.onError,"continueRegularOutput");
+  assert.equal(restart.parameters.jsonBody,"={{ ({prefilledVariables:{incoming_payload:$json.incomingPayload}}) }}");
+  assert.match(inspect,/pairedItem:\{item:0\}/);
+  assert.match(inspect,/JSON\.parse\(rawBody\)/);
+  assert.deepEqual(validateTypebotResponse({statusCode:200,body:JSON.stringify({sessionId:"session-3",messages:[]})},"session-2"),
+    {response:{sessionId:"session-3",messages:[]},typebotSessionId:"session-3",sessionChanged:true});
 });
 
 test("Typebot association is obtained from the business-scoped backend session, never from a global phone key",()=>{
@@ -142,9 +159,9 @@ test("n8n contains no conversational OpenAI call; the sole master prompt is the 
   assert.ok(!JSON.stringify(bridge()).includes("api.openai.com"));
   const t=typebot();const ask=t.groups.flatMap(g=>g.blocks).filter(b=>b.type==="openai"&&b.options.action==="Ask Model");
   assert.equal(ask.length,1);assert.ok(!("credentialsId" in ask[0].options));
-  assert.match(ask[0].options.instructions,/30 a 100 palabras/);
-  assert.match(ask[0].options.instructions,/Nunca declares un pago aprobado/);
-  assert.match(ask[0].options.instructions,/exclusivamente los datos/);
+  assert.match(ask[0].options.instructions,/una y cuatro frases/);
+  assert.match(ask[0].options.instructions,/Nunca apruebes pagos/);
+  assert.match(ask[0].options.instructions,/únicas fuentes permitidas/);
   assert.ok(ask[0].options.responseIdVariableId);
 });
 

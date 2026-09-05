@@ -1,4 +1,4 @@
-import {workflow,node,link,http,configNode,backend,runner,branch,cfg,scopedHeaders,credential} from "./workflow-helpers.mjs";
+import {workflow,node,link,http,configNode,backend,runner,branch,cfg,scopedHeaders,credential,source} from "./workflow-helpers.mjs";
 import {typebotText,typebotMessages,encodeOutboxMessages} from "./transport-functions.mjs";
 import {typebotEnvelope,typebotRequest,typebotSessionMissing,validateTypebotResponse} from "./typebot-session.mjs";
 import {addEvidenceAnalysis} from "./build-evidence-analysis.mjs";
@@ -19,8 +19,8 @@ export function salesWorker(){
   branch(w,"Media usable","={{ $json.valid }}");
   http(w,"Submit private evidence",backend("/conversation/v1/evidence"),"={{ {base64:$json.base64,mimeType:$json.mimetype} }}",null,
     {...scopedHeaders,options:{timeout:60000,redirect:{redirect:{followRedirects:false}},response:{response:{neverError:true}}}});
-  node(w,"Validate evidence result","code",{jsCode:`${evidenceResponse.toString()}\nreturn [{json:evidenceResponse($json)}];`});
-  node(w,"Prepare Typebot request","code",{jsCode:`${typebotEnvelope.toString()}\n${typebotRequest.toString()}
+  node(w,"Validate evidence result","code",{jsCode:`${source(evidenceResponse)}\nreturn [{json:evidenceResponse($json)}];`});
+  node(w,"Prepare Typebot request","code",{jsCode:`${source(typebotEnvelope)}\n${source(typebotRequest)}
 const opened=$('Open session').item.json;
 const payload=$('Each message').item.json.payload;
 const envelope=typebotEnvelope(opened,payload);
@@ -30,7 +30,7 @@ return [{json:{request,incomingPayload:envelope,previousSessionId:opened.typebot
   const responseOptions={options:{timeout:60000,redirect:{redirect:{followRedirects:false}},response:{response:{neverError:true,fullResponse:true,responseFormat:"text"}}}};
   http(w,"Continue Typebot","={{ $json.request.url }}","={{ $json.request.body }}",null,responseOptions);
   w.nodes.find(n=>n.name==="Continue Typebot").onError="continueRegularOutput";
-  node(w,"Inspect continued session","code",{jsCode:`${typebotSessionMissing.toString()}
+  node(w,"Inspect continued session","code",{jsCode:`${source(typebotSessionMissing)}
 const incomingPayload=$('Prepare Typebot request').item.json.incomingPayload;
 const status=Number($json.statusCode||0);
 if(typebotSessionMissing($json))return [{json:{recover:true,incomingPayload},pairedItem:{item:0}}];
@@ -42,13 +42,13 @@ if(typeof body?.sessionId!=="string"||!body.sessionId||!Array.isArray(body.messa
 return [{json:{recover:false,response:{...$json,body},incomingPayload},pairedItem:{item:0}}];`});
   branch(w,"Session missing","={{ $json.recover === true }}");
   http(w,"Start Typebot",`={{ ${cfg("typebotBaseUrl")} + '/api/v1/typebots/' + encodeURIComponent(${cfg("typebotPublicId")}) + '/startChat' }}`,
-    "={{ {prefilledVariables:{incoming_payload:$json.incomingPayload}} }}",null,responseOptions);
-  node(w,"Validate Typebot response","code",{jsCode:`${validateTypebotResponse.toString()}
+    "={{ ({prefilledVariables:{incoming_payload:$json.incomingPayload}}) }}",null,responseOptions);
+  node(w,"Validate Typebot response","code",{jsCode:`${source(validateTypebotResponse)}
 const previous=$('Prepare Typebot request').item.json.previousSessionId;
 return [{json:validateTypebotResponse($json.response||$json,previous)}];`});
   branch(w,"Session changed","={{ $json.sessionChanged === true }}");
   http(w,"Save Typebot session",backend("/conversation/v1/typebot-session"),"={{ {typebotSessionId:$json.typebotSessionId} }}",null,{...scopedHeaders,method:"PUT"});
-  node(w,"Read Typebot reply","code",{jsCode:`${typebotText.toString()}\n${typebotMessages.toString()}\n${encodeOutboxMessages.toString()}
+  node(w,"Read Typebot reply","code",{jsCode:`${source(typebotText)}\n${source(typebotMessages)}\n${source(encodeOutboxMessages)}
 const result=$('Validate Typebot response').item.json;
 const messages=typebotMessages(result.response);
 const safeMessages=messages.length?messages:['No pude completar esa consulta en este momento. Puedo intentarlo nuevamente o derivarte con una persona.'];

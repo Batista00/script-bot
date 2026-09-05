@@ -19,9 +19,9 @@ const sections: ReadonlyArray<readonly [heading: string, links: readonly NavEntr
   ["Clientes", [["customers", "Clientes", Users]]],
   ["Catálogo", [["categories", "Categorías", Tags], ["products", "Productos", ShoppingBag], ["pricing", "Precios", CircleDollarSign]]],
   ["Ventas", [["quotes", "Cotizaciones", FileText], ["orders", "Pedidos", ClipboardList], ["payments", "Pagos", Receipt], ["payment-methods", "Métodos de pago", CircleDollarSign]]],
-  ["Operaciones", [["fulfillments", "Fulfillments", PackageCheck], ["sales-automation", "Bot y automatizaciones", Settings]]],
-  ["Proveedores", [["provider-services", "Servicios de proveedor", Boxes], ["mappings", "Mapeos", Layers3]]],
-  ["", [["integrations", "Integraciones", PlugZap], ["api-credentials", "API Credentials", KeyRound], ["settings", "Configuración", Settings]]],
+  ["Operaciones", [["fulfillments", "Entregas", PackageCheck], ["sales-automation", "Ventas por WhatsApp", Settings]]],
+  ["Proveedores", [["provider-services", "Catálogo de proveedores", Boxes], ["mappings", "Vínculos de entrega", Layers3]]],
+  ["", [["integrations", "Integraciones", PlugZap], ["api-credentials", "Credenciales API", KeyRound], ["settings", "Configuración", Settings]]],
 ];
 
 export function AppLayout() {

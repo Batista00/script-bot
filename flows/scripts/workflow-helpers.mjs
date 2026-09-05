@@ -3,7 +3,8 @@ export const config={backendBaseUrl:"https://admin.pablete.xyz/api",typebotBaseU
   n8nBaseUrl:"https://n8n.pablete.xyz",
   typebotPublicId:"CONFIGURAR_PUBLIC_ID",
   evolutionBaseUrl:"https://evo.pablete.xyz",instance:"CONFIGURAR_INSTANCIA",automationIntegrationId:"CONFIGURAR_UUID",
-  openaiModel:"CONFIGURAR_MODELO",evidenceAiEnabled:false};
+  telegramIntegrationId:"CONFIGURAR_TELEGRAM_UUID",
+  openaiModel:"CONFIGURAR_MODELO",evidenceAiEnabled:true};
 export function workflow(name){return {name,nodes:[],connections:{},active:false,settings:{executionOrder:"v1",saveDataSuccessExecution:"none",saveDataErrorExecution:"none",saveManualExecutions:false,executionTimeout:240},pinData:{},tags:[]};}
 export function node(w,name,type,parameters,extra={}){
   const version={httpRequest:4.2,code:2,webhook:2,respondToWebhook:1.4,scheduleTrigger:1.2,if:2.2,telegram:1.2,splitInBatches:3};
@@ -11,6 +12,7 @@ export function node(w,name,type,parameters,extra={}){
 }
 export function link(w,from,to,output=0){const conn=w.connections[from]??={main:[]};while(conn.main.length<=output)conn.main.push([]);conn.main[output].push({node:to,type:"main",index:0});}
 export const credential=(type,name)=>({credentials:{[type]:{name}}});
+export const source=(fn)=>fn.toString().replaceAll("\r\n","\n");
 export function configNode(w){return node(w,"Config","code",{jsCode:`const config=${JSON.stringify(config)}; return $input.all().map((item,i)=>({json:{...item.json,config},pairedItem:{item:i}}));`});}
 export function http(w,name,url,body,credentialName,extraParameters={}){
   return node(w,name,"httpRequest",{method:"POST",url,sendBody:true,specifyBody:"json",jsonBody:body,options:{timeout:60000,redirect:{redirect:{followRedirects:false}}},

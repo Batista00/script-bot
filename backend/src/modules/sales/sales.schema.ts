@@ -25,6 +25,11 @@ export const telegramSchema=z.object({
 export const reviewerSchema=z.object({telegramUserId:z.string().regex(/^[0-9]{1,20}$/)}).strict();
 export const ackSchema=z.object({id:uuid,lease:uuid,success:z.boolean()}).strict();
 export const pauseSchema=z.object({paused:z.boolean()}).strict();
+export const humanResolutionSchema=z.object({
+  outcome:z.enum(["sale_completed","no_sale","follow_up","other"]),
+  note:z.string().trim().min(1).max(1000),
+  resumeBot:z.boolean(),
+}).strict();
 export const manualSchema=z.object({note:z.string().trim().min(1).max(1000)}).strict();
 export const inboxSchema=openSessionSchema.extend({messageId:z.string().min(1).max(128),text:z.string().max(10_000),image:z.boolean()}).strict();
 export const inboxAckSchema=z.object({id:uuid,lease:uuid,text:z.string().max(10_000)}).strict();

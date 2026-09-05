@@ -207,7 +207,7 @@ Bot Gateway no tiene repositories ni SQL: orquesta Customers, Categories, Produc
 
 ## Ventas multicanal y automatizaciones opcionales
 
-`modules/sales` conserva conversación, selección comercial y datos de entrega previos al pago; reutiliza el intérprete estructurado de `ai-orchestrator` para convertir lenguaje natural en términos de búsqueda, pero consulta catálogo, precios y estado exclusivamente en PostgreSQL mediante los servicios existentes. `modules/payment-reviews` gestiona comprobantes cifrados y decisiones humanas; `modules/automation` reconcilia Orders y distribuye trabajos durables. Telegram vive en su adapter. Evolution, Typebot, n8n y OpenAI nunca son autoridades financieras. Detalle en [sales-automation.md](sales-automation.md).
+`modules/sales` conserva conversación, selección comercial, traspasos humanos y datos de entrega previos al pago; reutiliza el intérprete estructurado de `ai-orchestrator` para convertir lenguaje natural en términos de búsqueda, pero consulta catálogo, precios y estado exclusivamente en PostgreSQL mediante los servicios existentes. Una atención humana pausa la sesión, genera una alerta durable de Telegram y permite registrar su resultado antes de reanudar el bot; el historial queda aislado por Business. `modules/payment-reviews` gestiona comprobantes cifrados y decisiones humanas; `modules/automation` reconcilia Orders y distribuye trabajos durables. Telegram vive en su adapter. Evolution, Typebot, n8n y OpenAI nunca son autoridades financieras. Detalle en [sales-automation.md](sales-automation.md).
 
 ## Propiedad de datos por negocio
 

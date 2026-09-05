@@ -54,7 +54,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "const config={\"backendBaseUrl\":\"https://admin.pablete.xyz/api\",\"typebotBaseUrl\":\"https://bot.pablete.xyz\",\"n8nBaseUrl\":\"https://n8n.pablete.xyz\",\"typebotPublicId\":\"CONFIGURAR_PUBLIC_ID\",\"evolutionBaseUrl\":\"https://evo.pablete.xyz\",\"instance\":\"CONFIGURAR_INSTANCIA\",\"automationIntegrationId\":\"CONFIGURAR_UUID\",\"openaiModel\":\"CONFIGURAR_MODELO\",\"evidenceAiEnabled\":false}; return $input.all().map((item,i)=>({json:{...item.json,config},pairedItem:{item:i}}));"
+        "jsCode": "const config={\"backendBaseUrl\":\"https://admin.pablete.xyz/api\",\"typebotBaseUrl\":\"https://bot.pablete.xyz\",\"n8nBaseUrl\":\"https://n8n.pablete.xyz\",\"typebotPublicId\":\"CONFIGURAR_PUBLIC_ID\",\"evolutionBaseUrl\":\"https://evo.pablete.xyz\",\"instance\":\"CONFIGURAR_INSTANCIA\",\"automationIntegrationId\":\"CONFIGURAR_UUID\",\"telegramIntegrationId\":\"CONFIGURAR_TELEGRAM_UUID\",\"openaiModel\":\"CONFIGURAR_MODELO\",\"evidenceAiEnabled\":true}; return $input.all().map((item,i)=>({json:{...item.json,config},pairedItem:{item:i}}));"
       }
     },
     {
@@ -250,7 +250,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "const item=$json;const escape=s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');item.telegramText=escape(item.payload.text||'');const evidence=item.payload.evidence;return [{json:item,...(evidence?{binary:{data:{data:evidence.base64,mimeType:evidence.mimeType,fileName:evidence.mimeType==='image/png'?'comprobante.png':'comprobante.jpg'}}}:{})}];"
+        "jsCode": "const item=$json;\nconst escape=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');\nconst original=String(item.payload.text||'');\nconst evidence=item.payload.evidence;\nconst analysis=evidence?.analysis&&typeof evidence.analysis==='object'?evidence.analysis:null;\nif(evidence){\n  const order=/Pedido\\s+([^\\n]+)/i.exec(original)?.[1]||'sin referencia';\n  const expected=/Esperado:\\s*([^\\n]+)/i.exec(original)?.[1]||'por verificar';\n  const customer=/Cliente:\\s*([^\\n]+)/i.exec(original)?.[1]||'no informado';\n  const read=analysis?.amount&&analysis?.currency?[analysis.amount,analysis.currency].join(' '):'ilegible';\n  const match=read===expected;\n  item.telegramText=[\n    '🟢 <b>COMPROBANTE RECIBIDO</b>','',\n    '🧾 Pedido: '+escape(order),'📱 Cliente: '+escape(customer),'💰 Total pedido: '+escape(expected),'💸 Transferido: '+escape(read),\n    '',match?'✅ MONTO COINCIDE':'⚠️ MONTO POR REVISAR',\n    '', '🔢 Operación: '+escape(analysis?.bankReference||'ilegible'),'👤 Destinatario leído: '+escape(analysis?.recipient||'ilegible'),\n    '🤖 '+escape(analysis?.observations||'Lectura automática no disponible.'),'','⛔ <b>El pago todavía NO está confirmado.</b>',\n    'Verifica el abono en tu banco antes de aprobar.',\n  ].join('\\n');\n}else item.telegramText=escape(original);\nreturn [{json:item,...(evidence?{binary:{data:{data:evidence.base64,mimeType:evidence.mimeType,fileName:evidence.mimeType==='image/png'?'comprobante.png':'comprobante.jpg'}}}:{})}];"
       }
     },
     {
@@ -330,7 +330,7 @@
         "binaryData": true,
         "binaryPropertyName": "data",
         "replyMarkup": "inlineKeyboard",
-        "inlineKeyboard": "={{ {rows:$json.payload.replyMarkup.inline_keyboard.map(row=>({row:{buttons:row.map(button=>({text:button.text,additionalFields:{callback_data:button.callback_data}}))}}))} }}",
+        "inlineKeyboard": "={{ {rows:$json.payload.replyMarkup.inline_keyboard.map(row=>({row:{buttons:row.map(button=>({text:button.text==='Verificar y aprobar'?'✅ APROBAR PAGO':button.text==='Rechazar comprobante'?'❌ RECHAZAR PAGO':'👁 VER INFORMACIÓN',additionalFields:{callback_data:button.callback_data}}))}}))} }}",
         "additionalFields": {
           "caption": "={{ $json.telegramText.slice(0,1000) }}",
           "parse_mode": "HTML",

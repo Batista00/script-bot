@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { command } from "../src/modules/sales/sales-conversation.service.js";
 import { validateEvidence } from "../src/modules/payment-reviews/payment-reviews.service.js";
 import { verifySharedSecret } from "../src/integrations/telegram/telegram.service.js";
-import { inboxSchema,messageSchema,settingsSchema,typebotSessionSchema,validated } from "../src/modules/sales/sales.schema.js";
+import { humanResolutionSchema,inboxSchema,messageSchema,settingsSchema,typebotSessionSchema,validated } from "../src/modules/sales/sales.schema.js";
 import { defaultSalesSettings } from "../src/modules/sales/sales.types.js";
 import { SmmRajaFulfillmentAdapter } from "../src/integrations/smm-raja/smm-raja.fulfillment.adapter.js";
 import type { IntegrationsService } from "../src/modules/integrations/integrations.service.js";
@@ -11,6 +11,8 @@ import type { SmmRajaFulfillmentHttpClient } from "../src/integrations/smm-raja/
 import { AutomationService } from "../src/modules/automation/automation.service.js";
 import { PostgresSalesRepository } from "../src/modules/sales/sales.repository.js";
 import { SalesAccessService } from "../src/modules/sales/sales-access.service.js";
+import { SalesAdminService } from "../src/modules/sales/sales-admin.service.js";
+import type { SalesSession } from "../src/modules/sales/sales.types.js";
 import type { BotGatewayService } from "../src/modules/bot-gateway/bot-gateway.service.js";
 import type { SalesDeliveryService } from "../src/modules/sales/sales-delivery.service.js";
 import type { PostgresNotificationsRepository } from "../src/modules/automation/notifications.repository.js";
@@ -59,6 +61,30 @@ test("HTTP input rejects injected business/payment approval fields",()=>{
   assert.throws(()=>validated(inboxSchema,{messageId:"1",text:"hola",image:false,contact:"123@g.us"}));
   assert.throws(()=>validated(settingsSchema,{...defaultSalesSettings,botToken:"not-allowed"}));
   assert.throws(()=>validated(typebotSessionSchema,{typebotSessionId:"typebot-session",businessId:"foreign"}));
+  assert.throws(()=>validated(humanResolutionSchema,{outcome:"sale_completed",note:"Atendido",resumeBot:true,approved:true}));
+});
+test("human handoff result is business-scoped, retained and can resume the bot",async()=>{
+  const saved:SalesSession[]=[];
+  const session:SalesSession={id:"session-a",businessId:"business-a",customerId:"customer-a",contact:"56911111111",
+    state:{phase:"browse"},paused:true,typebotSessionId:null};
+  const repository={
+    exclusive:async(_key:string,operation:()=>Promise<unknown>)=>operation(),
+    session:async(businessId:string,id:string)=>{
+      assert.equal(businessId,"business-a");assert.equal(id,"session-a");return session;
+    },
+    saveSession:async(value:SalesSession)=>{saved.push(structuredClone(value));},
+  } as unknown as PostgresSalesRepository;
+  const service=new SalesAdminService(repository,{} as never,{} as never,{} as never);
+  const result=await service.resolveHumanHandoff("business-a","session-a","user-a",{
+    outcome:"sale_completed",note:"Venta finalizada por WhatsApp",resumeBot:true,
+  });
+  assert.equal(result.paused,false);assert.equal(saved.length,1);
+  assert.deepEqual(saved[0]?.state.humanResolutions?.map(({outcome,note,resolvedBy})=>({outcome,note,resolvedBy})),[
+    {outcome:"sale_completed",note:"Venta finalizada por WhatsApp",resolvedBy:"user-a"},
+  ]);
+  await assert.rejects(()=>service.resolveHumanHandoff("business-a","session-a","user-a",{
+    outcome:"other",note:"Segundo cierre",resumeBot:false,
+  }),{code:"SALES_SESSION_NOT_IN_HUMAN_HANDOFF"});
 });
 test("Typebot session replacement uses the authenticated business and commercial session",async()=>{
   const writes:Array<[string,string,string|null]>=[];

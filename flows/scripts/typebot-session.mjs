@@ -3,7 +3,13 @@ export function typebotEnvelope(opened,payload){
     throw new Error("SALES_SESSION_TOKEN_MISSING");
   if(typeof payload?.messageId!=="string"||typeof payload?.text!=="string")
     throw new Error("SALES_MESSAGE_CONTEXT_MISSING");
-  return JSON.stringify({sessionToken:opened.sessionToken,messageId:payload.messageId,text:payload.text});
+  return encodeURIComponent(JSON.stringify({
+    sessionToken:opened.sessionToken,
+    messageId:payload.messageId,
+    text:payload.text,
+    remoteJid:payload.contact,
+    pushName:typeof payload.name==="string"?payload.name:"",
+  }));
 }
 
 export function typebotRequest(baseUrl,publicId,typebotSessionId,envelope){

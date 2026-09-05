@@ -36,6 +36,12 @@ export interface SalesState {
   input?: JsonObject;
   checkoutId?: string;
   paymentChoices?: string[];
+  humanResolutions?: Array<{
+    outcome: "sale_completed" | "no_sale" | "follow_up" | "other";
+    note: string;
+    resolvedAt: string;
+    resolvedBy: string;
+  }>;
 }
 export interface SalesSession {
   id: string; businessId: string; customerId: string; contact: string;

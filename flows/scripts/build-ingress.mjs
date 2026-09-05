@@ -1,10 +1,10 @@
-import {workflow,node,link,http,configNode,backend,credential,branch,cfg} from "./workflow-helpers.mjs";
+import {workflow,node,link,http,configNode,backend,credential,branch,cfg,source} from "./workflow-helpers.mjs";
 import {normalizeEvolution} from "./transport-functions.mjs";
 export function ingress(){
   const w=workflow("BW 01 — Evolution 2.3.4 → bandeja durable");
   node(w,"Evolution webhook","webhook",{httpMethod:"POST",path:"bw-evolution-sales",authentication:"headerAuth",responseMode:"lastNode",options:{}},{...credential("httpHeaderAuth","BW Evolution Webhook"),webhookId:"0bdc2cb0-4f7b-419e-865d-bb350a62a93a"});
   configNode(w);
-  node(w,"Normalize incoming","code",{jsCode:`${normalizeEvolution.toString()}\nconst message=normalizeEvolution($json.body,$json.config.instance);return [{json:message ?? {ignored:true}}];`});
+  node(w,"Normalize incoming","code",{jsCode:`${source(normalizeEvolution)}\nconst message=normalizeEvolution($json.body,$json.config.instance);return [{json:message ?? {ignored:true}}];`});
   branch(w,"Has message","={{ Boolean($json.contact) }}");
   http(w,"Save inbox",backend("/bot/v1/sales/inbox"),"={{ $json }}","BW Backend");
   http(w,"Trigger immediate processing",`={{ ${cfg("n8nBaseUrl")} + '/webhook/bw-sales-process' }}`,"={{ {source:'evolution'} }}","BW Evolution Webhook");
