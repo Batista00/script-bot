@@ -26,6 +26,27 @@ test("catalog presentation cannot be shortened by model output and transport pre
 });
 
 const proof={inboxId:"10000000-0000-4000-8000-000000000001",inboxLease:"10000000-0000-4000-8000-000000000002"};
+test("prepare catalog reaches the WhatsApp reply even when Ask Model never invokes a tool",()=>{
+  const bot=typebot(),blocks=bot.groups.flatMap(g=>g.blocks);
+  const listing="1000 seguidores Instagram — 4.990 CLP\n¿Cuál te interesa?";
+  const candidate={text:listing,catalogText:listing,context:{phase:"browse",catalogListing:listing,purchaseSummary:null}};
+  const resultCode=bridge().nodes.find(n=>n.name==="Prepare authorized result").parameters.jsCode;
+  const fields=new Function("$json","$",resultCode)({statusCode:200,body:candidate},()=>({item:{json:{action:"prepare",userMessage:"precio de 1000 seguidores instagram"}}}))[0].json;
+  const vars={assistant_message:"¿Quiere que le muestre opciones?",action:"continuar"};
+  for(const mapping of blocks.find(b=>b.id==="prepareturn").options.responseVariableMapping){
+    const name=bot.variables.find(v=>v.id===mapping.variableId).name;
+    vars[name]=new Function("data","return "+mapping.bodyPath)({data:fields});
+  }
+  assert.equal(vars.backend_ready,"yes");assert.equal(vars.reply_allowed,"yes");
+  assert.equal(vars.action,"continuar");assert.equal(vars.operation_result,listing);
+  assert.equal(bot.edges.find(edge=>edge.id==="replyedge").to.groupId,"reply");
+  const expression=blocks.find(b=>b.id==="preservecatalog").options.expressionToEvaluate
+    .replace(/\{\{([^}]+)\}\}/g,(_,name)=>"vars["+JSON.stringify(name)+"]");
+  const reply=new Function("vars",expression.includes("return ")?expression:"return "+expression)(vars);
+  assert.equal(reply,listing);
+  assert.deepEqual(typebotMessages({messages:[{type:"text",content:{richText:[{text:reply}]}}]}),[listing]);
+});
+
 test("Typebot function handles omitted arguments, awaits variable writes and preserves a pending decision",async()=>{
   const fn=typebot().groups.flatMap(g=>g.blocks).find(b=>b.type==="openai").options.functions[0];
   const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;

@@ -86,6 +86,16 @@ export function priceSummary(prices: BotPriceDto[]): string {
   }).join("; ");
 }
 
+/** A bare platform + service request, not a sentence merely mentioning them. */
+export function directCatalogTermGroupsFromText(text:string):string[][]|null {
+  const groups=catalogTermGroupsFromText(text);
+  if(groups.length!==2 || !Object.values(platformTerms).includes(groups[0]!) ||
+      !Object.values(serviceTerms).includes(groups[1]!))return null;
+  const terms=new Set(groups.flat().flatMap(term=>term.split(" ")));
+  const words=normalizeText(text).replace(/[^\p{L}\p{N}]+/gu," ").trim().split(/\s+/);
+  return words.every(word=>terms.has(word)||/^(?:de|del|para|porfavor|por|favor|\d+)$/.test(word))?groups:null;
+}
+
 export function mergeCatalogTermGroups(previous:string[][],next:string[][]):string[][] {
   const family=(group:string[])=>Object.values(platformTerms).some(terms=>group.some(t=>terms.includes(t)))?"platform":
     Object.values(serviceTerms).some(terms=>group.some(t=>terms.includes(t)))?"service":null;

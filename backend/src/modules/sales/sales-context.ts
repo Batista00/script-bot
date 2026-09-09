@@ -1,5 +1,5 @@
 import type { SalesSession, SalesSettings } from "./sales.types.js";
-import { normalizeText } from "./sales-catalog.js";
+import { catalogTermGroupsFromText, directCatalogTermGroupsFromText, normalizeText } from "./sales-catalog.js";
 
 /** Public business data only. Never include provider costs, credentials or customer IDs. */
 export function salesContext(session: SalesSession, settings: SalesSettings) {
@@ -38,4 +38,16 @@ export function conversationalIntent(text: string): "support" | "special" | "faq
   if (/estado.*(?:pedido|pago|comprobante)|(?:pedido|pago|comprobante).*(?:estado|como va)|^como va|(?:confirmacion|revision|envie|enviado|mande|recibieron).*comprobante|comprobante.*(?:confirm|revis|recib)/.test(value)) return "status";
   if (/como funciona|son (?:reales|bots)|interaccion|riesgo|baneo|garantia|cuanto (?:tarda|demora|dura)|cuanto tiempo|dan likes|daran likes|perfil publico|es seguro|por que.*(?:caen|bajan)|pueden (?:caer|bajar)/.test(value)) return "faq";
   return null;
+}
+
+/** Only explicit catalog enquiries; the existing parser still resolves product terms. */
+export function catalogInquiryTermGroups(text:string):string[][]|null {
+  if(conversationalIntent(text)!==null)return null;
+  const words=normalizeText(text).replace(/[^\p{L}\p{N}]+/gu," ").trim().replace(/\s+/g," ");
+  const request=words.match(/^(?:hola |por favor )?(?:cuanto (?:salen|sale|cuestan|cuesta|valen|vale)|precios?|quiero comprar|(?:que |cuales )?opciones|muestrame|mostrarme)\b\s*(.*)$/);
+  if(!request)return directCatalogTermGroupsFromText(text);
+  const search=request[1]!.replace(/^(?:de |del |para )/,"").replace(/\b(?:tienen|disponibles|por favor)\b/g,"").trim();
+  if(!search || /^(?:algo|eso|esto|todo|todos|todas|este servicio|ese producto|lo mismo)$/.test(search))return null;
+  const groups=catalogTermGroupsFromText(search);
+  return groups.length?groups:null;
 }

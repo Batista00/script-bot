@@ -43,6 +43,52 @@ test("Scoped conversational actions and physical checkout",{skip:testDatabaseUrl
     let sequence=0;
     return (decision:AgentDecision,text="Mensaje del cliente")=>services.conversation.receive(businessId,sessionId,{messageId:`agent-${++sequence}`,text,presentation:"typebot",decision});
   }
+  await t.test("prepare supplies real catalog prices without tools, remains query-only and preserves action replay",async()=>{
+    const businessId=await business();
+    const instagram=await product(businessId,false,"1000 seguidores Instagram");
+    const tiktok=await product(businessId,false,"1000 seguidores TikTok");
+    for(const [id,amount] of [[instagram,4990],[tiktok,5990]] as const){
+      await db.query("UPDATE products SET min_quantity=1000,max_quantity=1000 WHERE business_id=$1 AND id=$2",[businessId,id]);
+      await db.query("UPDATE product_prices SET pricing_type='fixed',unit_price=NULL,fixed_price=$3,min_quantity=1000,max_quantity=1000 WHERE business_id=$1 AND product_id=$2",[businessId,id,amount]);
+    }
+    const other=await business();await product(other,false,"Seguidores Instagram de otro negocio");
+    const {sessionId}=await services.access.open(businessId,"56910000222");
+    const questions=["¿Cuánto salen 1000 seguidores de Instagram?","precio de 1000 seguidores instagram",
+      "Quiero comprar 1000 seguidores","qué opciones de seguidores de Instagram tienen","muéstrame seguidores de TikTok",
+      "seguidores de instagram porfavor"];
+    for(const [index,text] of questions.entries()){
+      const reply=await services.conversation.prepare(businessId,sessionId,{messageId:`price-${index}:agent:0`,text,presentation:"typebot"});
+      assert.match(reply.context!.catalogListing!,text.includes("TikTok")?/5.990 CLP/:/4.990 CLP/);
+      assert.doesNotMatch(reply.context!.catalogListing!,/otro negocio/);
+      if(text.includes("Instagram")||text.includes("instagram"))assert.doesNotMatch(reply.context!.catalogListing!,/TikTok/);
+      if(text.includes("TikTok"))assert.doesNotMatch(reply.context!.catalogListing!,/Instagram/);
+      const current=await services.sales.session(businessId,sessionId);
+      assert.equal(current.state.phase,"browse");assert.equal(current.state.product,undefined);assert.equal(current.state.checkoutId,undefined);
+    }
+    for(const table of ["quotes","sales_checkouts","orders","payments","fulfillments"]){
+      assert.equal((await db.query(`SELECT 1 FROM ${table} WHERE business_id=$1`,[businessId])).rowCount,0,table);
+    }
+    for(const text of ["¿Cómo funciona este servicio?","Hola buenas noches"]){
+      const before=await services.sales.session(businessId,sessionId);
+      const reply=await services.conversation.prepare(businessId,sessionId,{messageId:text,text,presentation:"typebot"});
+      assert.equal(reply.context!.catalogListing,null);assert.match(reply.text,/Converse con el cliente/);
+      assert.deepEqual((await services.sales.session(businessId,sessionId)).state,before.state);
+    }
+    const message={messageId:"replay:agent:0",text:questions[0]!,presentation:"typebot" as const};
+    const first=await services.conversation.prepare(businessId,sessionId,message);
+    assert.deepEqual(await services.conversation.prepare(businessId,sessionId,message),first);
+    const action={...message,messageId:"replay:agent:1",decision:{action:"catalog" as const,search:"seguidores instagram"}};
+    const tool=await services.conversation.receive(businessId,sessionId,action);
+    assert.match(tool.context!.catalogListing!,/4.990 CLP/);assert.deepEqual(await services.conversation.receive(businessId,sessionId,action),tool);
+    await services.conversation.receive(businessId,sessionId,{...message,messageId:"replay:agent:2",decision:{action:"select",productId:instagram,quantity:1000}});
+    const selected=await services.sales.session(businessId,sessionId);
+    assert.equal(selected.state.phase,"inputs");assert.equal(selected.state.input?.targetUrl,undefined);
+    assert.deepEqual(await services.conversation.prepare(businessId,sessionId,message),first);
+    assert.deepEqual((await services.sales.session(businessId,sessionId)).state,selected.state);
+    assert.equal((await db.query("SELECT 1 FROM sales_messages WHERE business_id=$1 AND session_id=$2 AND message_id=$3",[businessId,sessionId,message.messageId])).rowCount,1);
+    await assert.rejects(()=>services.conversation.prepare(businessId,sessionId,{...message,text:"hola"}),{code:"SALES_MESSAGE_CONFLICT"});
+    assert.equal(externalOrders,0);
+  });
   await t.test("FAQs preserve selection, photo requests URL, summary includes description, payment needs real order",async()=>{
     const businessId=await business(),productId=await product(businessId);
     const {sessionId}=await services.access.open(businessId,"56910000077");const send=buyer(businessId,sessionId);
@@ -66,6 +112,7 @@ test("Scoped conversational actions and physical checkout",{skip:testDatabaseUrl
     assert.ok(confirmation.context&&"paymentMethods" in confirmation.context);
     const context=await services.conversation.prepare(businessId,sessionId);
     assert.ok(context.context&&"paymentMethods" in context.context);
+    assert.ok(Array.isArray(context.context.paymentMethods));
     await send({action:"payment",methodId:context.context.paymentMethods[0]!.methodId},"transferencia por favor");
     assert.equal((await services.sales.session(businessId,sessionId)).state.phase,"awaiting");
     assert.equal(externalOrders,0);

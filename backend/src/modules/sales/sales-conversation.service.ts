@@ -11,7 +11,7 @@ import {
 } from "./sales-catalog.js";
 import { secretHash } from "./sales-access.service.js";
 import type { SalesMessage, SalesReply, SalesSession, SalesSettings } from "./sales.types.js";
-import { conversationalIntent, salesContext } from "./sales-context.js";
+import { catalogInquiryTermGroups, conversationalIntent, salesContext } from "./sales-context.js";
 import { SalesNavigation } from "./sales-navigation.js";
 import { mergeCatalogTermGroups,changesCatalogPlatform } from "./sales-catalog.js";
 import { executeAgentDecision } from "./sales-agent-actions.js";
@@ -45,11 +45,32 @@ export class SalesConversationService {
       return response;
     });
   }
-  async prepare(businessId:string,sessionId:string,message?:SalesMessage) {
+  async prepare(businessId:string,sessionId:string,message?:SalesMessage):Promise<SalesReply> {
     if(message&&["baja","stop","no me escribas","alta"].includes(command(message.text))) {
       return this.receive(businessId,sessionId,{messageId:message.messageId,text:message.text,presentation:"typebot"});
     }
-    return this.repository.exclusive(sessionId,()=>prepareAgentContext(this.repository,this.gateway,this.checkout,businessId,sessionId));
+    return this.repository.exclusive(sessionId,async()=>{
+      const prepared=await prepareAgentContext(this.repository,this.gateway,this.checkout,businessId,sessionId);
+      if(!message || prepared.paused)return prepared;
+      const session=await this.repository.session(businessId,sessionId);
+      const hash=secretHash(message.text),old=await this.repository.message(session,message.messageId);
+      if(old && old.requestHash!==hash)throw new AppError("Mensaje duplicado con otro contenido",409,"SALES_MESSAGE_CONFLICT");
+      if(old?.response)return old.response;
+      const groups=catalogInquiryTermGroups(message.text);
+      if(!groups || (session.state.phase??"browse")!=="browse")return prepared;
+      // Search only: never pass the customer's text through selection/checkout.
+      // BW02 uses :agent:0 here and separate IDs for subsequent tool actions.
+      await this.repository.beginMessage(session,message.messageId,hash);
+      const settings=await this.repository.settings(businessId);
+      const termGroups=mergeCatalogTermGroups(session.state.termGroups??[],groups);
+      const categoryId=changesCatalogPlatform(session.state.termGroups??[],groups)?undefined:session.state.categoryId;
+      session.state={...session.state,offset:0,search:"",termGroups};
+      if(categoryId)session.state.categoryId=categoryId;else delete session.state.categoryId;
+      const response=await this.catalog(session,settings);
+      response.context={...await agentContext(this.repository,this.gateway,this.checkout,session,settings),catalogListing:response.catalogText??null};
+      await this.repository.finishMessage(session,message.messageId,response);
+      return response;
+    });
   }
   private async advance(session: SalesSession, message: SalesMessage, settings: SalesSettings): Promise<SalesReply> {
     const text=message.text.trim(); const intent=command(text);

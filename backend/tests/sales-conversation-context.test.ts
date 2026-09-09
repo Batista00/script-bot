@@ -9,20 +9,80 @@ function fixture(){
   const session:SalesSession={id:"s",businessId:"a",customerId:"c",contact:"56912345678",paused:false,typebotSessionId:null,state:{phase:"inputs",greeted:true}};
   const settings={...defaultSalesSettings,enabled:true,displayName:"Negocio A",policies:"Garantía sólo según descripción del producto.",telegramChatId:"123"};
   const events:unknown[]=[];
-  const saved=new Map<string,unknown>();
+  const saved=new Map<string,{requestHash:string;response:unknown}>();
+  const searches:string[][][]=[];
   const products=Array.from({length:12},(_,i)=>({productId:`p${i}`,categoryId:"instagram",name:`Paquete ${(i+1)*500}`,description:null,minQuantity:(i+1)*500,maxQuantity:(i+1)*500,requiredInputs:[]}));
-  const repo={commercialCategories:async()=>[],catalogByTermGroups:async(b:string,_groups:string[][],_offset:number,limit:number)=>{assert.equal(b,"a");assert.equal(limit,101);return products.map(p=>p.productId);},
+  const repo={commercialCategories:async()=>[],catalogByTermGroups:async(b:string,groups:string[][],_offset:number,limit:number)=>{assert.equal(b,"a");assert.equal(limit,101);searches.push(groups);return products.map(p=>p.productId);},
     catalog:async()=>products.map(p=>p.productId),exclusive:async(_id:string,fn:()=>Promise<unknown>)=>fn(),session:async(b:string)=>{assert.equal(b,"a");return session;},
     settings:async()=>settings,message:async(_s:unknown,id:string)=>saved.get(id),
-    beginMessage:async()=>{},finishMessage:async(_s:unknown,id:string,response:unknown)=>{saved.set(id,{response});}};
+    beginMessage:async(_s:unknown,id:string,requestHash:string)=>{saved.set(id,{requestHash,response:null});},
+    finishMessage:async(_s:unknown,id:string,response:unknown)=>{saved.set(id,{requestHash:saved.get(id)!.requestHash,response:structuredClone(response)});}};
   let statusCalls=0,aiCalls=0;
-  const gateway={listCategories:async()=>[{categoryId:"instagram",name:"Instagram Seguidores"}],getProduct:async(b:string,id:string)=>{assert.equal(b,"a");return products.find(p=>p.productId===id);},listPrices:async()=>[]};
+  const gateway={listPaymentMethods:async()=>[],listCategories:async()=>[{categoryId:"instagram",name:"Instagram Seguidores"}],
+    getProduct:async(b:string,id:string)=>{assert.equal(b,"a");return products.find(p=>p.productId===id);},
+    listPrices:async(_b:string,id:string)=>[{pricingType:"fixed",fixedPrice:4990,currency:"CLP",
+      minQuantity:products.find(p=>p.productId===id)!.minQuantity,maxQuantity:products.find(p=>p.productId===id)!.maxQuantity}]};
   const service=new SalesConversationService(repo as never,gateway as never,
     {status:async()=>{statusCalls++;return {text:"Pedido pendiente; no se ha enviado."};}} as never,
     {enqueue:async(...args:unknown[])=>{events.push(args);}} as never,
     {isConfigured:()=>true,interpret:async()=>{aiCalls++;throw new Error("No second model call");}});
-  return {session,settings,service,events,statusCalls:()=>statusCalls,aiCalls:()=>aiCalls};
+  return {session,settings,service,events,saved,searches,statusCalls:()=>statusCalls,aiCalls:()=>aiCalls};
 }
+
+test("prepare returns real catalog prices without an OpenAI tool call or product selection",async()=>{
+  for(const text of ["¿Cuánto salen 1000 seguidores de Instagram?","precio de 1000 seguidores instagram",
+    "Quiero comprar 1000 seguidores","qué opciones de seguidores de Instagram tienen","muéstrame seguidores de TikTok",
+    "seguidores de instagram porfavor","seguidores de instagram","1000 seguidores de Instagram por favor","likes TikTok"]){
+    const f=fixture();f.session.state={phase:"browse"};
+    const reply=await f.service.prepare("a","s",{messageId:"price:agent:0",text,presentation:"typebot"});
+    assert.match(reply.context!.catalogListing!,/4.990 CLP/);assert.equal(reply.context!.options.length,12);
+    assert.equal(reply.context!.catalogListing,reply.catalogText);assert.equal(f.searches.length,1);
+    assert.equal(f.session.state.phase,"browse");assert.equal(f.session.state.product,undefined);
+    assert.equal(f.session.state.quantity,undefined);assert.equal(f.session.state.checkoutId,undefined);
+    assert.equal(f.aiCalls(),0);assert.equal(f.events.length,0);
+    if(text.includes("TikTok"))assert.ok(f.searches[0]!.some(group=>group.includes("tiktok")));
+  }
+});
+
+test("prepare leaves FAQs, greetings, ambiguous text and handoff intents to the conversational agent",async()=>{
+  for(const text of ["¿Cómo funciona este servicio?","Hola buenas noches","¿son bots?","¿cuánto demora?",
+    "Gracias por la información","sí","quiero comprar","muéstrame algo","No quiero comprar seguidores",
+    "No quiero seguidores de Instagram","Me gustan los seguidores de Instagram","seguidores","Instagram",
+    "¿Son bots los seguidores de Instagram?","¿cuánto demoran los seguidores de Instagram?",
+    "precio especial de seguidores","quiero comprar seguidores pero necesito soporte","cuánto cuestan seguidores y cómo funciona"]){
+    const f=fixture();f.session.state={phase:"browse"};const before=structuredClone(f.session.state);
+    const reply=await f.service.prepare("a","s",{messageId:"normal",text,presentation:"typebot"});
+    assert.equal(reply.context!.catalogListing,null,text);assert.match(reply.text,/Converse con el cliente/);
+    assert.deepEqual(f.session.state,before);assert.equal(f.searches.length,0);assert.equal(f.saved.size,0);
+  }
+});
+
+test("prepare never changes active purchase phases, required inputs, pause or opt-out",async()=>{
+  for(const phase of ["quantity","inputs","delivery","confirm","payment","awaiting"] as const){
+    const f=fixture();f.session.state.phase=phase;const before=structuredClone(f.session.state);
+    await f.service.prepare("a","s",{messageId:"price",text:"precio de seguidores instagram",presentation:"typebot"});
+    assert.deepEqual(f.session.state,before);assert.equal(f.searches.length,0);
+  }
+  for(const paused of [true,false]){
+    const f=fixture();f.session.state={phase:"browse",optedOut:!paused};f.session.paused=paused;
+    const reply=await f.service.prepare("a","s",{messageId:"silent",text:"precio de seguidores instagram",presentation:"typebot"});
+    assert.equal(reply.paused,true);assert.equal(reply.text,"");assert.equal(f.searches.length,0);
+  }
+});
+
+test("prepare replay is idempotent after a later catalog tool call and rejects changed content",async()=>{
+  const f=fixture();f.session.state={phase:"browse"};
+  const message={messageId:"same:agent:0",text:"precio de 1000 seguidores instagram",presentation:"typebot" as const};
+  const first=await f.service.prepare("a","s",message);
+  assert.deepEqual(await f.service.prepare("a","s",message),first);assert.equal(f.searches.length,1);
+  const action={...message,messageId:"same:agent:1",decision:{action:"catalog" as const,search:"seguidores instagram"}};
+  const tool=await f.service.receive("a","s",action);
+  assert.match(tool.context!.catalogListing!,/4.990 CLP/);assert.equal(f.searches.length,2);
+  assert.deepEqual(await f.service.receive("a","s",action),tool);assert.equal(f.searches.length,2);
+  f.session.state.phase="inputs";const before=structuredClone(f.session.state);
+  assert.deepEqual(await f.service.prepare("a","s",message),first);assert.deepEqual(f.session.state,before);
+  await assert.rejects(()=>f.service.prepare("a","s",{...message,text:"hola"}),{code:"SALES_MESSAGE_CONFLICT"});
+});
 test("FAQ retains selected commercial state and sends business policies as data",async()=>{
   const f=fixture();
   const reply=await f.service.receive("a","s",{messageId:"faq",text:"¿Son reales?",presentation:"typebot"});
