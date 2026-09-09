@@ -9,10 +9,31 @@ const sessionColumns = `id, business_id AS "businessId", customer_id AS "custome
 const checkoutColumns = `id, business_id AS "businessId", session_id AS "sessionId", quote_id AS "quoteId",
   order_id AS "orderId", payment_id AS "paymentId", delivery, last_order_status AS "lastOrderStatus",
   attention_code AS "attentionCode"`;
+// Conversation inactivity is independent of financial reconciliation and token expiry.
+const inactiveSession = `s.updated_at<=now()-interval '1 hour' AND NOT s.paused
+  AND (s.typebot_session_id IS NOT NULL OR s.state->>'greeted'='true' OR coalesce(s.state->>'phase','browse')<>'browse')
+  AND NOT EXISTS(SELECT 1 FROM payment_reviews r WHERE r.business_id=s.business_id AND r.session_id=s.id
+    AND r.status IN ('pending','approving','more_info'))
+  AND NOT EXISTS(SELECT 1 FROM sales_checkouts c JOIN orders o ON o.business_id=c.business_id AND o.id=c.order_id
+    WHERE c.business_id=s.business_id AND c.session_id=s.id AND o.status IN ('paid','processing'))
+  AND NOT EXISTS(SELECT 1 FROM sales_inbox i WHERE i.business_id=s.business_id AND i.contact=s.contact
+    AND i.completed_at IS NULL AND i.attempts<8)`;
 
 export class PostgresSalesRepository {
   private activeLocks=0;
   constructor(private readonly db: Pool) {}
+  async commercialCategories(businessId:string) {
+    const result=await this.db.query<{id:string;name:string;parentId:string|null}>(`SELECT c.id,c.name,c.parent_id AS "parentId"
+      FROM categories c WHERE c.business_id=$1 AND c.status='active'
+      AND (c.parent_id IS NULL OR EXISTS(SELECT 1 FROM categories parent
+        WHERE parent.business_id=c.business_id AND parent.id=c.parent_id AND parent.status='active'))
+      AND EXISTS(SELECT 1 FROM products p JOIN categories leaf ON leaf.business_id=p.business_id AND leaf.id=p.category_id
+        WHERE p.business_id=c.business_id AND p.status='active' AND leaf.status='active'
+        AND (leaf.id=c.id OR leaf.parent_id=c.id)
+        AND EXISTS(SELECT 1 FROM product_prices price WHERE price.business_id=p.business_id AND price.product_id=p.id AND price.status='active'))
+      ORDER BY c.name,c.id`,[businessId]);
+    return result.rows;
+  }
 
   /** Session-level lock, NOT a transaction: external calls never run in a DB transaction. */
   async exclusive<T>(key: string, operation: () => Promise<T>): Promise<T> {
@@ -122,17 +143,19 @@ export class PostgresSalesRepository {
     await this.db.query(`UPDATE sales_checkouts SET last_order_status=$3,attention_code=$4,closed=$5,
       next_check_at=now()+interval '1 minute' WHERE business_id=$1 AND id=$2`,[checkout.businessId,checkout.id,status,attention,closed]);
   }
-  async catalog(businessId: string, search: string, offset: number): Promise<string[]> {
+  async catalog(businessId: string, search: string, offset: number, limit=6,categoryId:string|null=null): Promise<string[]> {
     const result = await this.db.query<{ id: string }>(`SELECT p.id FROM products p WHERE p.business_id=$1 AND p.status='active'
       AND (strpos(lower(p.name),lower($2))>0 OR strpos(lower(coalesce(p.sku,'')),lower($2))>0)
+      AND ($5::uuid IS NULL OR p.category_id=$5 OR EXISTS(SELECT 1 FROM categories c WHERE c.business_id=p.business_id AND c.id=p.category_id AND c.parent_id=$5))
       AND EXISTS(SELECT 1 FROM product_prices pr WHERE pr.business_id=p.business_id AND pr.product_id=p.id AND pr.status='active')
-      ORDER BY p.name,p.id LIMIT 6 OFFSET $3`,[businessId,search,offset]);
+      ORDER BY p.name,p.id LIMIT $4 OFFSET $3`,[businessId,search,offset,limit,categoryId]);
     return result.rows.map((row)=>row.id);
   }
-  async catalogByTermGroups(businessId: string, termGroups: string[][], offset: number): Promise<string[]> {
+  async catalogByTermGroups(businessId: string, termGroups: string[][], offset: number, limit=6,categoryId:string|null=null): Promise<string[]> {
     const result = await this.db.query<{ id: string }>(`SELECT p.id FROM products p
       LEFT JOIN categories c ON c.business_id=p.business_id AND c.id=p.category_id
       WHERE p.business_id=$1 AND p.status='active'
+      AND ($5::uuid IS NULL OR c.id=$5 OR c.parent_id=$5)
       AND NOT EXISTS (
         SELECT 1 FROM jsonb_array_elements($2::jsonb) AS search_group(value)
         WHERE NOT EXISTS (
@@ -141,7 +164,7 @@ export class PostgresSalesRepository {
         )
       )
       AND EXISTS(SELECT 1 FROM product_prices pr WHERE pr.business_id=p.business_id AND pr.product_id=p.id AND pr.status='active')
-      ORDER BY p.name,p.id LIMIT 6 OFFSET $3`,[businessId,JSON.stringify(termGroups),offset]);
+      ORDER BY p.name,p.id LIMIT $4 OFFSET $3`,[businessId,JSON.stringify(termGroups),offset,limit,categoryId]);
     return result.rows.map((row)=>row.id);
   }
   async cleanExpired(businessId: string, days: number): Promise<void> {
@@ -151,9 +174,23 @@ export class PostgresSalesRepository {
   }
   async adminSessions(businessId:string) {
     const result=await this.db.query(`SELECT id,contact,paused,state->>'phase' AS phase,
-      state->'humanResolutions' AS resolutions,updated_at AS "updatedAt" FROM sales_sessions
+      state->'humanResolutions' AS resolutions,state->'deliverySelection' AS "deliverySelection",updated_at AS "updatedAt" FROM sales_sessions
       WHERE business_id=$1 ORDER BY updated_at DESC LIMIT 50`,[businessId]);
     return result.rows;
+  }
+  async inactiveSessions(businessId:string):Promise<string[]> {
+    const result=await this.db.query<{id:string}>(`SELECT s.id FROM sales_sessions s
+      WHERE s.business_id=$1 AND ${inactiveSession} ORDER BY s.updated_at,s.id LIMIT 50`,[businessId]);
+    return result.rows.map(row=>row.id);
+  }
+  /** Called under the same session lock as conversation processing. Keep order/evidence history. */
+  async closeInactiveSession(businessId:string,sessionId:string):Promise<boolean> {
+    const result=await this.db.query(`UPDATE sales_sessions s SET
+      state=(s.state-ARRAY['product','quantity','input','choices','choiceQuantities','choiceLabels','paymentChoices','search','termGroups','offset','categoryId','categoryChoices','deliverySelection','cart'])
+        || jsonb_build_object('phase','browse','greeted',false),
+      typebot_session_id=NULL,updated_at=now()
+      WHERE s.business_id=$1 AND s.id=$2 AND ${inactiveSession}`,[businessId,sessionId]);
+    return result.rowCount===1;
   }
   async adminCheckouts(businessId:string) {
     const result=await this.db.query(`SELECT id,order_id AS "orderId",delivery->>'mode' AS mode,attention_code AS "attentionCode",

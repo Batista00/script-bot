@@ -1,4 +1,5 @@
 import type { FastifySchema } from "fastify";
+import { productDeliveryHttpSchema } from "./product-delivery.js";
 
 const errorResponseSchema = {
   type: "object",
@@ -90,6 +91,7 @@ const productResponseSchema = {
     minQuantity: nullableQuantitySchema,
     maxQuantity: nullableQuantitySchema,
     requiredInputs: requiredInputsSchema,
+    deliveryConfig: productDeliveryHttpSchema,
     status: { type: "string", enum: ["active", "inactive"] },
     createdAt: { type: "string", format: "date-time" },
     updatedAt: { type: "string", format: "date-time" },
@@ -129,6 +131,7 @@ const productFieldsSchema = {
   minQuantity: nullableQuantitySchema,
   maxQuantity: nullableQuantitySchema,
   requiredInputs: requiredInputsSchema,
+  deliveryConfig: productDeliveryHttpSchema,
 } as const;
 
 export const createProductSchema = {
@@ -158,6 +161,7 @@ export const listProductsSchema = {
       status: { type: "string", enum: ["active", "inactive"] },
       type: { type: "string", enum: ["service", "product"] },
       categoryId: { type: "string", format: "uuid" },
+      search: {type:"string",minLength:1,maxLength:160},
     },
   },
   response: {

@@ -34,6 +34,20 @@ test("failed inbox messages provide a scoped recovery action",async()=>{
   mount();await userEvent.click(await screen.findByRole("button",{name:"Reprocesar"}));
   await waitFor(()=>expect(request).toHaveBeenCalledWith(`/businesses/${business.id}/sales-automation/jobs/retry`,{method:"POST",body:{kind:"inbox",id:"job-id"}}));
 });
+
+test("staff quotes shipping without approving a payment and sends the agreed address",async()=>{
+  const request=vi.spyOn(api,"apiRequest").mockResolvedValue({...overview,sessions:[{
+    id:"session-id",contact:"56912345678",paused:true,phase:"delivery",resolutions:null,updatedAt:"2026-09-04T12:00:00.000Z",deliverySelection:{method:"shipping",address:"Calle de prueba 123"},
+  }]});
+  vi.spyOn(window,"confirm").mockReturnValue(true);
+  mount();await userEvent.click(await screen.findByRole("button",{name:"Cotizar envío"}));
+  expect(screen.getByLabelText("Dirección confirmada con el cliente")).toHaveValue("Calle de prueba 123");
+  await userEvent.type(screen.getByLabelText(/Costo total de envío/),"1500");
+  await userEvent.click(screen.getByRole("button",{name:"Enviar resumen para confirmar"}));
+  await waitFor(()=>expect(request).toHaveBeenCalledWith(`/businesses/${business.id}/sales-automation/sessions/session-id/shipping-quote`,{
+    method:"POST",body:{requestId:expect.any(String),fee:1500,address:"Calle de prueba 123"},
+  }));
+});
 test("human handoff can record its outcome and resume the bot",async()=>{
   const request=vi.spyOn(api,"apiRequest").mockResolvedValue({...overview,sessions:[{
     id:"session-id",contact:"56912345678",paused:true,phase:"browse",resolutions:null,updatedAt:"2026-09-04T12:00:00.000Z",

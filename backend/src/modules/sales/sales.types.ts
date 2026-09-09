@@ -16,15 +16,25 @@ export const defaultSalesSettings: SalesSettings = {
   policies: "", humanContact: "", telegramChatId: "", autoDispatch: false, evidenceRetentionDays: 30,
 };
 export interface DeliverySnapshot {
-  mode: "provider" | "manual";
+  items?: Array<DeliverySnapshot & {quantity:number}>;
+  physical?: import("../products/physical-delivery.js").PhysicalDelivery;
+  mode: "provider" | "manual" | "digital";
+  digitalContents?:import("../digital-delivery/digital-delivery.schema.js").DigitalContents;
   productId: string;
   mappingId: string | null;
   providerServiceId: string | null;
   input: JsonObject;
 }
+export interface CartSelection {product:BotProductDto;quantity:number;input:JsonObject;deliverySelection?:import("../products/physical-delivery.js").DeliverySelection}
 export interface SalesState {
+  cart?: CartSelection[];
+  deliverySelection?: import("../products/physical-delivery.js").DeliverySelection;
+  categoryId?: string;
+  categoryChoices?: Array<{id:string;name:string;parentId:string|null}>;
+  greeted?: boolean;
+  previousInputs?: JsonObject;
   optedOut?: boolean;
-  phase?: "browse" | "quantity" | "inputs" | "confirm" | "payment" | "awaiting";
+  phase?: "browse" | "quantity" | "inputs" | "delivery" | "confirm" | "payment" | "awaiting";
   offset?: number;
   search?: string;
   termGroups?: string[][];
@@ -53,8 +63,11 @@ export interface SalesCheckout {
   lastOrderStatus: string | null; attentionCode: string | null;
 }
 export interface SalesReply {
+  summaryText?:string;
+  catalogText?: string;
   text: string;
+  context?: ReturnType<typeof import("./sales-context.js").salesContext>;
   advice?: { instructions: string; question: string };
   paused?: boolean;
 }
-export interface SalesMessage { messageId: string; text: string }
+export interface SalesMessage { messageId: string; text: string; presentation?: "typebot" | undefined; decision?: import("./sales-agent-actions.js").AgentDecision | undefined }

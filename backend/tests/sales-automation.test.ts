@@ -20,6 +20,36 @@ import type { PaymentReviewsService } from "../src/modules/payment-reviews/payme
 import { describeEvidenceAnalysis,evidenceAnalysisSchema } from "../src/modules/payment-reviews/evidence-analysis.js";
 import { buildApp } from "../src/app.js";
 import type { Pool } from "pg";
+import { SalesCheckoutService } from "../src/modules/sales/sales-checkout.service.js";
+import { conversationalIntent } from "../src/modules/sales/sales-context.js";
+
+test("receipt status uses scoped backend review, never asks pending reviewers to resend",async()=>{
+  let status="pending";
+  const service=new SalesCheckoutService({checkout:async()=>({sessionId:"s",orderId:"o",paymentId:"p"})} as never,
+    {getOrder:async()=>({orderId:"o",status:"pending_payment"}),getPayment:async()=>({status:"pending"})} as never,{} as never,
+    {latestStatus:async(b:string,p:string,s:string)=>{assert.deepEqual([b,p,s],["b","p","s"]);return {status,expiresAt:new Date(Date.now()+60000)};}} as never);
+  const session={id:"s",businessId:"b",state:{checkoutId:"c"}} as SalesSession;
+  assert.match((await service.status(session)).text,/Recibimos.*pendiente de revisión/);
+  assert.match((await service.status(session)).text,/No necesita enviarlo otra vez/);
+  status="more_info";assert.match((await service.status(session)).text,/solicitó más información/);
+  status="rejected";assert.match((await service.status(session)).text,/fue rechazado/);
+  status="approving";assert.match((await service.status(session)).text,/todavía no confirmamos/);
+  for(const text of ["espero confirmacion de mi comprobante","ya envie el comprobante","estado del comprobante"])
+    assert.equal(conversationalIntent(text),"status");
+});
+
+test("review text retains secure controls without resending the evidence image",async()=>{
+  const markup={inline_keyboard:[[{text:"Approve",callback_data:"approve:fixture"}]]};
+  const jobs=[{payload:{reviewId:"review",reviewPresentation:"text"}},{payload:{reviewId:"review"}},{payload:{text:"ordinary alert"}}];
+  const service=new AutomationService({settings:async()=>({enabled:true})} as never,{} as never,{} as never,
+    {claim:async()=>jobs} as never,{notification:async(b:string,id:string)=>{assert.equal(b,"business");assert.equal(id,"review");return {evidence:{base64:"fixture"},replyMarkup:markup};}} as never);
+  const result=await service.claim("business");
+  assert.deepEqual(result[0]!.payload.replyMarkup,markup);
+  assert.equal("evidence" in result[0]!.payload,false);
+  assert.deepEqual(result[1]!.payload.replyMarkup,markup);
+  assert.equal("evidence" in result[1]!.payload,true);
+  assert.equal(result[2]!.payload.replyMarkup,undefined);
+});
 
 test("session locks reserve pool capacity and release it after completion",async()=>{
   let unlock!:()=>void;let entered!:()=>void;let releases=0;
@@ -124,7 +154,7 @@ for(const status of ["submission_unknown","submitting","failed"] as const) {
     let dispatches=0;const events:string[]=[];
     const checkout={id:"checkout",businessId:"b",sessionId:"s",orderId:"o",lastOrderStatus:"paid",delivery:{mode:"provider"}};
     const sales={exclusive:async(_key:string,fn:()=>Promise<unknown>)=>fn(),settings:async()=>({...defaultSalesSettings,enabled:true,autoDispatch:true}),
-      cleanExpired:async()=>{},due:async()=>[checkout],session:async()=>({contact:"56911111111",state:{}}),checkpoint:async()=>{}} as unknown as PostgresSalesRepository;
+      cleanExpired:async()=>{},inactiveSessions:async()=>[],due:async()=>[checkout],session:async()=>({contact:"56911111111",state:{}}),checkpoint:async()=>{}} as unknown as PostgresSalesRepository;
     const gateway={getOrder:async()=>({orderId:"o",status:"paid",total:100,currency:"CLP"}),
       listFulfillments:async()=>[{status,fulfillmentId:"f"}],dispatchFulfillment:async()=>{dispatches++;}} as unknown as BotGatewayService;
     const queue={enqueue:async(_b:string,key:string)=>{events.push(key);}} as unknown as PostgresNotificationsRepository;

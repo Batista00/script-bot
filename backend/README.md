@@ -12,6 +12,19 @@ Incluye Payments Core independiente de proveedores y el adaptador inicial de Mer
 
 ## Desarrollo local
 
+Las conversaciones de venta abandonadas vuelven al inicio tras una hora de inactividad,
+en el siguiente tick de automatización. Se conserva el historial y la referencia del pedido.
+No se cierran conversaciones pausadas para atención humana, con comprobantes pendientes
+de revisión/información ni pedidos pagados en preparación. Los pagos iniciados siguen
+reconciliándose: cerrar la conversación no cancela un enlace de pago ni un pedido.
+
+El catálogo admite dos niveles: categoría principal y subcategoría, siempre dentro del
+mismo negocio. En Categorías, dejar «Categoría padre» vacía crea una principal. No se
+permiten ciclos ni un tercer nivel. El bot presenta categorías activas con productos
+activos y precios; conserva la navegación entre turnos. Los listados se entregan completos
+por página de hasta 100 productos, con aviso explícito cuando hay más. Typebot conserva
+el listado autorizado aunque el modelo intente resumirlo.
+
 ```bash
 cp .env.example .env
 pnpm install
@@ -280,6 +293,8 @@ PATCH /businesses/:businessId/integrations/:integrationId
 Solo `owner` y `admin` pueden administrar integraciones. Los accesos internos por Business/provider y por ID exacto entregan configuración y credenciales descifradas únicamente a adapters; no están publicados como endpoints. Mercado Pago, Raja, Telegram y el ejecutor de automatizaciones usan este contrato. Evolution se conecta mediante los workflows n8n versionados en `flows/`, no desde el dominio Orders.
 
 ## Ventas conversacionales y revisión humana
+
+Carrito de varios productos en un pedido/pago, descripciones y entrega física/digital: [configuración y operación](docs/product-delivery-and-cart.md).
 
 La migración `000015` agrega sesiones comerciales, inbox durable, checkouts con datos de entrega, revisión cifrada de comprobantes, revisores Telegram y cola de notificaciones. No se activa ninguna automatización al migrar.
 

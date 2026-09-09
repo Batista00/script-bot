@@ -34,6 +34,12 @@ export class PaymentReviewsService {
       if (!settings.enabled || !settings.telegramChatId) throw new AppError("La revisión de transferencias no está configurada",409,"REVIEW_NOT_CONFIGURED");
       const session=await this.sales.session(businessId,sessionId);
       if (session.state.optedOut || session.paused) return {text:"",reviewId:null};
+      if(session.state.phase==="inputs"||session.state.phase==="quantity"||!session.state.checkoutId){
+        const field=session.state.product?.requiredInputs.find(f=>!(f.key in (session.state.input??{})));
+        return {reviewId:null,text:field?.type==="url"
+          ? "Para automatizar la compra necesito el enlace escrito del perfil, página o publicación, no una fotografía. Si no puede compartirlo, puedo derivarle a un agente de ventas."
+          : `Recibí una imagen. ${field?`Para continuar necesito: ${field.label}. Envíelo escrito.`:"Cuénteme qué necesita."} Si necesita atención especializada, pida un agente de ventas.`};
+      }
       const checkout=await this.checkout.ownedCheckout(session);
       if (!checkout.paymentId) throw new AppError("Selecciona transferencia primero",409,"PAYMENT_REQUIRED");
       const payment=await this.payments.getById(businessId,checkout.paymentId);
@@ -72,7 +78,8 @@ export class PaymentReviewsService {
       const payment=await this.payments.getById(businessId,review.paymentId);
       const settings=await this.sales.settings(businessId);
       await this.notifications.enqueue(businessId,`review-analysis:${review.id}`,"telegram",{
-        chatId:settings.telegramChatId,text:`Pedido ${payment.orderId}\n`+describeEvidenceAnalysis(analysis,payment.amount,payment.currency),
+        chatId:settings.telegramChatId,reviewId:review.id,reviewPresentation:"text",
+        text:`Pedido ${payment.orderId}\n`+describeEvidenceAnalysis(analysis,payment.amount,payment.currency),
       });
       return {ok:true};
     });
@@ -119,9 +126,11 @@ export class PaymentReviewsService {
       await this.repository.decide(review,action==="reject"?"rejected":"more_info",userId,null);
       const session=await this.sales.session(businessId,review.sessionId);
       if (!session.state.optedOut) await this.notifications.enqueue(businessId,`review:${review.id}:${action}`,"whatsapp",{contact:session.contact,
-        text:action==="reject" ? `El comprobante de tu pedido ${payment.orderId} no permitió verificar el abono. Solicita atención humana o envía el comprobante correcto.`
+        text:action==="reject" ? `El comprobante de tu pedido ${payment.orderId} fue rechazado: no permitió verificar el abono. Solicita un agente de soporte o envía el comprobante correcto.`
           :`Necesitamos más información de tu transferencia para el pedido ${payment.orderId}. Revisa monto, destinatario y referencia; envía un comprobante legible.`});
-      return {text:"Revisión registrada. El pago continúa pendiente; se notificará al cliente."};
+      return {text:action==="reject"
+        ? "Comprobante rechazado. El pago sigue pendiente; el pedido no fue cancelado. Se notificará al cliente."
+        : "Información adicional solicitada. El pago sigue pendiente; se notificará al cliente."};
     });
   }
 }

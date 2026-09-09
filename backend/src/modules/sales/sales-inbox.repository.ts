@@ -5,6 +5,10 @@ import type { IncomingSalesMessage,InboxEntry } from "./sales-inbox.service.js";
 
 export class PostgresSalesInboxRepository {
   constructor(private readonly db:Pool) {}
+  async leasedMessage(businessId:string,id:string,lease:string):Promise<IncomingSalesMessage|null> {
+    const result=await this.db.query<{payload:IncomingSalesMessage}>(`SELECT payload FROM sales_inbox WHERE business_id=$1 AND id=$2 AND lease=$3 AND lease_until>now() AND completed_at IS NULL`,[businessId,id,lease]);
+    return result.rows[0]?.payload ?? null;
+  }
   async accept(businessId:string,input:IncomingSalesMessage,hash:string) {
     const result=await this.db.query<{id:string;requestHash:string}>(`INSERT INTO sales_inbox(business_id,message_id,contact,payload,request_hash)
       VALUES($1,$2,$3,$4,$5) ON CONFLICT(business_id,contact,message_id) DO UPDATE SET message_id=EXCLUDED.message_id

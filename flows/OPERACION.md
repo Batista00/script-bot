@@ -3,8 +3,9 @@
 ## Recorrido comercial implementado
 
 ```text
-WhatsApp → Evolution → Typebot startChat/continueChat → OpenAI conversacional
-  → puente n8n → sesión comercial vigente → backend de ventas → Typebot → Evolution → WhatsApp
+WhatsApp → Evolution webhook → BW 01 inbox → BW 03 claim + sesión vigente
+  → Typebot startChat/continueChat → BW 02 + backend → OpenAI conversacional
+  → ACK inbox → BW 04 → Evolution → WhatsApp
   → catálogo → cantidad + datos → cotización → confirmación → pedido
   → Mercado Pago verificado / transferencia revisada por humano
   → pedido pagado → worker → proveedor o entrega manual
@@ -47,9 +48,11 @@ El backend decide importes, moneda, disponibilidad y transiciones. El único Ope
 
 Las colas usan identificadores únicos, leases de cinco minutos y máximo ocho intentos. El camino normal dispara procesamiento y entrega de inmediato; los schedules de un minuto sólo recuperan pendientes si falla ese disparo o un servicio está caído. El inbox mantiene el orden por contacto y bloquea mensajes posteriores si el primero falla. Corregir conexión/credenciales y usar **Reprocesar mensaje** en el panel. No borrar registros para reiniciar una venta.
 
-Evolution conserva el `sessionId` de Typebot para continuar el diálogo. La sesión comercial del backend se resuelve por `business + contacto`; n8n abre/refresca su token antes de cada operación. El `sessionId` de Typebot puede persistir, pero un token `cs_` nunca se almacena allí ni se reutiliza como credencial permanente.
+El backend conserva el `sessionId` de Typebot; BW 03 lo usa para continuar el diálogo. BW 02 resuelve cada turno mediante inbox y lease vigentes antes de obtener un token comercial. `continueChat` puede omitir sessionId en su respuesta: el worker conserva el anterior sólo en ese caso. Los HTTP Request guardan el cuerpo de texto explícitamente en `body`. Un token `cs_` nunca se almacena en Typebot.
 
-Las respuestas Typebot se conservan como hasta tres burbujas versionadas dentro del outbox. Evolution las recibe en orden con pausas de 600, 750 y 900 ms. El ACK del outbox se realiza una sola vez después de confirmar todas las burbujas.
+El outbox conserva el texto versionado y BW 04 reúne sus bloques con saltos de línea en un único envío Evolution y un ACK. Los claims se serializan por negocio/canal/destinatario. La rama pausada no llama al modelo ni reutiliza la respuesta anterior. No activar otro emisor conversacional para la misma instancia.
+
+`business_context` contiene únicamente políticas, opciones retail, selección, requisitos y estado públicos del negocio actual. Typebot usa un solo prompt y una llamada conversacional por turno atendido. Las dudas no borran la selección; «mismo perfil» reutiliza el dato anterior sólo tras petición explícita y nueva confirmación del resumen. Reclamos y precios especiales pausan y alertan Telegram con motivo y estado verificado. Repartir una compra entre varios destinos requiere atención humana: no se crean compras parciales implícitas. Los plazos y garantías sólo pueden afirmarse si están configurados; el tiempo transcurrido se calcula desde un despacho realmente registrado.
 
 Las notificaciones se reconocen sólo tras respuesta satisfactoria del transportador. Si éste envía y el proceso cae antes del ACK, puede repetirse el mensaje: la garantía es **al menos una vez**, no exactly-once. Revisar el destinatario antes de reintentar manualmente una notificación agotada. Los reintentos de cola no son reintentos de compras Raja.
 
@@ -60,6 +63,10 @@ Si cambia el mapping o se desactiva el producto/proveedor después de pagar, se 
 Si un comprobante caducó, no forzar la revisión con datos falsos: comprobar el pago desde el panel y usar el procedimiento administrativo existente. La aprobación Telegram guarda actor y referencia; la lectura IA jamás sustituye esa auditoría.
 
 ## Privacidad y límites de esta entrega
+
+La atención usa trato de usted y la identidad configurada por negocio. Los ejemplos de plazos, garantías y distribución no son promesas universales: sólo se comunican si el servicio los documenta. «Ventas», «agente» y «soporte» reutilizan el traspaso existente a Telegram; ofrecer esa opción no confirma una derivación. «Ayuda» explica las opciones sin pausar la conversación.
+
+El catálogo ya no se resume a tres productos ni se corta a doce líneas en el puente Typebot. Cada consulta muestra todas las opciones de la página (hasta 100 productos, con continuación explícita si hay más), ordenadas por categoría y cantidad. Pedir una cantidad sin coincidencia única conserva las alternativas, sin inventar un paquete ni iniciar otra búsqueda. La selección y el pago siguen siendo determinísticos.
 
 - Comprobantes cifrados con la clave de Integraciones; su eliminación programada afecta el ciphertext, no borra el historial financiero. Los hashes y la auditoría se conservan.
 - En n8n los exports desactivan guardado de ejecuciones y datos fijados. Revisar también logs del proxy/Evolution: los eventos de Evolution pueden incluir su API key. No registrar cuerpos ni headers sensibles.

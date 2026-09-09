@@ -22,6 +22,7 @@ const categoryResponseSchema = {
     id: { type: "string", format: "uuid" },
     businessId: { type: "string", format: "uuid" },
     name: { type: "string" },
+    parentId: { anyOf: [{type:"string",format:"uuid"},{type:"null"}] },
     status: { type: "string", enum: ["active", "inactive"] },
     createdAt: { type: "string", format: "date-time" },
     updatedAt: { type: "string", format: "date-time" },
@@ -58,7 +59,7 @@ export const createCategorySchema = {
     type: "object",
     additionalProperties: false,
     required: ["name"],
-    properties: { name: categoryNameSchema },
+    properties: { name: categoryNameSchema, parentId: {anyOf:[{type:"string",format:"uuid"},{type:"null"}]} },
   },
   response: {
     201: categoryResponseSchema,
@@ -103,6 +104,7 @@ export const updateCategorySchema = {
     minProperties: 1,
     properties: {
       name: categoryNameSchema,
+      parentId: {anyOf:[{type:"string",format:"uuid"},{type:"null"}]},
       status: { type: "string", enum: ["active", "inactive"] },
     },
   },

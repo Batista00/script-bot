@@ -19,6 +19,7 @@ export interface HumanResolution {
 }
 
 export interface SalesAdminSession {
+  deliverySelection?: {method:string;address?:string;zone?:string};
   id: string;
   contact: string;
   paused: boolean;

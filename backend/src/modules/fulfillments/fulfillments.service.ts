@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 
-import { withTransaction } from "../../core/database/database.js";
+import { withTransaction, type DatabaseExecutor } from "../../core/database/database.js";
 import { AppError } from "../../core/errors/app-error.js";
 import {
   ProviderFulfillmentInputError,
@@ -52,6 +52,13 @@ export class FulfillmentsService {
     private readonly warnUnknownStatus: SafeWarning = () => undefined,
   ) {}
 
+  private async canSubmit(businessId:string,orderId:string,status:string|null,executor:DatabaseExecutor):Promise<boolean> {
+    if(status==="paid")return true;
+    if(status!=="processing")return false;
+    // A paid multi-item order may already have one submitted line. Existing line uniqueness still applies.
+    return (await this.repository.listByOrder(businessId,orderId,executor)).some(f=>["submitted","in_progress","completed"].includes(f.status));
+  }
+
   async dispatch(
     businessId: string,
     orderId: string,
@@ -66,7 +73,7 @@ export class FulfillmentsService {
         if (orderStatus === null) {
           throw new AppError("Order not found", 404, "ORDER_NOT_FOUND");
         }
-        if (orderStatus !== "paid") {
+        if (!await this.canSubmit(businessId,orderId,orderStatus,client)) {
           throw new AppError(
             "Order is not ready for fulfillment",
             409,
@@ -291,7 +298,7 @@ export class FulfillmentsService {
         locked.orderId,
         client,
       );
-      if (orderStatus !== "paid") {
+      if (!await this.canSubmit(businessId,locked.orderId,orderStatus,client)) {
         throw new AppError(
           "Order is not ready for fulfillment",
           409,
@@ -357,7 +364,7 @@ export class FulfillmentsService {
           locked.orderId,
           client,
         );
-        if (orderStatus !== "paid") throw notDispatchable();
+        if (!await this.canSubmit(businessId,locked.orderId,orderStatus,client)) throw notDispatchable();
         const submittedAt = this.now().toISOString();
         const updated = await this.repository.markSubmitted(
           businessId,
@@ -367,7 +374,7 @@ export class FulfillmentsService {
           client,
         );
         if (!updated) throw notDispatchable();
-        const orderUpdated = await this.repository.transitionOrder(
+        const orderUpdated = orderStatus==="processing" || await this.repository.transitionOrder(
           businessId,
           locked.orderId,
           "paid",

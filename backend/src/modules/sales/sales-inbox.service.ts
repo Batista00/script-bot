@@ -7,6 +7,11 @@ export interface IncomingSalesMessage {contact:string;name?:string|undefined;mes
 export interface InboxEntry {id:string;contact:string;payload:IncomingSalesMessage;lease:string;attempts:number}
 export class SalesInboxService {
   constructor(private readonly repository:PostgresSalesInboxRepository,private readonly sales:PostgresSalesRepository) {}
+  async resolve(businessId:string,id:string,lease:string) {
+    const message=await this.repository.leasedMessage(businessId,id,lease);
+    if (!message) throw new AppError("El turno expiró o no pertenece al negocio",401,"SALES_TURN_UNAUTHORIZED");
+    return message;
+  }
   async accept(businessId:string,input:IncomingSalesMessage) {
     if (!(await this.sales.settings(businessId)).enabled) throw new AppError("Ventas desactivadas",409,"SALES_DISABLED");
     const hash=secretHash(JSON.stringify(input));

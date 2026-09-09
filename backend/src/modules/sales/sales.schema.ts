@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AppError } from "../../core/errors/app-error.js";
 import { evidenceAnalysisSchema } from "../payment-reviews/evidence-analysis.js";
+import { agentDecisionSchema } from "./sales-agent-actions.js";
 
 export function validated<T>(schema:z.ZodType<T>,value:unknown):T {
   const result=schema.safeParse(value);
@@ -8,8 +9,9 @@ export function validated<T>(schema:z.ZodType<T>,value:unknown):T {
   return result.data;
 }
 export const uuid=z.string().uuid();
-export const messageSchema=z.object({messageId:z.string().min(1).max(128),text:z.string().min(1).max(10_000)}).strict();
+export const messageSchema=z.object({messageId:z.string().min(1).max(128),text:z.string().min(1).max(10_000),presentation:z.literal("typebot").optional(),decision:agentDecisionSchema.optional()}).strict();
 export const openSessionSchema=z.object({contact:z.string().regex(/^[0-9]{8,15}$/),name:z.string().trim().min(1).max(120).optional()}).strict();
+export const sessionRequestSchema=z.union([openSessionSchema,z.object({inboxId:uuid,lease:uuid}).strict()]);
 export const typebotSessionSchema=z.object({typebotSessionId:z.string().trim().min(1).max(256).nullable()}).strict();
 export const settingsSchema=z.object({
   enabled:z.boolean(),displayName:z.string().trim().min(1).max(120),welcome:z.string().trim().min(1).max(500),

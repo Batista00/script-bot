@@ -14,9 +14,13 @@ export class PostgresNotificationsRepository {
   }
   async claim(businessId: string): Promise<Notification[]> {
     const result = await this.db.query<Notification>(`WITH candidate AS (
-      SELECT id FROM automation_notifications WHERE business_id=$1 AND delivered_at IS NULL
-        AND attempts<8 AND available_at<=now() AND (lease_until IS NULL OR lease_until<now())
-      ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 3
+      SELECT n.id FROM automation_notifications n WHERE n.business_id=$1 AND n.delivered_at IS NULL
+        AND n.attempts<8 AND n.available_at<=now() AND (n.lease_until IS NULL OR n.lease_until<now())
+        AND NOT EXISTS(SELECT 1 FROM automation_notifications older
+          WHERE older.business_id=n.business_id AND older.channel=n.channel AND older.delivered_at IS NULL
+          AND older.attempts<8 AND COALESCE(older.payload->>'contact',older.payload->>'chatId')=COALESCE(n.payload->>'contact',n.payload->>'chatId')
+          AND (older.created_at,older.id)<(n.created_at,n.id))
+      ORDER BY n.created_at,n.id FOR UPDATE SKIP LOCKED LIMIT 3
     ) UPDATE automation_notifications n SET lease=$2,lease_until=now()+interval '5 minutes',attempts=n.attempts+1
       FROM candidate c WHERE n.id=c.id RETURNING n.id,n.business_id AS "businessId",n.channel,n.payload,n.lease,n.attempts`,
     [businessId,randomUUID()]);

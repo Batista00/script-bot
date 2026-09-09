@@ -15,7 +15,7 @@ export class SalesAccessService {
       const session = await this.repository.ensureSession(businessId,customer.customerId,contact);
       const token = `cs_${randomBytes(32).toString("base64url")}`;
       await this.repository.addToken(session,secretHash(token));
-      return {sessionId:session.id,sessionToken:token,typebotSessionId:session.typebotSessionId};
+      return {sessionId:session.id,sessionToken:token,typebotSessionId:session.typebotSessionId,paused:session.paused,optedOut:session.state.optedOut===true};
     });
   }
   async authenticate(authorization: unknown) {

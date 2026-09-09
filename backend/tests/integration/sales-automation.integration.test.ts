@@ -9,6 +9,8 @@ import { SalesConversationService } from "../../src/modules/sales/sales-conversa
 import { TelegramService } from "../../src/integrations/telegram/telegram.service.js";
 import { secretHash } from "../../src/modules/sales/sales-access.service.js";
 import { AppError } from "../../src/core/errors/app-error.js";
+import { CategoriesService } from "../../src/modules/categories/categories.service.js";
+import { PostgresCategoriesRepository } from "../../src/modules/categories/categories.repository.js";
 
 const testDatabaseUrl=process.env.TEST_DATABASE_URL;
 test("Durable multi-business sales, manual payment review and delivery against PostgreSQL",
@@ -28,6 +30,28 @@ test("Durable multi-business sales, manual payment review and delivery against P
       await services.sales.saveSettings(id,{...defaultSalesSettings,enabled:true,autoDispatch:true,telegramChatId:"123456",humanContact:"Equipo de prueba"});
       return id;
     }
+    await t.test("leased Typebot turn resolves canonical input only within its business before ACK",async()=>{
+      const a=await business(),b=await business();
+      const input={contact:"56910000001",messageId:"proof-turn",text:"1000 seguidores",image:false};
+      const accepted=await services.inbox.accept(a,input);
+      const [claimed]=await services.inbox.claim(a);
+      assert.ok(claimed);assert.equal(claimed.id,accepted.id);
+      assert.deepEqual(await services.inbox.resolve(a,claimed.id,claimed.lease),input);
+      await assert.rejects(()=>services.inbox.resolve(b,claimed.id,claimed.lease),{code:"SALES_TURN_UNAUTHORIZED"});
+      await assert.rejects(()=>services.inbox.resolve(a,claimed.id,randomUUID()),{code:"SALES_TURN_UNAUTHORIZED"});
+      await services.inbox.finish(a,claimed.id,claimed.lease,"");
+      await assert.rejects(()=>services.inbox.resolve(a,claimed.id,claimed.lease),{code:"SALES_TURN_UNAUTHORIZED"});
+    });
+    await t.test("concurrent outbox claims serialize a recipient until its first delivery is acknowledged",async()=>{
+      const a=await business();
+      await services.notifications.enqueue(a,"first","whatsapp",{contact:"56910000002",text:"Primero"});
+      await services.notifications.enqueue(a,"second","whatsapp",{contact:"56910000002",text:"Segundo"});
+      const claims=(await Promise.all([services.notifications.claim(a),services.notifications.claim(a)])).flat();
+      assert.equal(claims.length,1);assert.equal(claims[0]!.payload.text,"Primero");
+      assert.equal(await services.notifications.finish(a,claims[0]!.id,claims[0]!.lease,true),true);
+      const next=await services.notifications.claim(a);
+      assert.equal(next.length,1);assert.equal(next[0]!.payload.text,"Segundo");
+    });
     const businessA=await business(),businessB=await business();
     const actor=await db.query<{id:string}>("INSERT INTO users(name,email,password_hash) VALUES('Tester',$1,'test-only-not-a-real-password-hash') RETURNING id",[`${randomUUID()}@example.test`]);
     const userId=actor.rows[0]!.id;users.push(userId);
@@ -47,9 +71,36 @@ test("Durable multi-business sales, manual payment review and delivery against P
     let messageIndex=0;
     const say=(text:string,id=`message-${++messageIndex}`)=>services.conversation.receive(businessA,opened.sessionId,{messageId:id,text});
 
+    await t.test("one hour inactivity clears only abandoned context and preserves tenant/history",async()=>{
+      const a=await services.access.open(businessA,"56910000333");
+      const s=await services.sales.session(businessA,a.sessionId);
+      s.state={phase:"quantity",greeted:true,quantity:1000};await services.sales.saveSession(s);
+      await services.sales.setTypebotSession(businessA,s.id,"old-typebot");
+      assert.equal(await services.sales.closeInactiveSession(businessA,s.id),false);
+      await db.query("UPDATE sales_sessions SET updated_at=now()-interval '61 minutes' WHERE id=$1",[s.id]);
+      assert.equal(await services.sales.closeInactiveSession(businessB,s.id),false);
+      assert.ok((await services.sales.inactiveSessions(businessA)).includes(s.id));
+      await services.automation.tick(businessA);
+      const fresh=await services.sales.session(businessA,s.id);
+      assert.equal(fresh.state.phase,"browse");assert.equal(fresh.state.quantity,undefined);
+      assert.equal(fresh.typebotSessionId,null);assert.equal(fresh.customerId,s.customerId);
+      assert.equal(await services.sales.closeInactiveSession(businessA,s.id),false);
+      // The read-only agent preparation does not set greeted=true. Its retained
+      // Typebot session must still expire after one hour without a selection.
+      await services.sales.setTypebotSession(businessA,s.id,"idle-agent-typebot");
+      await db.query("UPDATE sales_sessions SET updated_at=now()-interval '61 minutes' WHERE id=$1",[s.id]);
+      assert.equal(await services.sales.closeInactiveSession(businessA,s.id),true);
+      assert.equal((await services.sales.session(businessA,s.id)).typebotSessionId,null);
+      fresh.paused=true;fresh.state.phase="inputs";await services.sales.saveSession(fresh);
+      await db.query("UPDATE sales_sessions SET updated_at=now()-interval '61 minutes' WHERE id=$1",[s.id]);
+      assert.equal(await services.sales.closeInactiveSession(businessA,s.id),false);
+    });
+
     await t.test("natural WhatsApp wording finds the real scoped catalog without a second OpenAI call",async()=>{
       const buyer=await services.access.open(businessA,"56910000000","Comprador semántico");
-      assert.match((await services.conversation.receive(businessA,buyer.sessionId,{messageId:"greeting",text:"Hola"})).text,/plataforma/i);
+      const greeting=await services.conversation.receive(businessA,buyer.sessionId,{messageId:"greeting",text:"Hola buenas noches",presentation:"typebot"});
+      assert.match(greeting.text,/productos.*soporte/i);
+      assert.doesNotMatch(greeting.text,/No encontré|HUMANO/);
       const reply=await services.conversation.receive(businessA,buyer.sessionId,{messageId:"semantic-search",text:"cuánto salen 1000 seguidores de instagram"});
       assert.match(reply.text,/Seguidores de Instagram/);
       assert.match(reply.text,/100 CLP por unidad/);
@@ -103,6 +154,11 @@ test("Durable multi-business sales, manual payment review and delivery against P
       const second=await services.reviews.submit(businessA,opened.sessionId,{mimeType:"image/png",base64:png});assert.equal(second.reviewId,reviewId);
       const review=(await services.reviewRepository.find(businessA,reviewId))!;
       assert.ok(!review.evidenceEncrypted!.includes(png));assert.equal((await services.payments.getById(businessA,review.paymentId)).status,"pending");
+      assert.equal(await services.reviewRepository.latestStatus(businessB,review.paymentId,opened.sessionId),null);
+      assert.equal(await services.reviewRepository.latestStatus(businessA,review.paymentId,randomUUID()),null);
+      assert.match((await say("espero confirmacion de mi comprobante")).text,/Recibimos.*pendiente de revisión/);
+      await db.query("UPDATE sales_sessions SET updated_at=now()-interval '61 minutes' WHERE id=$1",[opened.sessionId]);
+      assert.equal(await services.sales.closeInactiveSession(businessA,opened.sessionId),false);
       const notification=await services.reviews.notification(businessA,reviewId);
       callback=notification.replyMarkup.inline_keyboard[0]![0]!.callback_data.split(":")[1]!;
       await assert.rejects(()=>services.reviews.decide(businessB,"555",callback,"approve","test-bank-ref"),{code:"REVIEWER_NOT_AUTHORIZED"});
@@ -117,6 +173,10 @@ test("Durable multi-business sales, manual payment review and delivery against P
       const review=(await services.reviewRepository.find(businessA,reviewId))!;
       assert.equal((await services.payments.getById(businessA,review.paymentId)).status,"pending");
       assert.ok(!review.evidenceEncrypted!.includes("Fixture only"));
+      const notification=(await db.query("SELECT payload FROM automation_notifications WHERE business_id=$1 AND event_key=$2",[businessA,`review-analysis:${reviewId}`])).rows[0].payload;
+      assert.equal(notification.reviewId,reviewId);
+      assert.equal(notification.reviewPresentation,"text");
+      assert.equal(notification.replyMarkup,undefined,"callback secrets are resolved only at delivery time");
     });
     await t.test("revoked reviewer and expired review cannot approve; requesting information leaves payment pending",async()=>{
       await db.query("UPDATE business_memberships SET role='operator' WHERE business_id=$1 AND user_id=$2",[businessA,userId]);
@@ -125,7 +185,8 @@ test("Durable multi-business sales, manual payment review and delivery against P
       await db.query("UPDATE payment_reviews SET expires_at=now()-interval '1 minute' WHERE id=$1",[reviewId]);
       await assert.rejects(()=>services.reviews.decide(businessA,"555",callback,"approve","test-ref"),{code:"REVIEW_EXPIRED"});
       await db.query("UPDATE payment_reviews SET expires_at=now()+interval '1 hour' WHERE id=$1",[reviewId]);
-      await services.reviews.decide(businessA,"555",callback,"info");
+      assert.match((await services.reviews.decide(businessA,"555",callback,"info")).text,/Información adicional solicitada/);
+      assert.match((await say("estado del comprobante")).text,/solicitó más información/);
       const review=(await services.reviewRepository.find(businessA,reviewId))!;
       assert.equal(review.status,"more_info");
       assert.equal((await services.payments.getById(businessA,review.paymentId)).status,"pending");
@@ -229,5 +290,33 @@ test("Durable multi-business sales, manual payment review and delivery against P
       const service=new TelegramService(services.integrations,services.reviews,services.sales,async()=>{throw new Error("Network must not run");});
       await assert.rejects(()=>service.receive(telegram.id,"wrong",{}),{code:"TELEGRAM_WEBHOOK_UNAUTHORIZED"});
       assert.deepEqual(await service.receive(telegram.id,"t".repeat(32),{message:{chat:{id:999},from:{id:555},text:"/abono anything"}}),{ok:true});
+    });
+    await t.test("parent categories are scoped, acyclic and drive progressive generic business navigation",async()=>{
+      const a=await business(),b=await business();
+      const categories=new CategoriesService(new PostgresCategoriesRepository(db));
+      const main=await categories.create(a,{name:"Plataforma de prueba"});
+      const child=await categories.create(a,{name:"Seguidores",parentId:main.id});
+      await assert.rejects(()=>categories.create(b,{name:"Foreign",parentId:main.id}),{code:"INVALID_CATEGORY_PARENT"});
+      await assert.rejects(()=>categories.update(a,main.id,{parentId:child.id}),{code:"INVALID_CATEGORY_PARENT"});
+      await assert.rejects(()=>categories.create(a,{name:"Third level",parentId:child.id}),{code:"INVALID_CATEGORY_PARENT"});
+      const other=await categories.create(a,{name:"Otra principal"});
+      await assert.rejects(()=>categories.update(a,main.id,{parentId:other.id}),{code:"INVALID_CATEGORY_PARENT"});
+      for(const quantity of [500,1000,2000,3000,7000,10000]){
+        const p=await db.query<{id:string}>(`INSERT INTO products(business_id,category_id,name,type,min_quantity,max_quantity,status,required_inputs)
+          VALUES($1,$2,$3,'service',$4,$5,'active',$6) RETURNING id`,[a,child.id,`${quantity} seguidores`,quantity,quantity+50,
+          JSON.stringify([{key:"url",label:"Enlace",type:"url",required:true,helpText:null,position:0,validation:{}}])]);
+        await db.query("INSERT INTO product_prices(business_id,product_id,pricing_type,currency,fixed_price,status) VALUES($1,$2,'fixed','CLP',4990,'active')",[a,p.rows[0]!.id]);
+      }
+      const opened=await services.access.open(a,"56910000999");
+      let i=0;const say=(text:string)=>services.conversation.receive(a,opened.sessionId,{messageId:`nav-${++i}`,text,presentation:"typebot"});
+      assert.match((await say("hola")).text,/Plataforma de prueba/);
+      assert.match((await say("Plataforma de prueba")).text,/Seguidores/);
+      const catalog=await say("Seguidores");assert.equal(catalog.context?.options.length,6);
+      assert.equal(catalog.context?.catalogListing,catalog.text);
+      assert.match((await say("5000")).text,/no hay una opción única/);
+      assert.match((await say("3000 seguidores esta bien")).text,/Enlace/);
+      const chosen=await services.sales.session(a,opened.sessionId);
+      assert.equal(chosen.state.quantity,3000);assert.equal(chosen.state.phase,"inputs");
+      assert.equal((await db.query("SELECT count(*)::int AS n FROM orders WHERE business_id=$1",[a])).rows[0].n,0);
     });
   });

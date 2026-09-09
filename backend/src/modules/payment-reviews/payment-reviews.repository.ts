@@ -10,6 +10,13 @@ const columns=`id,business_id AS "businessId",payment_id AS "paymentId",session_
   reference,callback_encrypted AS "callbackEncrypted",expires_at AS "expiresAt"`;
 export class PostgresPaymentReviewsRepository {
   constructor(private readonly db:Pool) {}
+  async latestStatus(businessId:string,paymentId:string,sessionId:string) {
+    const result=await this.db.query<Pick<PaymentReview,"status"|"expiresAt">>(
+      `SELECT status,expires_at AS "expiresAt" FROM payment_reviews
+       WHERE business_id=$1 AND payment_id=$2 AND session_id=$3 ORDER BY created_at DESC,id DESC LIMIT 1`,
+      [businessId,paymentId,sessionId]);
+    return result.rows[0] ?? null;
+  }
   async create(businessId:string,paymentId:string,sessionId:string,hash:string,evidence:string,callbackHash:string,callback:string) {
     const result=await this.db.query<PaymentReview>(`INSERT INTO payment_reviews
       (business_id,payment_id,session_id,evidence_hash,evidence_encrypted,callback_hash,callback_encrypted)

@@ -3,7 +3,10 @@ export function typebotEnvelope(opened,payload){
     throw new Error("SALES_SESSION_TOKEN_MISSING");
   if(typeof payload?.messageId!=="string"||typeof payload?.text!=="string")
     throw new Error("SALES_MESSAGE_CONTEXT_MISSING");
+  if(!/^[0-9a-f-]{36}$/i.test(payload.inboxId??"")||!/^[0-9a-f-]{36}$/i.test(payload.inboxLease??""))
+    throw new Error("SALES_INBOX_PROOF_MISSING");
   return encodeURIComponent(JSON.stringify({
+    inboxId:payload.inboxId,inboxLease:payload.inboxLease,
     messageId:payload.messageId,
     text:payload.text,
     remoteJid:payload.contact,
@@ -27,7 +30,7 @@ export function typebotSessionMissing(response){
   return /session.{0,40}(not found|expired|invalid)|invalid.{0,40}session/i.test(body);
 }
 
-export function validateTypebotResponse(response,previousSessionId=null){
+export function validateTypebotResponse(response,previousSessionId=null,continued=false){
   const status=Number(response?.statusCode??200);
   if(status<200||status>=300)throw new Error(`TYPEBOT_HTTP_${status}`);
   const rawBody=response?.body??response;
@@ -35,7 +38,8 @@ export function validateTypebotResponse(response,previousSessionId=null){
   if(typeof rawBody==="string"){
     try{body=JSON.parse(rawBody);}catch{throw new Error("TYPEBOT_INVALID_RESPONSE");}
   }
-  if(typeof body?.sessionId!=="string"||!body.sessionId||!Array.isArray(body.messages))
+  const sessionId=body?.sessionId??(continued?previousSessionId:null);
+  if(typeof sessionId!=="string"||!sessionId||!Array.isArray(body?.messages))
     throw new Error("TYPEBOT_INVALID_RESPONSE");
-  return {response:body,typebotSessionId:body.sessionId,sessionChanged:body.sessionId!==previousSessionId};
+  return {response:body,typebotSessionId:sessionId,sessionChanged:sessionId!==previousSessionId};
 }

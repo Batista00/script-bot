@@ -1,4 +1,7 @@
 import type { FastifySchema } from "fastify";
+import { additionalItemsHttpSchema,quoteItemsHttpSchema } from "../quotes/quote-cart.js";
+import { deliverySelectionHttpSchema, physicalDeliveryHttpSchema } from "../products/physical-delivery.js";
+import { productDeliveryHttpSchema } from "../products/product-delivery.js";
 
 const uuid = { type: "string", format: "uuid" } as const;
 const nullableUuid = { type: ["string", "null"], format: "uuid" } as const;
@@ -63,6 +66,7 @@ const product = {
     productId: uuid, categoryId: nullableUuid, name: { type: "string" },
     description: nullableString, type: { type: "string", enum: ["service", "product"] },
     sku: nullableString, minQuantity: nullableInteger, maxQuantity: nullableInteger,
+    deliveryConfig: productDeliveryHttpSchema,
     requiredInputs: {
       type: "array", maxItems: 20,
       items: {
@@ -99,6 +103,8 @@ const quote = {
   ],
   properties: {
     quoteId: uuid, customerId: nullableUuid, productId: uuid,
+    delivery:physicalDeliveryHttpSchema,
+    items:quoteItemsHttpSchema,
     productName: { type: "string" }, quantity: { type: "integer" },
     currency: { type: "string" }, unitPrice: nullableInteger,
     totalPrice: { type: "integer" },
@@ -119,6 +125,7 @@ const order = {
   required: ["orderId", "customerId", "quoteId", "status", "currency", "subtotal", "total", "items"],
   properties: {
     orderId: uuid, customerId: uuid, quoteId: uuid,
+    delivery:physicalDeliveryHttpSchema,
     status: { type: "string", enum: ["pending_payment", "paid", "processing", "completed", "cancelled", "failed"] },
     currency: { type: "string" }, subtotal: { type: "integer" }, total: { type: "integer" },
     items: { type: "array", items: orderItem },
@@ -229,6 +236,8 @@ export const createBotQuoteSchema = {
       productId: uuid, quantity: { type: "integer", minimum: 1, maximum: 2_147_483_647 },
       currency: { type: "string", minLength: 3, maxLength: 3 },
       customerId: nullableUuid, expiresAt: nullableDate,
+      delivery:deliverySelectionHttpSchema,
+      additionalItems:additionalItemsHttpSchema,
     },
   }, response: { 201: quote, ...errors },
 } satisfies FastifySchema;

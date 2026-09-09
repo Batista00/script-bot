@@ -148,6 +148,9 @@ export class BotGatewayService {
     if (product.status !== "active") throw new AppError("Product not found", 404, "PRODUCT_NOT_FOUND");
     return this.productDto(product);
   }
+  async cancelUnpaidOrder(businessId:string,orderId:string) {
+    return this.orderDto(await this.orders.cancel(businessId,orderId));
+  }
 
   async listPrices(
     businessId: string,
@@ -162,7 +165,7 @@ export class BotGatewayService {
       .map((value) => this.priceDto(value));
   }
 
-  async createQuote(businessId: string, input: BotCreateQuoteInput) {
+  async createQuote(businessId: string, input: BotCreateQuoteInput,manualShipping?:import("../products/physical-delivery.js").ManualShippingQuote) {
     let currency = input.currency;
     if (this.businesses) {
       const business = await this.businesses.findById(businessId);
@@ -173,7 +176,7 @@ export class BotGatewayService {
       currency = business.currency;
     }
     if (!currency) throw new AppError("Quote currency is required", 400, "INVALID_CURRENCY");
-    return this.quoteDto(await this.quotes.create(businessId, { ...input, currency }));
+    return this.quoteDto(await this.quotes.create(businessId, { ...input, currency },manualShipping));
   }
 
   async createOrder(businessId: string, input: BotCreateOrderInput) {
@@ -242,6 +245,7 @@ export class BotGatewayService {
       description: value.description, type: value.type, sku: value.sku,
       minQuantity: value.minQuantity, maxQuantity: value.maxQuantity,
       requiredInputs: value.requiredInputs ?? [],
+      deliveryConfig: value.deliveryConfig ?? null,
     };
   }
   private priceDto(value: ProductPrice): BotPriceDto {
@@ -253,6 +257,8 @@ export class BotGatewayService {
   }
   private quoteDto(value: Quote): BotQuoteDto {
     return {
+      ...(value.items?{items:value.items}:{}),
+      ...(value.delivery?{delivery:value.delivery}:{}),
       quoteId: value.id, customerId: value.customerId, productId: value.productId,
       productName: value.productName, quantity: value.quantity, currency: value.currency,
       unitPrice: value.unitPrice, totalPrice: value.totalPrice, status: value.status,
@@ -261,6 +267,7 @@ export class BotGatewayService {
   }
   private orderDto(value: Order): BotOrderDto {
     return {
+      ...(value.delivery?{delivery:value.delivery}:{}),
       orderId: value.id, customerId: value.customerId, quoteId: value.quoteId,
       status: value.status, currency: value.currency, subtotal: value.subtotal,
       total: value.total,

@@ -199,7 +199,7 @@ test("concurrent dispatch and later redispatch never create a second provider or
   assert.equal(adapter.createInputs.length, 1);
   await rejectsCode(service.dispatch(businessA, orderA, {
     orderItemId: itemA, input: { link: "https://instagram.com/example" },
-  }), "ORDER_NOT_READY_FOR_FULFILLMENT");
+  }), "FULFILLMENT_ALREADY_EXISTS");
   assert.equal(adapter.createInputs.length, 1);
   repository.fulfillments[0]!.status = "completed" as FulfillmentStatus;
   repository.orders.set(`${businessA}:${orderA}`, "completed");

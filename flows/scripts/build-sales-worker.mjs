@@ -14,7 +14,7 @@ export function salesWorker(){
   http(w,"Open session",backend("/bot/v1/sales/sessions"),"={{ {contact:$json.contact,name:$json.payload.name} }}","BW Backend");
   branch(w,"Is image","={{ $('Each message').item.json.payload.image }}");
   http(w,"Read Evolution media",`={{ ${cfg("evolutionBaseUrl")} + '/chat/getBase64FromMediaMessage/' + encodeURIComponent(${cfg("instance")}) }}`,
-    "={{ {message:{key:{id:$('Each message').item.json.payload.messageId,remoteJid:$('Each message').item.json.contact+'@s.whatsapp.net',fromMe:false}},convertToMp4:false} }}","Evolution API");
+    "={{ {message:{key:{id:$('Each message').item.json.payload.messageId,remoteJid:$('Each message').item.json.contact+'@s.whatsapp.net',fromMe:false} },convertToMp4:false} }}","Evolution API");
   node(w,"Check media limits","code",{jsCode:"const valid=typeof $json.base64==='string'&&$json.base64.length<=2800000&&['image/jpeg','image/png'].includes($json.mimetype);return [{json:valid?{...$json,valid}:{valid,error:{code:'INVALID_PAYMENT_EVIDENCE'}}}];"});
   branch(w,"Media usable","={{ $json.valid }}");
   http(w,"Submit private evidence",backend("/conversation/v1/evidence"),"={{ {base64:$json.base64,mimeType:$json.mimetype} }}",null,
@@ -22,12 +22,13 @@ export function salesWorker(){
   node(w,"Validate evidence result","code",{jsCode:`${source(evidenceResponse)}\nreturn [{json:evidenceResponse($json)}];`});
   node(w,"Prepare Typebot request","code",{jsCode:`${source(typebotEnvelope)}\n${source(typebotRequest)}
 const opened=$('Open session').item.json;
-const payload=$('Each message').item.json.payload;
+const entry=$('Each message').item.json;
+const payload={...entry.payload,inboxId:entry.id,inboxLease:entry.lease};
 const envelope=typebotEnvelope(opened,payload);
 const request=typebotRequest($('Config').first().json.config.typebotBaseUrl,$('Config').first().json.config.typebotPublicId,opened.typebotSessionId,envelope);
 return [{json:{request,incomingPayload:envelope,previousSessionId:opened.typebotSessionId}}];`});
   branch(w,"Has Typebot session","={{ $json.request.mode === 'continue' }}");
-  const responseOptions={options:{timeout:60000,redirect:{redirect:{followRedirects:false}},response:{response:{neverError:true,fullResponse:true,responseFormat:"text"}}}};
+  const responseOptions={options:{timeout:60000,redirect:{redirect:{followRedirects:false}},response:{response:{neverError:true,fullResponse:true,responseFormat:"text",outputPropertyName:"body"}}}};
   http(w,"Continue Typebot","={{ $json.request.url }}","={{ $json.request.body }}",null,responseOptions);
   w.nodes.find(n=>n.name==="Continue Typebot").onError="continueRegularOutput";
   node(w,"Inspect continued session","code",{jsCode:`${source(typebotSessionMissing)}
@@ -38,21 +39,22 @@ if(status<200||status>=300)return [{json:{recover:true,incomingPayload},pairedIt
 const rawBody=$json.body??$json;
 let body=rawBody;
 if(typeof rawBody==="string"){try{body=JSON.parse(rawBody);}catch{return [{json:{recover:true,incomingPayload},pairedItem:{item:0}}];}}
-if(typeof body?.sessionId!=="string"||!body.sessionId||!Array.isArray(body.messages))return [{json:{recover:true,incomingPayload},pairedItem:{item:0}}];
-return [{json:{recover:false,response:{...$json,body},incomingPayload},pairedItem:{item:0}}];`});
+if((body?.sessionId!=null&&(typeof body.sessionId!=="string"||!body.sessionId))||!Array.isArray(body?.messages))return [{json:{recover:true,incomingPayload},pairedItem:{item:0}}];
+return [{json:{recover:false,continued:true,response:{...$json,body},incomingPayload},pairedItem:{item:0}}];`});
   branch(w,"Session missing","={{ $json.recover === true }}");
   http(w,"Start Typebot",`={{ ${cfg("typebotBaseUrl")} + '/api/v1/typebots/' + encodeURIComponent(${cfg("typebotPublicId")}) + '/startChat' }}`,
     "={{ ({message:$json.incomingPayload}) }}",null,responseOptions);
   node(w,"Validate Typebot response","code",{jsCode:`${source(validateTypebotResponse)}
 const previous=$('Prepare Typebot request').item.json.previousSessionId;
-return [{json:validateTypebotResponse($json.response||$json,previous)}];`});
+return [{json:validateTypebotResponse($json.response||$json,previous,$json.continued===true)}];`});
   branch(w,"Session changed","={{ $json.sessionChanged === true }}");
   http(w,"Save Typebot session",backend("/conversation/v1/typebot-session"),"={{ {typebotSessionId:$json.typebotSessionId} }}",null,{...scopedHeaders,method:"PUT"});
   node(w,"Read Typebot reply","code",{jsCode:`${source(typebotText)}\n${source(typebotMessages)}\n${source(encodeOutboxMessages)}
 const result=$('Validate Typebot response').item.json;
 const messages=typebotMessages(result.response);
-const safeMessages=messages.length?messages:['No pude completar esa consulta en este momento. Puedo intentarlo nuevamente o derivarte con una persona.'];
-return [{json:{messages:safeMessages,text:encodeOutboxMessages(safeMessages)}}];`});
+const silent=result.response.input?.id==='silentinput';
+const safeMessages=messages.length?messages:silent?[]:['No pude completar esa consulta en este momento. Puedo intentarlo nuevamente o derivarte con una persona.'];
+return [{json:{messages:safeMessages,text:safeMessages.length?encodeOutboxMessages(safeMessages):''}}];`});
   http(w,"Finish inbox and queue reply",runner("/inbox/ack"),"={{ {id:$('Each message').item.json.id,lease:$('Each message').item.json.lease,text:$json.text||''} }}","BW Automation Runner");
   http(w,"Trigger immediate delivery",`={{ ${cfg("n8nBaseUrl")} + '/webhook/bw-notifications-deliver' }}`,"={{ {source:'sales-worker'} }}","BW Evolution Webhook");
   w.nodes.find(n=>n.name==="Trigger immediate delivery").onError="continueRegularOutput";

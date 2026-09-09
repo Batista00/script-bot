@@ -1,4 +1,5 @@
 import type { QueryResultRow } from "pg";
+import { AppError } from "../../core/errors/app-error.js";
 
 import type { DatabaseExecutor } from "../../core/database/database.js";
 import {
@@ -11,6 +12,7 @@ import {
 } from "./categories.types.js";
 
 interface CategoryRow extends QueryResultRow {
+  parent_id: string | null;
   id: string;
   business_id: string;
   name: string;
@@ -24,7 +26,7 @@ interface PostgreSqlError {
   constraint?: string;
 }
 
-const categoryColumns = "id, business_id, name, status, created_at, updated_at";
+const categoryColumns = "id, business_id, parent_id, name, status, created_at, updated_at";
 
 function toIsoString(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
@@ -34,6 +36,7 @@ function mapCategory(row: CategoryRow): Category {
   return {
     id: row.id,
     businessId: row.business_id,
+    parentId: row.parent_id,
     name: row.name,
     status: row.status,
     createdAt: toIsoString(row.created_at),
@@ -55,15 +58,16 @@ export class PostgresCategoriesRepository implements CategoriesRepository {
   async create(businessId: string, input: CategoryPersistenceInput): Promise<Category> {
     try {
       const result = await this.db.query<CategoryRow>(
-        `INSERT INTO categories (business_id, name, status)
-         VALUES ($1, $2, $3)
+        `INSERT INTO categories (business_id, name, status, parent_id)
+         VALUES ($1, $2, $3, $4)
          RETURNING ${categoryColumns}`,
-        [businessId, input.name, input.status],
+        [businessId, input.name, input.status, input.parentId ?? null],
       );
       const row = result.rows[0];
       if (!row) throw new Error("PostgreSQL did not return the created category");
       return mapCategory(row);
     } catch (error) {
+      parentError(error);
       if (isNameConflict(error)) throw new CategoryNameConflictError();
       throw error;
     }
@@ -120,15 +124,22 @@ export class PostgresCategoriesRepository implements CategoriesRepository {
     try {
       const result = await this.db.query<CategoryRow>(
         `UPDATE categories
-         SET name = $3, status = $4, updated_at = now()
+         SET name = $3, status = $4, parent_id = $5, updated_at = now()
          WHERE business_id = $1 AND id = $2
          RETURNING ${categoryColumns}`,
-        [businessId, categoryId, input.name, input.status],
+        [businessId, categoryId, input.name, input.status, input.parentId ?? null],
       );
       return result.rows[0] ? mapCategory(result.rows[0]) : null;
     } catch (error) {
+      parentError(error);
       if (isNameConflict(error)) throw new CategoryNameConflictError();
       throw error;
     }
   }
+}
+
+function parentError(error:unknown):void {
+  const constraint=(error as PostgreSqlError).constraint;
+  if (constraint && ["categories_parent_same_business","categories_parent_not_self","categories_two_levels"].includes(constraint))
+    throw new AppError("Seleccione una categoría principal del mismo negocio; no se permiten ciclos ni más de dos niveles",400,"INVALID_CATEGORY_PARENT");
 }

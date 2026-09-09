@@ -40,6 +40,8 @@ import { PostgresPaymentReviewsRepository } from "../../src/modules/payment-revi
 import { PaymentReviewsService } from "../../src/modules/payment-reviews/payment-reviews.service.js";
 import { PostgresNotificationsRepository } from "../../src/modules/automation/notifications.repository.js";
 import { AutomationService } from "../../src/modules/automation/automation.service.js";
+import { DigitalDeliveryService } from "../../src/modules/digital-delivery/digital-delivery.service.js";
+import { PostgresDigitalDeliveryRepository } from "../../src/modules/digital-delivery/digital-delivery.repository.js";
 
 export function salesFixture(db:Pool,adapter:ProviderFulfillmentAdapter) {
   const businesses=new PostgresBusinessesRepository(db),customers=new PostgresCustomersRepository(db),categories=new PostgresCategoriesRepository(db);
@@ -53,12 +55,13 @@ export function salesFixture(db:Pool,adapter:ProviderFulfillmentAdapter) {
     new PricingService(pricing,products,businesses),new QuotesService(new PostgresQuotesRepository(db),new PriceCalculatorService(products,pricing),customers),
     new OrdersService(new PostgresOrdersRepository(db),db),payments,fulfillments,new PaymentMethodsService(methods),businesses);
   const sales=new PostgresSalesRepository(db),notifications=new PostgresNotificationsRepository(db),reviewRepository=new PostgresPaymentReviewsRepository(db);
-  const delivery=new SalesDeliveryService(gateway,new PostgresProviderCatalogRepository(db),integrations,adapters);
-  const checkout=new SalesCheckoutService(sales,gateway,delivery);
+  const digital=new DigitalDeliveryService(new PostgresDigitalDeliveryRepository(db),new ProductsService(products,categories),gateway,crypto,notifications);
+  const delivery=new SalesDeliveryService(gateway,new PostgresProviderCatalogRepository(db),integrations,adapters,digital);
+  const checkout=new SalesCheckoutService(sales,gateway,delivery,reviewRepository);
   const reviews=new PaymentReviewsService(reviewRepository,sales,checkout,payments,crypto,notifications);
   const inboxRepository=new PostgresSalesInboxRepository(db);
-  return {gateway,sales,notifications,reviewRepository,delivery,checkout,reviews,payments,integrations,crypto,
+  return {gateway,sales,notifications,reviewRepository,delivery,checkout,reviews,payments,integrations,crypto,digital,
     inbox:new SalesInboxService(inboxRepository,sales),inboxRepository,
     access:new SalesAccessService(sales,gateway),conversation:new SalesConversationService(sales,gateway,checkout,notifications),
-    automation:new AutomationService(sales,gateway,delivery,notifications,reviews)};
+    automation:new AutomationService(sales,gateway,delivery,notifications,reviews,digital)};
 }

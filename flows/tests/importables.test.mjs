@@ -8,6 +8,7 @@ import { notifications } from "../scripts/build-notifications.mjs";
 import { telegramAdmin } from "../scripts/build-telegram-admin.mjs";
 import { typebot } from "../scripts/build-typebot.mjs";
 import { typebotEnvelope,typebotRequest,typebotSessionMissing,validateTypebotResponse } from "../scripts/typebot-session.mjs";
+const inboxProof={inboxId:"10000000-0000-4000-8000-000000000001",inboxLease:"10000000-0000-4000-8000-000000000002"};
 
 for(const [path,build] of [["01-evolution-inbox",ingress],["02-typebot-sales-bridge",bridge],["03-sales-worker",salesWorker],["04-notifications-worker",notifications],["05-telegram-admin",telegramAdmin]]){
   test(`${path}: deterministic inactive export, valid nodes and credential references`,async()=>{
@@ -38,8 +39,8 @@ test("Typebot 6.1 presentation has valid references and no business/provider cre
   assert.equal(target,"https://n8n.pablete.xyz/webhook/bw-sales-bridge");
   assert.ok(!target.includes("{{"),"customer-prefilled variables must never choose a server-side request destination");
   const preparePayload=t.groups.flatMap(g=>g.blocks).find(b=>b.id==="buildpreparepayload");
-  assert.match(preparePayload.options.expressionToEvaluate,/remoteJid:String\("\{\{remoteJid\}\}"\)/);
-  assert.match(preparePayload.options.expressionToEvaluate,/userMessage:String\("\{\{user_message\}\}"\)/);
+  assert.match(preparePayload.options.expressionToEvaluate,/remoteJid:String\(\{\{remoteJid\}\}\)/);
+  assert.match(preparePayload.options.expressionToEvaluate,/userMessage:String\(\{\{user_message\}\}\)/);
   assert.equal(webhookDefinition.body,"{{request_payload}}");
   assert.equal(t.variables.some(variable=>variable.name==="session_token"),false,"backend cs_ tokens must not persist as a Typebot session variable");
   assert.equal(raw.includes("sessionToken"),false,"backend session tokens must never reach Typebot");
@@ -54,7 +55,7 @@ test("Typebot 6.1 presentation has valid references and no business/provider cre
   assert.equal(inputBlock.options.variableId,t.variables.find(variable=>variable.name==="incoming_payload").id);
   for(const id of ["readmessageid","readmessage","readremote","readname","clearincoming"])assert.ok(t.groups.flatMap(g=>g.blocks).some(block=>block.id===id));
   assert.ok(t.edges.filter(edge=>["nextinput","waitinput"].includes(edge.from.blockId)).every(edge=>edge.to.blockId==="readmessageid"));
-  assert.match(preparePayload.options.expressionToEvaluate,/messageId:String\("\{\{message_id\}\}"\)/);
+  assert.match(preparePayload.options.expressionToEvaluate,/messageId:String\(\{\{message_id\}\}\)/);
   assert.ok(t.variables.some(variable=>variable.name==="remoteJid"),"Evolution must prefill the WhatsApp contact");
 });
 
@@ -120,7 +121,7 @@ test("immediate and recovery processing open the current sales session before Ty
 
 test("Typebot session request contract supports first turn, continuation and expiry recovery",()=>{
   const opened={sessionToken:`cs_${"a".repeat(43)}`,typebotSessionId:null};
-  const payload={messageId:"wamid-1",text:"Hola"};
+  const payload={...inboxProof,messageId:"wamid-1",text:"Hola"};
   const envelope=typebotEnvelope(opened,payload);
   const first=typebotRequest("https://bot.example","public",null,envelope);
   assert.equal(first.mode,"start");assert.match(first.url,/\/typebots\/public\/startChat$/);
@@ -137,8 +138,8 @@ test("Typebot session request contract supports first turn, continuation and exp
   const inspect=salesWorker().nodes.find(node=>node.name==="Inspect continued session").parameters.jsCode;
   const continuation=salesWorker().nodes.find(node=>node.name==="Continue Typebot");
   const restart=salesWorker().nodes.find(node=>node.name==="Start Typebot");
-  assert.match(inspect,/typeof body\?\.sessionId/);
-  assert.match(inspect,/Array\.isArray\(body\.messages\).*recover:true/);
+  assert.match(inspect,/typeof body\.sessionId/);
+  assert.match(inspect,/Array\.isArray\(body\?\.messages\).*recover:true/);
   assert.match(inspect,/status<200\|\|status>=300\)return \[\{json:\{recover:true,incomingPayload\}/);
   assert.equal(continuation.parameters.options.response.response.responseFormat,"text");
   assert.equal(continuation.onError,"continueRegularOutput");
@@ -149,17 +150,43 @@ test("Typebot session request contract supports first turn, continuation and exp
     {response:{sessionId:"session-3",messages:[]},typebotSessionId:"session-3",sessionChanged:true});
 });
 
+test("Typebot text responses use body and continueChat retains its existing session",()=>{
+  const w=salesWorker();
+  for(const name of ["Start Typebot","Continue Typebot"]){
+    const response=w.nodes.find(node=>node.name===name).parameters.options.response.response;
+    assert.equal(response.responseFormat,"text");
+    assert.equal(response.fullResponse,true);
+    assert.equal(response.outputPropertyName,"body","n8n otherwise returns text in data");
+  }
+  const response={statusCode:200,body:JSON.stringify({messages:[],input:{type:"text input"}})};
+  const previousSessionId="existing-session";
+  const context=name=>{
+    assert.equal(name,"Prepare Typebot request");
+    return {item:{json:{incomingPayload:"encoded-message",previousSessionId}}};
+  };
+  const inspect=w.nodes.find(node=>node.name==="Inspect continued session").parameters.jsCode;
+  const inspected=new Function("$json","$",inspect)(response,context)[0].json;
+  assert.equal(inspected.recover,false,"a valid continuation must not restart Typebot");
+  const validate=w.nodes.find(node=>node.name==="Validate Typebot response").parameters.jsCode;
+  const result=new Function("$json","$",validate)(inspected,context)[0].json;
+  assert.equal(result.typebotSessionId,previousSessionId);
+  assert.equal(result.sessionChanged,false);
+  assert.throws(()=>new Function("$json","$",validate)(response,context),/TYPEBOT_INVALID_RESPONSE/,"startChat must still return a new session ID");
+  assert.throws(()=>validateTypebotResponse(response,null,true),/TYPEBOT_INVALID_RESPONSE/);
+  assert.throws(()=>validateTypebotResponse({statusCode:200,body:{sessionId:"",messages:[]}},previousSessionId,true),/TYPEBOT_INVALID_RESPONSE/);
+});
+
 test("Typebot association is obtained from the business-scoped backend session, never from a global phone key",()=>{
   const w=salesWorker();const worker=JSON.stringify(w);
   assert.match(worker,/opened\.typebotSessionId/);
   assert.match(worker,/Open session/);
   assert.doesNotMatch(worker,/staticData|workflowStaticData/);
   assert.doesNotMatch(w.nodes.find(n=>n.name==="Prepare Typebot request").parameters.jsCode,/contact.*typebotSessionId/);
-  const sameContact={messageId:"1",text:"hola",contact:"56912345678",name:"Cliente"};
+  const sameContact={...inboxProof,messageId:"1",text:"hola",contact:"56912345678",name:"Cliente"};
   const a=typebotEnvelope({sessionToken:`cs_${"a".repeat(43)}`},sameContact);
   const b=typebotEnvelope({sessionToken:`cs_${"b".repeat(43)}`},sameContact);
   assert.equal(a,b,"backend session tokens must never reach or differentiate the Typebot envelope");
-  assert.deepEqual(JSON.parse(decodeURIComponent(a)),{messageId:"1",text:"hola",remoteJid:"56912345678",pushName:"Cliente"});
+  assert.deepEqual(JSON.parse(decodeURIComponent(a)),{...inboxProof,messageId:"1",text:"hola",remoteJid:"56912345678",pushName:"Cliente"});
 });
 
 test("n8n contains no conversational OpenAI call; the sole master prompt is the bounded Typebot Ask Model",()=>{
@@ -169,9 +196,9 @@ test("n8n contains no conversational OpenAI call; the sole master prompt is the 
   assert.ok(!JSON.stringify(bridge()).includes("api.openai.com"));
   const t=typebot();const ask=t.groups.flatMap(g=>g.blocks).filter(b=>b.type==="openai"&&b.options.action==="Ask Model");
   assert.equal(ask.length,1);assert.ok(!("credentialsId" in ask[0].options));
-  assert.match(ask[0].options.instructions,/una y cuatro frases/);
-  assert.match(ask[0].options.instructions,/Nunca apruebes pagos/);
-  assert.match(ask[0].options.instructions,/únicas fuentes permitidas/);
+  assert.match(ask[0].options.instructions,/1–4 frases/);
+  assert.match(ask[0].options.instructions,/No tiene función de aprobar pagos/);
+  assert.match(ask[0].options.instructions,/Toda afirmación.*debe venir del negocio o de OPERACION_BACKEND/);
   assert.ok(ask[0].options.responseIdVariableId);
 });
 
@@ -189,7 +216,7 @@ test("durable inbox and outbox have immediate triggers while minute schedules re
 test("WhatsApp delivery expands ordered bubbles with human-scale delay and acknowledges once",()=>{
   const w=notifications();const expand=w.nodes.find(n=>n.name==="Expand WhatsApp bubbles");
   const send=w.nodes.find(n=>n.name==="Send WhatsApp");const verify=w.nodes.find(n=>n.name==="Verify WhatsApp result");
-  assert.match(expand.parameters.jsCode,/600\+index\*150/);assert.match(send.parameters.jsonBody,/whatsappDelay/);
+  assert.match(expand.parameters.jsCode,/whatsappDelay:600/);assert.match(send.parameters.jsonBody,/whatsappDelay/);
   assert.match(verify.parameters.jsCode,/return \[\{json:\{ok:true,count:sent.length\}\}\]/);
   assert.deepEqual(w.connections["Verify WhatsApp result"].main[0],[{node:"Acknowledge delivered",type:"main",index:0}]);
 });

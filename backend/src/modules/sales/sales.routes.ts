@@ -12,6 +12,7 @@ export const salesRoutes:FastifyPluginAsync<Options>=async(app,{controller,admin
   app.post("/bot/v1/sales/sessions",{preHandler:requireMachineCredential(machineAuth)},controller.open);
   app.post("/bot/v1/sales/inbox",{preHandler:requireMachineCredential(machineAuth)},controller.accept);
   app.post("/conversation/v1/message",controller.message);
+  app.post("/conversation/v1/prepare",controller.prepare);
   app.put("/conversation/v1/typebot-session",controller.typebotSession);
   app.post("/conversation/v1/evidence",{bodyLimit:2_900_000},controller.evidence);
   app.post("/conversation/v1/evidence/analysis",controller.analyze);
@@ -22,6 +23,7 @@ export const salesRoutes:FastifyPluginAsync<Options>=async(app,{controller,admin
   app.delete("/businesses/:businessId/sales-automation/reviewers",{preHandler},admin.removeReviewer);
   app.patch("/businesses/:businessId/sales-automation/sessions/:sessionId",{preHandler},admin.pause);
   app.post("/businesses/:businessId/sales-automation/sessions/:sessionId/resolution",{preHandler},admin.resolve);
+  app.post("/businesses/:businessId/sales-automation/sessions/:sessionId/shipping-quote",{preHandler},admin.shippingQuote);
   app.post("/businesses/:businessId/sales-automation/checkouts/:checkoutId/complete",{preHandler},admin.complete);
   app.post("/businesses/:businessId/sales-automation/jobs/retry",{preHandler},admin.retry);
   app.post("/automation/v1/:integrationId/tick",automation.tick);

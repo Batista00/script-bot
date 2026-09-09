@@ -8,16 +8,19 @@ import { useBusiness } from "../businesses/business-context";
 import { HumanResolutionModal } from "./HumanResolutionModal";
 import type { HumanOutcome, SalesAdminSession, SalesMutationInput, SalesOverview, SalesSettings } from "./sales-automation.types";
 import { SalesSettingsForm } from "./SalesSettingsForm";
+import { ShippingQuoteModal } from "./ShippingQuoteModal";
 
 const phaseLabels: Record<string, string> = {
   browse: "Buscando producto", quantity: "Definiendo cantidad", inputs: "Recopilando datos",
   confirm: "Confirmando compra", payment: "Seleccionando pago", awaiting: "Esperando pago",
+  delivery: "Definiendo entrega",
 };
 
 export function SalesAutomationPage() {
   const business = useBusiness();
   const client = useQueryClient();
   const [resolutionSession, setResolutionSession] = useState<SalesAdminSession | null>(null);
+  const [shippingSession,setShippingSession]=useState<SalesAdminSession|null>(null);
   const path = `/businesses/${business.id}/sales-automation`;
   const queryKey = ["sales-automation", business.id];
   const permitted = business.role !== "operator";
@@ -70,13 +73,14 @@ export function SalesAutomationPage() {
             <td><StatusBadge value={session.paused ? "human" : "active"} /></td><td>{new Date(session.updatedAt).toLocaleString()}</td>
             <td>{latest ? `${latest.outcome.replaceAll("_", " ")} · ${latest.note}` : "—"}</td><td><div className="table-actions">
               {session.paused && <Button className="secondary small" onClick={() => setResolutionSession(session)}>Registrar gestión</Button>}
+              {session.phase==="delivery"&&<Button className="secondary small" onClick={()=>setShippingSession(session)}>Cotizar envío</Button>}
               <Button className="secondary small" disabled={mutation.isPending} onClick={() => mutation.mutate({ suffix: `/sessions/${session.id}`, method: "PATCH", body: { paused: !session.paused } })}>{session.paused ? "Reanudar bot" : "Pausar bot"}</Button>
             </div></td></tr>; })}</tbody></table></div>}
       </section>
 
-      <section className="table-card automation-wide"><header className="card-heading"><div><h2>Pedidos y entregas</h2><p>Los productos sin proveedor se entregan manualmente; los SMM usan su vínculo técnico.</p></div></header>
+      <section className="table-card automation-wide"><header className="card-heading"><div><h2>Pedidos y entregas</h2><p>La entrega física se registra por el equipo; los digitales propios configurados se envían después del pago y los SMM usan su vínculo técnico.</p></div></header>
         {!query.data.checkouts.length ? <EmptyState title="No hay pedidos en seguimiento." /> : <div className="table-scroll"><table><thead><tr><th>Pedido</th><th>Entrega</th><th>Estado</th><th>Atención</th><th>Acción</th></tr></thead><tbody>
-          {query.data.checkouts.map(checkout => <tr key={checkout.id}><td><code>{checkout.orderId.slice(0, 8)}</code></td><td>{checkout.mode === "manual" ? "Manual" : "Proveedor"}</td><td><StatusBadge value={checkout.status ?? "pending"} /></td><td>{checkout.attentionCode ?? "—"}</td><td>
+          {query.data.checkouts.map(checkout => <tr key={checkout.id}><td><code>{checkout.orderId.slice(0, 8)}</code></td><td>{checkout.mode === "manual" ? "Manual" : checkout.mode === "digital" ? "Digital propio" : "Proveedor"}</td><td><StatusBadge value={checkout.status ?? "pending"} /></td><td>{checkout.attentionCode ?? "—"}</td><td>
             {checkout.mode === "manual" && checkout.status === "paid" && <Button className="secondary small" disabled={mutation.isPending} onClick={() => { const note = window.prompt("Confirma la entrega e indica su referencia:"); if (note?.trim()) mutation.mutate({ suffix: `/checkouts/${checkout.id}/complete`, body: { note } }); }}>Registrar entrega</Button>}
           </td></tr>)}</tbody></table></div>}
       </section>
@@ -91,5 +95,6 @@ export function SalesAutomationPage() {
     {resolutionSession && <HumanResolutionModal session={resolutionSession} pending={mutation.isPending}
       error={mutation.isError ? errorMessage(mutation.error) : null} onClose={() => setResolutionSession(null)}
       onSubmit={(body: { outcome: HumanOutcome; note: string; resumeBot: boolean }) => mutation.mutate({ suffix: `/sessions/${resolutionSession.id}/resolution`, body })} />}
+    {shippingSession&&<ShippingQuoteModal session={shippingSession} onClose={()=>setShippingSession(null)} />}
   </>;
 }

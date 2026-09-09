@@ -1,21 +1,21 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { businessQueryKey } from "../../app/query-client";
-import { Button, EmptyState, PageHeader, SelectField, Spinner, StatusBadge, useToast } from "../../components/ui";
-import { ApiError, errorMessage } from "../../lib/api/client";
-import { productsApi, providerApi } from "../../lib/api/resources";
-import type { Product, ProviderService } from "../../lib/api/types";
+import { EmptyState, Field, PageHeader, Pagination, Spinner } from "../../components/ui";
+import { errorMessage } from "../../lib/api/client";
+import { productsApi } from "../../lib/api/resources";
 import { useBusiness } from "../businesses/business-context";
+import { ProductProviderMapping } from "./ProductProviderMapping";
 
 export function MappingsPage() {
-  const business = useBusiness();
-  const products = useQuery({ queryKey: businessQueryKey("products", business.id, "mapping-list"), queryFn: () => productsApi.list(business.id, { limit: 100, offset: 0 }) });
-  const services = useQuery({ queryKey: businessQueryKey("provider-services", business.id, "mapping-options"), queryFn: () => providerApi.list(business.id, { limit: 100, offset: 0, providerStatus: "active" }) });
-  return <><PageHeader title="Vínculos de entrega" description="Indica qué servicio externo entregará cada producto. El nombre y el precio de venta no cambian." />{products.isLoading || services.isLoading ? <Spinner /> : !products.data?.length ? <EmptyState title="No hay productos para vincular." /> : <div className="mapping-grid">{products.data.map((product) => <MappingCard key={product.id} product={product} services={services.data ?? []} />)}</div>}</>;
-}
-function MappingCard({ product, services }: { product: Product; services: ProviderService[] }) {
-  const business = useBusiness(); const client = useQueryClient(); const toast = useToast();
-  const query = useQuery({ queryKey: businessQueryKey("mapping", business.id, product.id), queryFn: async () => { try { return await providerApi.mapping(business.id, product.id); } catch (error) { if (error instanceof ApiError && error.status === 404) return null; throw error; } }, retry: false });
-  const mutation = useMutation({ mutationFn: ({ providerServiceId, status }: { providerServiceId: string; status?: "active" | "inactive" }) => query.data ? providerApi.updateMapping(business.id, product.id, { providerServiceId, status: status ?? "active" }) : providerApi.createMapping(business.id, product.id, providerServiceId), onSuccess: async () => { await client.invalidateQueries({ queryKey: ["mapping", business.id, product.id] }); toast("Mapeo actualizado."); } });
-  const current = services.find((service) => service.id === query.data?.providerServiceId);
-  return <article className="mapping-card"><header><div><h2>{product.name}</h2><small>{product.type}</small></div>{query.data ? <StatusBadge value={query.data.status} /> : <span className="muted">Entrega manual</span>}</header>{query.isLoading ? <Spinner /> : <><p>{current ? `${current.providerKey} · ${current.name} · ID ${current.externalServiceId}` : "Sin proveedor: este producto se registra y entrega manualmente."}</p>{business.role !== "operator" && <div className="inline-form"><SelectField label="Servicio que realizará la entrega" defaultValue={query.data?.providerServiceId ?? ""} onChange={(event) => { if (event.target.value) mutation.mutate({ providerServiceId: event.target.value }); }}><option value="">Seleccionar…</option>{services.map((service) => <option key={service.id} value={service.id}>{service.providerKey} · {service.name} ({service.externalServiceId})</option>)}</SelectField>{query.data && <Button className="secondary" onClick={() => mutation.mutate({ providerServiceId: query.data!.providerServiceId, status: query.data!.status === "active" ? "inactive" : "active" })}>{query.data.status === "active" ? "Desactivar" : "Activar"}</Button>}</div>}{mutation.isError && <div className="alert error">{errorMessage(mutation.error)}</div>}</>}</article>;
+  const business=useBusiness();
+  const [search,setSearch]=useState(""),[offset,setOffset]=useState(0);
+  const products=useQuery({queryKey:businessQueryKey("products",business.id,"mapping-list",{search,offset}),
+    queryFn:()=>productsApi.list(business.id,{limit:10,offset,...(search.trim()?{search:search.trim()}:{})})});
+  return <><PageHeader title="Vínculos de entrega" description="El mismo editor está disponible al editar un producto. Cambia el servicio externo, no el precio ni las órdenes históricas." />
+    <Field label="Buscar producto por nombre o SKU" maxLength={160} value={search} onChange={e=>{setSearch(e.target.value);setOffset(0);}} />
+    {products.isLoading?<Spinner />:products.isError?<div className="alert error">{errorMessage(products.error)}</div>:!products.data?.length?<EmptyState title="No hay productos para vincular." />:
+      <div className="mapping-grid">{products.data.map(product=><ProductProviderMapping key={product.id} product={product} />)}</div>}
+    <Pagination offset={offset} limit={10} count={products.data?.length??0} onChange={setOffset} />
+  </>;
 }

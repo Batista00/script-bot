@@ -1,4 +1,6 @@
 import { AppError } from "../../core/errors/app-error.js";
+import { calculateQuoteCart } from "./quote-cart.js";
+import type { ManualShippingQuote } from "../products/physical-delivery.js";
 import type { CustomersRepository } from "../customers/customers.types.js";
 import type { PriceCalculatorService } from "../pricing/price-calculator.service.js";
 import type {
@@ -41,27 +43,25 @@ export class QuotesService {
     return new Date(timestamp).toISOString();
   }
 
-  async create(businessId: string, input: CreateQuoteInput): Promise<Quote> {
+  async create(businessId: string, input: CreateQuoteInput,manualShipping?:ManualShippingQuote): Promise<Quote> {
     const customerId = input.customerId ?? null;
     if (customerId !== null && !(await this.customers.findById(businessId, customerId))) {
       throw new AppError("Customer not found", 404, "CUSTOMER_NOT_FOUND");
     }
     const expiresAt = this.normalizeExpiration(input.expiresAt);
-    const calculation = await this.calculator.calculate(
-      businessId,
-      input.productId,
-      input.quantity,
-      input.currency,
-    );
+    const {items,delivery,totalPrice,currency}=await calculateQuoteCart(this.calculator,businessId,input,manualShipping);
+    const calculation=items[0]!;
     const values: QuotePersistenceInput = {
+      ...(items.length>1?{items}:{}),
+      ...(delivery?{delivery}:{}),
       customerId,
       productId: calculation.productId,
       quantity: input.quantity,
       productName: calculation.productName,
-      currency: calculation.currency,
+      currency,
       pricingType: calculation.pricingType,
       unitPrice: calculation.unitPrice,
-      totalPrice: calculation.totalPrice,
+      totalPrice,
       status: "active",
       expiresAt,
     };

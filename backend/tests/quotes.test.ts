@@ -185,6 +185,20 @@ test("creates a correct fixed quote with normalized currency", async () => {
   assert.equal(quote.totalPrice, 15_990);
 });
 
+test("physical quote uses configured tariff, rejects supplied fees and protects manual quotes",async()=>{
+  const {products,prices,service}=createService();
+  const product=products.add(businessA,{type:"product",deliveryConfig:{kind:"physical",methods:["shipping","pickup"],processing:"manual",instructions:"",pickupAddress:"Local 123",shipping:{mode:"fixed",fee:1000}}});
+  prices.add(businessA,product.id);
+  const base={productId:product.id,quantity:1,currency:"CLP"};
+  assert.equal((await service.create(businessA,{...base,delivery:{method:"shipping",address:"Calle de prueba 123"}})).totalPrice,16990);
+  assert.equal((await service.create(businessA,{...base,delivery:{method:"pickup"}})).totalPrice,15990);
+  await assert.rejects(()=>service.create(businessA,{...base,delivery:{method:"shipping",address:"Calle de prueba 123",fee:0} as never}),{code:"INVALID_QUOTE_ITEMS"});
+  product.deliveryConfig!.shipping={mode:"quote"};
+  await assert.rejects(()=>service.create(businessA,{...base,delivery:{method:"shipping",address:"Calle de prueba 123"}}),{code:"DELIVERY_REQUIRES_REVIEW"});
+  product.deliveryConfig!.shipping={mode:"fixed",fee:Number.MAX_SAFE_INTEGER};
+  await assert.rejects(()=>service.create(businessA,{...base,delivery:{method:"shipping",address:"Calle de prueba 123"}}),{code:"INVALID_QUOTE_TOTAL"});
+});
+
 test("creates a deterministic unit quote", async () => {
   const { products, prices, service } = createService();
   const product = products.add(businessA);
@@ -196,6 +210,20 @@ test("creates a deterministic unit quote", async () => {
   });
   assert.equal(quote.unitPrice, 3);
   assert.equal(quote.totalPrice, 15_000);
+});
+
+test("cart totals sum backend prices and charge a compatible delivery only once",async()=>{
+  const {products,prices,service}=createService();
+  const config={kind:"physical",methods:["shipping"],processing:"manual",instructions:"",shipping:{mode:"fixed",fee:1000}} as const;
+  const first=products.add(businessA,{type:"product",deliveryConfig:JSON.parse(JSON.stringify(config))});
+  const second=products.add(businessA,{type:"product",deliveryConfig:JSON.parse(JSON.stringify(config))});
+  prices.add(businessA,first.id,{pricingType:"unit",unitPrice:1000,fixedPrice:null});prices.add(businessA,second.id,{pricingType:"unit",unitPrice:500,fixedPrice:null});
+  const delivery={method:"shipping",address:"Calle de prueba 123"} as const;
+  const input={productId:first.id,quantity:2,currency:"CLP",delivery,additionalItems:[{productId:second.id,quantity:1,delivery}]};
+  const quote=await service.create(businessA,input);assert.equal(quote.totalPrice,3500);assert.equal(quote.items?.length,2);
+  second.deliveryConfig!.shipping={mode:"fixed",fee:1500};
+  await assert.rejects(()=>service.create(businessA,input),{code:"CART_DELIVERY_REQUIRES_REVIEW"});
+  await assert.rejects(()=>service.create(businessA,{...input,additionalItems:[{productId:first.id,quantity:1,delivery}]}),{code:"DUPLICATE_CART_PRODUCT"});
 });
 
 test("quote preserves the product name snapshot", async () => {

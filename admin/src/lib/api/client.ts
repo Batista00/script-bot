@@ -20,6 +20,7 @@ const safeCodeMessages: Record<string, string> = {
   PROVIDER_SERVICE_NOT_SUPPORTED: "Este servicio no admite envío automático. Impórtalo como inactivo hasta verificar su compatibilidad.",
   INVALID_REQUEST: "Hay campos inválidos o incompletos. Revisa los valores del formulario.",
   INVALID_CURRENCY: "La moneda debe tener un código válido de tres letras, por ejemplo CLP.",
+  INVALID_CATEGORY_PARENT: "Seleccione una categoría principal del mismo negocio. No se permiten ciclos ni más de dos niveles.",
   INVALID_MONEY_AMOUNT: "El precio retail debe ser un número entero mayor que cero.",
   INVALID_PRODUCT_QUANTITY: "Las cantidades del producto deben ser números enteros mayores que cero.",
   INVALID_PRODUCT_QUANTITY_RANGE: "La cantidad máxima debe ser igual o mayor que la cantidad mínima.",

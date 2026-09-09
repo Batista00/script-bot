@@ -33,12 +33,12 @@ export function typebotText(response){
 export function typebotMessages(response){
   return (response.messages??[]).filter(message=>message.type==="text")
     .flatMap(message=>typebotText({messages:[message]}).split(/\s*\|\|\|\s*/))
-    .map(text=>text.trim()).filter(Boolean).slice(0,3);
+    .map(text=>text.trim()).filter(Boolean);
 }
 
 export function encodeOutboxMessages(messages){
   const outboxPrefix="__BW_MESSAGES_V1__";
-  const safe=(Array.isArray(messages)?messages:[]).map(text=>String(text).trim()).filter(Boolean).slice(0,3);
+  const safe=(Array.isArray(messages)?messages:[]).map(text=>String(text).trim()).filter(Boolean);
   if(!safe.length)return "";
   return safe.length===1 ? safe[0] : outboxPrefix+JSON.stringify(safe);
 }
@@ -50,7 +50,7 @@ export function decodeOutboxMessages(value){
   try {
     const messages=JSON.parse(text.slice(outboxPrefix.length));
     if(!Array.isArray(messages))throw new Error("OUTBOX_MESSAGES_INVALID");
-    return messages.map(item=>String(item).trim()).filter(Boolean).slice(0,3);
+    return messages.map(item=>String(item).trim()).filter(Boolean);
   } catch {
     throw new Error("OUTBOX_MESSAGES_INVALID");
   }

@@ -11,6 +11,8 @@ import {
 } from "./quotes.types.js";
 
 interface QuoteRow extends QueryResultRow {
+  items: Quote["items"];
+  delivery: Quote["delivery"];
   id: string;
   business_id: string;
   customer_id: string | null;
@@ -27,7 +29,7 @@ interface QuoteRow extends QueryResultRow {
 }
 
 const quoteColumns = `id, business_id, customer_id, product_id, quantity, product_name,
-  currency, pricing_type, unit_price, total_price, status, expires_at, created_at`;
+  currency, pricing_type, unit_price, total_price, status, expires_at, created_at, delivery, items`;
 
 function toIsoString(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
@@ -49,6 +51,8 @@ function mapMoney(value: string | number): number {
 
 function mapQuote(row: QuoteRow): Quote {
   return {
+    ...(row.items?{items:row.items}:{}),
+    ...(row.delivery?{delivery:row.delivery}:{}),
     id: row.id,
     businessId: row.business_id,
     customerId: row.customer_id,
@@ -72,12 +76,12 @@ export class PostgresQuotesRepository implements QuotesRepository {
     const result = await this.db.query<QuoteRow>(
       `INSERT INTO quotes (
          business_id, customer_id, product_id, quantity, product_name, currency,
-         pricing_type, unit_price, total_price, status, expires_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         pricing_type, unit_price, total_price, status, expires_at, delivery, items
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13::jsonb)
        RETURNING ${quoteColumns}`,
       [businessId, input.customerId, input.productId, input.quantity, input.productName,
         input.currency, input.pricingType, input.unitPrice, input.totalPrice, input.status,
-        input.expiresAt],
+        input.expiresAt,input.delivery?JSON.stringify(input.delivery):null,input.items?JSON.stringify(input.items):null],
     );
     const row = result.rows[0];
     if (!row) throw new Error("PostgreSQL did not return the created quote");

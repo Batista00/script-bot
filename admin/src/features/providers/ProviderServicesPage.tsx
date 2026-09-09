@@ -12,6 +12,7 @@ import type {
   ImportProviderProductInput, ProductInputField, ProviderOrderField, ProviderService,
 } from "../../lib/api/types";
 import { useBusiness } from "../businesses/business-context";
+import { ProductDeliveryFields } from "../catalog/ProductDeliveryFields";
 
 function optionalString(data: FormData, name: string): string | null {
   const value = String(data.get(name) ?? "").trim();
@@ -109,13 +110,14 @@ export function providerImportPayload(
   data: FormData,
   requiredInputs?: ProductInputField[],
 ): ImportProviderProductInput {
+  const deliveryConfig = data.get("deliveryConfig") ? JSON.parse(String(data.get("deliveryConfig"))) as ImportProviderProductInput["deliveryConfig"] : undefined;
   return {
     providerServiceId,
     name: String(data.get("name") ?? "").trim(),
     description: optionalString(data, "description"),
     categoryId: optionalString(data, "categoryId"),
     sku: optionalString(data, "sku"),
-    type: String(data.get("type")) as ImportProviderProductInput["type"],
+    type: deliveryConfig ? deliveryConfig.kind==="service"?"service":"product" : String(data.get("type")) as ImportProviderProductInput["type"],
     minQuantity: optionalNumber(data, "minQuantity"),
     maxQuantity: optionalNumber(data, "maxQuantity"),
     currency: String(data.get("currency") ?? "").trim().toUpperCase(),
@@ -123,6 +125,7 @@ export function providerImportPayload(
     retailPrice: Number(data.get("retailPrice")),
     status: String(data.get("status")) as ImportProviderProductInput["status"],
     ...(requiredInputs === undefined ? {} : { requiredInputs }),
+    ...(deliveryConfig === undefined ? {} : {deliveryConfig}),
   };
 }
 
@@ -329,6 +332,7 @@ export function ProviderServicesPage() {
           <SelectField label="Estado inicial" name="status" defaultValue={selected.orderCapabilities.supported ? "active" : "inactive"} required>
             <option value="active" disabled={!selected.orderCapabilities.supported}>Activo</option><option value="inactive">Inactivo</option>
         </SelectField>
+        <ProductDeliveryFields />
         <h3>Datos que entregará el cliente</h3>
         {requiredInputs.length === 0 ? <div className="alert">Este tipo no tiene campos comerciales verificados.</div>
           : requiredInputs.map((input, index) => <div className="filter-bar" key={input.key}>

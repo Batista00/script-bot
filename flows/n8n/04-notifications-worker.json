@@ -192,7 +192,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "function decodeOutboxMessages(value){\n  const outboxPrefix=\"__BW_MESSAGES_V1__\";\n  const text=String(value??\"\");\n  if(!text.startsWith(outboxPrefix))return text.trim() ? [text.trim()] : [];\n  try {\n    const messages=JSON.parse(text.slice(outboxPrefix.length));\n    if(!Array.isArray(messages))throw new Error(\"OUTBOX_MESSAGES_INVALID\");\n    return messages.map(item=>String(item).trim()).filter(Boolean).slice(0,3);\n  } catch {\n    throw new Error(\"OUTBOX_MESSAGES_INVALID\");\n  }\n}\nconst notification=$json;\nconst messages=decodeOutboxMessages(notification.payload?.text);\nif(!messages.length)throw new Error('WHATSAPP_EMPTY_MESSAGE');\nreturn messages.map((text,index)=>({json:{...notification,whatsappText:text,whatsappDelay:600+index*150}}));"
+        "jsCode": "function decodeOutboxMessages(value){\n  const outboxPrefix=\"__BW_MESSAGES_V1__\";\n  const text=String(value??\"\");\n  if(!text.startsWith(outboxPrefix))return text.trim() ? [text.trim()] : [];\n  try {\n    const messages=JSON.parse(text.slice(outboxPrefix.length));\n    if(!Array.isArray(messages))throw new Error(\"OUTBOX_MESSAGES_INVALID\");\n    return messages.map(item=>String(item).trim()).filter(Boolean);\n  } catch {\n    throw new Error(\"OUTBOX_MESSAGES_INVALID\");\n  }\n}\nconst notification=$json;\nconst messages=decodeOutboxMessages(notification.payload?.text);\nif(!messages.length)throw new Error('WHATSAPP_EMPTY_MESSAGE');\nreturn [{json:{...notification,whatsappText:messages.join('\\n\\n'),whatsappDelay:600}}];"
       }
     },
     {
@@ -301,7 +301,35 @@
         "operation": "sendMessage",
         "chatId": "={{ $json.payload.chatId }}",
         "text": "={{ $json.telegramText }}",
-        "replyMarkup": "none",
+        "replyMarkup": "={{ $json.payload.replyMarkup ? 'inlineKeyboard' : 'none' }}",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "✅ APROBAR PAGO",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.payload.replyMarkup.inline_keyboard.flat().find(button=>button.callback_data.startsWith('approve:')).callback_data }}"
+                    }
+                  },
+                  {
+                    "text": "❌ RECHAZAR PAGO",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.payload.replyMarkup.inline_keyboard.flat().find(button=>button.callback_data.startsWith('reject:')).callback_data }}"
+                    }
+                  },
+                  {
+                    "text": "❓ PEDIR INFORMACIÓN",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.payload.replyMarkup.inline_keyboard.flat().find(button=>button.callback_data.startsWith('info:')).callback_data }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
         "additionalFields": {
           "parse_mode": "HTML",
           "appendAttribution": false,
@@ -330,7 +358,34 @@
         "binaryData": true,
         "binaryPropertyName": "data",
         "replyMarkup": "inlineKeyboard",
-        "inlineKeyboard": "={{ {rows:$json.payload.replyMarkup.inline_keyboard.map(row=>({row:{buttons:row.map(button=>({text:button.text==='Verificar y aprobar'?'✅ APROBAR PAGO':button.text==='Rechazar comprobante'?'❌ RECHAZAR PAGO':'👁 VER INFORMACIÓN',additionalFields:{callback_data:button.callback_data}}))}}))} }}",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "✅ APROBAR PAGO",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.payload.replyMarkup.inline_keyboard.flat().find(button=>button.callback_data.startsWith('approve:')).callback_data }}"
+                    }
+                  },
+                  {
+                    "text": "❌ RECHAZAR PAGO",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.payload.replyMarkup.inline_keyboard.flat().find(button=>button.callback_data.startsWith('reject:')).callback_data }}"
+                    }
+                  },
+                  {
+                    "text": "❓ PEDIR INFORMACIÓN",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.payload.replyMarkup.inline_keyboard.flat().find(button=>button.callback_data.startsWith('info:')).callback_data }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
         "additionalFields": {
           "caption": "={{ $json.telegramText.slice(0,1000) }}",
           "parse_mode": "HTML",
@@ -344,12 +399,25 @@
       }
     },
     {
+      "id": "verify-telegram-controls",
+      "name": "Verify Telegram controls",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3600,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const sent=$json.result??$json;\nif(!sent.message_id)throw new Error('TELEGRAM_SEND_UNCONFIRMED');\nconst expected=$('Prepare Telegram').item.json.payload.replyMarkup?.inline_keyboard?.flat()??[];\nconst actual=sent.reply_markup?.inline_keyboard?.flat()??[];\nif(expected.some(button=>!actual.some(received=>received.callback_data===button.callback_data)))throw new Error('TELEGRAM_REVIEW_BUTTONS_MISSING');\nreturn [{json:{ok:true,messageId:sent.message_id,buttons:actual.length}}];"
+      }
+    },
+    {
       "id": "acknowledge-delivered",
       "name": "Acknowledge delivered",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3600,
+        3840,
         0
       ],
       "parameters": {
@@ -539,7 +607,7 @@
       "main": [
         [
           {
-            "node": "Acknowledge delivered",
+            "node": "Verify Telegram controls",
             "type": "main",
             "index": 0
           }
@@ -547,6 +615,17 @@
       ]
     },
     "Send Telegram evidence": {
+      "main": [
+        [
+          {
+            "node": "Verify Telegram controls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Telegram controls": {
       "main": [
         [
           {

@@ -8,13 +8,15 @@
 - PaymentReviews: guarda imagen y lectura opcional cifradas, hash de evidencia, revisión, actor y referencia. Un comprobante nunca es una confirmación bancaria.
 - Automation: obtiene trabajo desde filas persistidas, reconcilia estado pagado sin modificar el contrato de webhooks financieros y utiliza notificaciones con clave de evento única.
 - AiOrchestrator: interpreta intención, plataforma, servicio, cantidad y términos de búsqueda mediante salida estructurada. No recibe herramientas de pago o fulfillment; si OpenAI no está disponible, los comandos determinísticos siguen operativos.
-- n8n: transporte, coordinación Typebot, asesoría OpenAI y avisos. No calcula importes ni cambia directamente PostgreSQL.
+- n8n: transporte, coordinación Typebot y avisos. No calcula importes ni cambia directamente PostgreSQL. Typebot posee el único OpenAI conversacional; `presentation: typebot` evita una segunda llamada al intérprete del backend. El contexto público por negocio conserva selección, requisitos y políticas sin credenciales ni costes del proveedor.
 
 ## Autenticación
 
 El token machine pertenece a un negocio y sólo abre sesiones/importa mensajes. Cada sesión recibe token aleatorio `cs_…`, almacenado como SHA-256 y válido 24 horas; sólo opera sobre ese cliente. Las rutas de conversación no aceptan business/customer/payment ni estado approved como autoridad proporcionada por el caller.
 
 El worker emplea una credencial **diferente**, cifrada en integración `automation_runner`. Puede reclamar trabajos y obtener comprobantes privados; no se entrega a Typebot ni a OpenAI. El cliente HTTP no elige el negocio: se deriva de la integración activa y su secreto.
+
+El puente Typebot presenta `inboxId` y `lease` al abrir la sesión. El repository verifica que el mensaje esté pendiente y reclamado por ese negocio con lease vigente; el backend devuelve su contenido canónico. BW 02 usa ese contenido y el token recién obtenido, nunca un contacto o texto elegido por el visitante. La prueba no autoriza pagos y deja de funcionar tras ACK o vencimiento. El token `cs_` no se devuelve a Typebot.
 
 Telegram exige integración exacta, header secreto comparado en tiempo constante, chat configurado y usuario Telegram vinculado a cuenta owner/admin activa. El callback es aleatorio, acotado al pago y expira en 48 horas. La referencia de abono y el actor se persisten antes de confirmar el pago; una repetición completa una aprobación ya comprometida sin duplicarla.
 

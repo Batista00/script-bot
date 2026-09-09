@@ -42,6 +42,7 @@ function containsTerm(text: string, term: string): boolean {
 
 export function catalogTermGroupsFromText(text: string): string[][] {
   const normalized = normalizeText(text)
+    .replace(/\bde(instagram|facebook|tiktok|youtube)\b/g,"de $1")
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -54,7 +55,9 @@ export function catalogTermGroupsFromText(text: string): string[][] {
     terms.some((term) => containsTerm(normalized, term)));
   if (platform) groups.push(platform);
   if (service) groups.push(service);
-  return groups;
+  if (groups.length) return groups;
+  const stop=new Set("hola necesito ayuda quiero busco comprar tienes tienen de del el la los las un una para por favor me puedes precio precios cuanto cuesta cotizar servicio servicios producto productos esta estan bien perfecto dale ese esa gracias".split(" "));
+  return normalized.split(" ").filter(term=>term.length>2 && !stop.has(term) && !/^\d+$/.test(term)).slice(0,5).map(term=>[term]);
 }
 
 export function formatMoney(amount: number, currency: string): string {
@@ -72,7 +75,7 @@ function range(price: BotPriceDto): string {
 }
 
 export function priceSummary(prices: BotPriceDto[]): string {
-  return prices.slice(0, 3).map((price) => {
+  return prices.map((price) => {
     if (price.pricingType === "fixed" && price.fixedPrice !== null) {
       return `${formatMoney(price.fixedPrice, price.currency)} (${range(price)})`;
     }
@@ -81,6 +84,21 @@ export function priceSummary(prices: BotPriceDto[]): string {
     }
     return "precio al cotizar";
   }).join("; ");
+}
+
+export function mergeCatalogTermGroups(previous:string[][],next:string[][]):string[][] {
+  const family=(group:string[])=>Object.values(platformTerms).some(terms=>group.some(t=>terms.includes(t)))?"platform":
+    Object.values(serviceTerms).some(terms=>group.some(t=>terms.includes(t)))?"service":null;
+  if(!next.length)return previous;
+  if(next.some(g=>!family(g)))return next;
+  return [...previous.filter(g=>family(g)&&!next.some(n=>family(n)===family(g))),...next];
+}
+
+export function changesCatalogPlatform(previous:string[][],next:string[][]):boolean {
+  const platforms=Object.values(platformTerms);
+  const platform=(groups:string[][])=>platforms.findIndex(terms=>groups.some(g=>g.some(t=>terms.includes(t))));
+  const before=platform(previous),after=platform(next);
+  return before>=0 && after>=0 && before!==after;
 }
 
 export function exactFixedPrices(prices: BotPriceDto[]): BotPriceDto[] {
@@ -110,6 +128,9 @@ export function offeredQuantityIndex(
 ): number {
   const exact = quantities.map((value, index) => value === quantity ? index : -1).filter((index) => index >= 0);
   if (exact.length === 1) return exact[0]!;
+  const ranged=choices.map((product,index)=>quantity>=(product.minQuantity??1) &&
+    quantity<=(product.maxQuantity??Number.MAX_SAFE_INTEGER) ? index:-1).filter(index=>index>=0);
+  if(ranged.length===1)return ranged[0]!;
   if (choices.length === 1 && quantity >= (choices[0]!.minQuantity ?? 1) &&
       quantity <= (choices[0]!.maxQuantity ?? Number.MAX_SAFE_INTEGER)) return 0;
   return -1;
@@ -118,5 +139,5 @@ export function offeredQuantityIndex(
 export function isConfirmation(text: string): boolean {
   const normalized = normalizeText(text).replace(/[^\p{L}\p{N}]+/gu, " ").trim().replace(/\s+/g, " ");
   return normalized === "si" || normalized.startsWith("si ") ||
-    ["confirmo", "confirmar", "correcto", "esta bien", "todo bien", "de acuerdo"].includes(normalized);
+    ["confirmo", "confirmar", "correcto", "esta bien", "todo bien", "de acuerdo", "dale"].includes(normalized);
 }
