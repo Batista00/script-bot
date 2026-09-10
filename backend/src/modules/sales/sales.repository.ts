@@ -1,7 +1,7 @@
 import type { Pool,PoolClient } from "pg";
 import { withTransaction } from "../../core/database/database.js";
 import { AppError } from "../../core/errors/app-error.js";
-import type { SalesCheckout, SalesReply, SalesSession, SalesSettings, SalesState, DeliverySnapshot } from "./sales.types.js";
+import type { SalesCheckout, SalesReply, SalesSession, SalesSettings, DeliverySnapshot } from "./sales.types.js";
 import { defaultSalesSettings } from "./sales.types.js";
 
 const sessionColumns = `id, business_id AS "businessId", customer_id AS "customerId", contact, state, paused,

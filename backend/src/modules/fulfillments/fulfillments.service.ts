@@ -9,7 +9,6 @@ import {
   ProviderFulfillmentTemporarilyUnavailableError,
   ProviderFulfillmentUnavailableError,
   ProviderOrderRejectedError,
-  ProviderSubmissionUnknownError,
   type ProviderOrderStatusResult,
 } from "./fulfillments.adapter.js";
 import { validateFulfillmentInput } from "./fulfillments.input.js";

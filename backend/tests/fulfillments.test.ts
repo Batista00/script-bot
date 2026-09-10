@@ -195,7 +195,7 @@ test("concurrent dispatch and later redispatch never create a second provider or
     orderItemId: itemA, input: { link: "https://instagram.com/example" },
   }), "FULFILLMENT_ALREADY_EXISTS");
   release();
-  const submitted = await first;
+  await first;
   assert.equal(adapter.createInputs.length, 1);
   await rejectsCode(service.dispatch(businessA, orderA, {
     orderItemId: itemA, input: { link: "https://instagram.com/example" },

@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 
 import type { Pool } from "pg";
 
-import type { DatabaseExecutor } from "../../src/core/database/database.js";
 import type { JsonObject } from "../../src/modules/integrations/integrations.types.js";
 import type { OrderStatus } from "../../src/modules/orders/orders.types.js";
 import {

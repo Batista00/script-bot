@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import Fastify, { type FastifyRequest, type preHandlerHookHandler } from "fastify";
+import Fastify, { type FastifyRequest } from "fastify";
 
 import { buildApp } from "../src/app.js";
 import type { Env } from "../src/config/env.js";

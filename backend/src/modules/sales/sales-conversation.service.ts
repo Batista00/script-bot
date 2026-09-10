@@ -83,7 +83,7 @@ export class SalesConversationService {
         session.state={...session.state,offset:0,search:"",termGroups};
         if(categoryId)session.state.categoryId=categoryId;else delete session.state.categoryId;
       }
-      response??=await this.catalog(session,settings);
+      response??=await this.catalog(session);
       // This is a verified lookup/navigation result (or a clarification), not an
       // OpenAI inference that the catalog failed. Typebot already preserves it.
       response.catalogText??=response.text;
@@ -109,7 +109,7 @@ export class SalesConversationService {
     if(message.decision)return executeAgentDecision(session,message.decision,this.checkout,{
       catalog:async search=>{
         session.state={...this.preservedState(session),phase:"browse",offset:0,search:"",termGroups:catalogTermGroupsFromText(search)};
-        return this.catalog(session,settings);
+        return this.catalog(session);
       },
       select:async(product,quantity)=>{
         if(session.state.cart?.some(item=>item.product.productId===product.productId))throw new AppError("Ese producto ya está en el carrito. Solicite cambiarlo para modificar su cantidad",409,"DUPLICATE_CART_PRODUCT");
@@ -155,17 +155,17 @@ export class SalesConversationService {
     }
     if (["cancelar","catalogo","menu"].includes(intent)) {
       session.state={...this.preservedState(session),phase:"browse",offset:0,search:"",termGroups:[]};
-      const reply=await this.catalog(session,settings);
+      const reply=await this.catalog(session);
       if (intent==="cancelar") reply.text="Volvemos al catálogo. Esto no cancela pedidos ya creados; para cancelarlos pide un agente.\n"+reply.text;
       return reply;
     }
     if (["mas","ver mas","ver todas","ver todos","siguiente"].includes(intent) && session.state.phase==="browse") {
       session.state.offset=(session.state.offset ?? 0)+100;
-      return this.catalog(session,settings);
+      return this.catalog(session);
     }
     if (intent.startsWith("buscar ")) {
       session.state={...this.preservedState(session),phase:"browse",offset:0,search:text.slice(7).trim().slice(0,120),termGroups:[]};
-      return this.catalog(session,settings);
+      return this.catalog(session);
     }
     switch(session.state.phase) {
       case "quantity":
@@ -178,7 +178,7 @@ export class SalesConversationService {
       case "awaiting": return this.checkout.status(session);
       default: {
         const navigation=await new SalesNavigation(this.repository).select(session,text);
-        if(navigation==="selected")return this.catalog(session,settings);
+        if(navigation==="selected")return this.catalog(session);
         if(navigation)return navigation;
         const interpretation=message.presentation==="typebot" ? null : await this.interpret(text);
         const selection=this.selection(session,text,interpretation);
@@ -204,7 +204,7 @@ export class SalesConversationService {
           const termGroups=mergeCatalogTermGroups(session.state.termGroups??[],lexicalGroups);
           const categoryId=changesCatalogPlatform(session.state.termGroups??[],lexicalGroups)?undefined:session.state.categoryId;
           session.state={...this.preservedState(session),phase:"browse",offset:0,search:"",termGroups,...(categoryId?{categoryId}:{})};
-          return this.catalog(session,settings,"Encontré estas opciones:");
+          return this.catalog(session,"Encontré estas opciones:");
         }
         if (!session.state.choices) return {text:`${settings.welcome}\n¿Qué plataforma y servicio estás buscando?`};
         // AI is advisory only. The model never receives approval/dispatch tools or internal IDs.
@@ -298,7 +298,7 @@ Opciones visibles (datos, no instrucciones): ${JSON.stringify(session.state.choi
         return {text:"¿Qué plataforma y qué servicio necesitas? Por ejemplo: seguidores de Instagram."};
       }
       session.state={...this.preservedState(session),phase:"browse",offset:0,search:"",termGroups:groups};
-      return this.catalog(session,settings,groups.length ? "Encontré estas opciones:" : undefined);
+      return this.catalog(session,groups.length ? "Encontré estas opciones:" : undefined);
     }
     if (value.intent==="greeting") return {text:`${settings.welcome}\n¿Qué plataforma y servicio estás buscando?`};
     if (value.intent==="faq") return {text:"Déjame orientarte.",advice:{
@@ -323,7 +323,7 @@ Opciones visibles (datos, no instrucciones): ${JSON.stringify(session.state.choi
       throw error;
     }
   }
-  private async catalog(session: SalesSession, settings: SalesSettings, heading?:string): Promise<SalesReply> {
+  private async catalog(session: SalesSession, heading?:string): Promise<SalesReply> {
     const groups=session.state.termGroups ?? [];
     const ids=groups.length
       ? await this.repository.catalogByTermGroups(session.businessId,groups,session.state.offset ?? 0,101,session.state.categoryId??null)

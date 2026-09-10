@@ -12,12 +12,6 @@ export type BotCreateQuoteInput = Omit<CreateQuoteInput, "currency"> & { currenc
 export type BotCreateOrderInput = CreateOrderInput;
 export type BotDispatchFulfillmentInput = DispatchFulfillmentInput;
 export interface BotCreatePaymentInput { providerKey?: string; paymentMethodId?: string }
-export interface BotPaymentMethodDto {
-  paymentMethodId: string;
-  type: "mercado_pago" | "bank_transfer";
-  name: string;
-  config: Record<string, unknown>;
-}
 
 export interface BotListQuery { limit?: string; offset?: string }
 export interface BotProductListQuery extends BotListQuery {

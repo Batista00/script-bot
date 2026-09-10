@@ -3,7 +3,6 @@ import { test } from "node:test";
 
 import { AppError } from "../src/core/errors/app-error.js";
 import { PaymentProviderRegistry } from "../src/modules/payments/payments.registry.js";
-import { PaymentsService } from "../src/modules/payments/payments.service.js";
 import {
   createPaymentsService,
   FakePaymentProvider,
