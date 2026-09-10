@@ -16,6 +16,9 @@ test("catalog presentation cannot be shortened by model output and transport pre
   const present=new Function("contextInput","answer",expression.includes("return ")?expression:"return "+expression);
   const listing=Array.from({length:12},(_,i)=>`Paquete ${i+1} — 4990 CLP`).join("\n");
   assert.equal(present(JSON.stringify({catalogListing:listing}),"Sólo tres opciones"),listing);
+  assert.equal(present(JSON.stringify({catalogListing:listing}),"No pude consultar el catálogo en este momento"),listing);
+  const clarification="¿De qué plataforma, categoría o servicio desea ver los precios y opciones?";
+  assert.equal(present(JSON.stringify({catalogListing:clarification}),"No pude consultar el catálogo en este momento"),clarification);
   assert.equal(present("{}", "Respuesta cordial"),"Respuesta cordial");
   assert.equal(present(JSON.stringify({purchaseSummary:"Resumen completo",catalogListing:listing}),"Otro texto"),"Resumen completo");
   assert.equal(present(JSON.stringify({catalogListing:null,purchaseSummary:null}),"Hola, bienvenido"),"Hola, bienvenido");

@@ -43,6 +43,48 @@ test("Scoped conversational actions and physical checkout",{skip:testDatabaseUrl
     let sequence=0;
     return (decision:AgentDecision,text="Mensaje del cliente")=>services.conversation.receive(businessId,sessionId,{messageId:`agent-${++sequence}`,text,presentation:"typebot",decision});
   }
+  await t.test("Instagram → Seguidores → Precios uses persisted category and current retail prices without a model tool",async()=>{
+    const businessId=await business();
+    const root=(await db.query<{id:string}>("INSERT INTO categories(business_id,name) VALUES($1,'Instagram') RETURNING id",[businessId])).rows[0]!.id;
+    const followers=(await db.query<{id:string}>("INSERT INTO categories(business_id,name,parent_id) VALUES($1,'Instagram Seguidores',$2) RETURNING id",[businessId,root])).rows[0]!.id;
+    const likes=(await db.query<{id:string}>("INSERT INTO categories(business_id,name,parent_id) VALUES($1,'Instagram Likes',$2) RETURNING id",[businessId,root])).rows[0]!.id;
+    const packages=[];
+    for(const [category,name,quantity,amount] of [[followers,"500 SEGUIDORES",500,2990],[followers,"1000 SEGUIDORES",1000,4990],[likes,"1000 LIKES",1000,5990]] as const){
+      const id=await product(businessId,false,name);packages.push(id);
+      await db.query("UPDATE products SET category_id=$3,min_quantity=$4,max_quantity=$4 WHERE business_id=$1 AND id=$2",[businessId,id,category,quantity]);
+      await db.query("UPDATE product_prices SET pricing_type='fixed',unit_price=NULL,fixed_price=$3,min_quantity=$4,max_quantity=$4 WHERE business_id=$1 AND product_id=$2",[businessId,id,amount,quantity]);
+    }
+    const {sessionId}=await services.access.open(businessId,"56910000223");
+    let n=0;const say=(text:string)=>services.conversation.prepare(businessId,sessionId,{messageId:`follow-${++n}:agent:0`,text,presentation:"typebot"});
+    const platform=await say("Instagram");assert.match(platform.context!.catalogListing!,/Instagram Seguidores/);
+    assert.equal((await services.sales.session(businessId,sessionId)).state.categoryId,root);
+    await say("Seguidores");
+    const state=(await services.sales.session(businessId,sessionId)).state;
+    assert.equal(state.categoryId,followers);assert.ok(state.termGroups?.some(g=>g.includes("instagram")));
+    const prices=await say("Precios");
+    assert.match(prices.context!.catalogListing!,/2.990 CLP/);assert.match(prices.context!.catalogListing!,/4.990 CLP/);
+    assert.doesNotMatch(prices.context!.catalogListing!,/LIKES|No pude consultar/i);assert.equal(prices.context!.products.length,2);
+    assert.equal(prices.context!.phase,"browse");assert.equal(prices.context!.selectedProduct,null);
+    await db.query("UPDATE product_prices SET fixed_price=4991 WHERE business_id=$1 AND product_id=$2",[businessId,packages[1]]);
+    for(const text of ["opciones","cuánto sale","seguidores de instagram porfavor"]){
+      assert.match((await say(text)).context!.catalogListing!,/4.991 CLP/);
+    }
+    for(const text of ["¿cómo funciona?","hola"]){
+      const before=(await services.sales.session(businessId,sessionId)).state;
+      assert.equal((await say(text)).context!.catalogListing,null);
+      assert.deepEqual((await services.sales.session(businessId,sessionId)).state,before);
+    }
+    const before=(await services.sales.session(businessId,sessionId)).state;
+    assert.deepEqual(await services.conversation.prepare(businessId,sessionId,{messageId:"follow-1:agent:0",text:"Instagram",presentation:"typebot"}),platform);
+    assert.deepEqual((await services.sales.session(businessId,sessionId)).state,before);
+    const fresh=await services.access.open(businessId,"56910000224");
+    const ambiguous=await services.conversation.prepare(businessId,fresh.sessionId,{messageId:"prices-only",text:"precios",presentation:"typebot"});
+    assert.match(ambiguous.context!.catalogListing!,/De qué plataforma/);assert.equal(ambiguous.context!.products.length,0);
+    for(const table of ["quotes","sales_checkouts","orders","payments","fulfillments"]){
+      assert.equal((await db.query(`SELECT 1 FROM ${table} WHERE business_id=$1`,[businessId])).rowCount,0,table);
+    }
+    assert.equal(externalOrders,0);
+  });
   await t.test("prepare supplies real catalog prices without tools, remains query-only and preserves action replay",async()=>{
     const businessId=await business();
     const instagram=await product(businessId,false,"1000 seguidores Instagram");

@@ -1,4 +1,4 @@
-import type { SalesSession, SalesSettings } from "./sales.types.js";
+import type { SalesSession, SalesSettings, SalesState } from "./sales.types.js";
 import { catalogTermGroupsFromText, directCatalogTermGroupsFromText, normalizeText } from "./sales-catalog.js";
 
 /** Public business data only. Never include provider costs, credentials or customer IDs. */
@@ -41,7 +41,13 @@ export function conversationalIntent(text: string): "support" | "special" | "faq
 }
 
 /** Only explicit catalog enquiries; the existing parser still resolves product terms. */
-export function catalogInquiryTermGroups(text:string):string[][]|null {
+export function isCatalogFollowUp(text:string):boolean {
+  const words=normalizeText(text).replace(/[^\p{L}\p{N}]+/gu," ").trim().replace(/\s+/g," ");
+  return /^(?:precios?|opciones|cuanto (?:sale|salen|cuesta|cuestan|vale|valen))(?: por ?favor)?$/.test(words);
+}
+
+export function catalogInquiryTermGroups(text:string,state?:SalesState):string[][]|null {
+  if(isCatalogFollowUp(text))return state?.termGroups?.length?state.termGroups:null;
   if(conversationalIntent(text)!==null)return null;
   const words=normalizeText(text).replace(/[^\p{L}\p{N}]+/gu," ").trim().replace(/\s+/g," ");
   const request=words.match(/^(?:hola |por favor )?(?:cuanto (?:salen|sale|cuestan|cuesta|valen|vale)|precios?|quiero comprar|(?:que |cuales )?opciones|muestrame|mostrarme)\b\s*(.*)$/);

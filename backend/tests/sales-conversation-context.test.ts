@@ -5,14 +5,14 @@ import {salesContext,conversationalIntent} from "../src/modules/sales/sales-cont
 import {SalesInboxService} from "../src/modules/sales/sales-inbox.service.js";
 import {defaultSalesSettings,type SalesSession} from "../src/modules/sales/sales.types.js";
 
-function fixture(){
+function fixture(categories:Array<{id:string;name:string;parentId:string|null}>=[]){
   const session:SalesSession={id:"s",businessId:"a",customerId:"c",contact:"56912345678",paused:false,typebotSessionId:null,state:{phase:"inputs",greeted:true}};
   const settings={...defaultSalesSettings,enabled:true,displayName:"Negocio A",policies:"Garantía sólo según descripción del producto.",telegramChatId:"123"};
   const events:unknown[]=[];
   const saved=new Map<string,{requestHash:string;response:unknown}>();
   const searches:string[][][]=[];
   const products=Array.from({length:12},(_,i)=>({productId:`p${i}`,categoryId:"instagram",name:`Paquete ${(i+1)*500}`,description:null,minQuantity:(i+1)*500,maxQuantity:(i+1)*500,requiredInputs:[]}));
-  const repo={commercialCategories:async()=>[],catalogByTermGroups:async(b:string,groups:string[][],_offset:number,limit:number)=>{assert.equal(b,"a");assert.equal(limit,101);searches.push(groups);return products.map(p=>p.productId);},
+  const repo={commercialCategories:async()=>categories,catalogByTermGroups:async(b:string,groups:string[][],_offset:number,limit:number)=>{assert.equal(b,"a");assert.equal(limit,101);searches.push(groups);return products.map(p=>p.productId);},
     catalog:async()=>products.map(p=>p.productId),exclusive:async(_id:string,fn:()=>Promise<unknown>)=>fn(),session:async(b:string)=>{assert.equal(b,"a");return session;},
     settings:async()=>settings,message:async(_s:unknown,id:string)=>saved.get(id),
     beginMessage:async(_s:unknown,id:string,requestHash:string)=>{saved.set(id,{requestHash,response:null});},
@@ -28,6 +28,56 @@ function fixture(){
     {isConfigured:()=>true,interpret:async()=>{aiCalls++;throw new Error("No second model call");}});
   return {session,settings,service,events,saved,searches,statusCalls:()=>statusCalls,aiCalls:()=>aiCalls};
 }
+
+const navigationCategories=[{id:"ig",name:"Instagram",parentId:null},
+  {id:"instagram",name:"Instagram Seguidores",parentId:"ig"},{id:"likes",name:"Instagram Likes",parentId:"ig"}];
+
+test("prepare persists Instagram → Seguidores → Precios with optional conversational turns",async()=>{
+  for(const intermediate of [[],["Sí"],["¿cómo funciona?","hola"]]){
+    const f=fixture(navigationCategories);f.session.state={phase:"browse"};
+    let n=0;const send=(text:string)=>f.service.prepare("a","s",{messageId:`nav-${++n}:agent:0`,text,presentation:"typebot"});
+    const platform=await send("Instagram");
+    assert.match(platform.context!.catalogListing!,/Instagram Seguidores/);assert.equal(f.session.state.categoryId,"ig");
+    for(const text of intermediate){const before=structuredClone(f.session.state);await send(text);assert.deepEqual(f.session.state,before);}
+    await send("Seguidores");assert.equal(f.session.state.categoryId,"instagram");
+    assert.ok(f.session.state.termGroups?.some(g=>g.includes("seguidores")));
+    for(const text of ["Precios","opciones","cuánto sale"]){
+      const reply=await send(text);assert.match(reply.context!.catalogListing!,/4.990 CLP/);
+      assert.equal(reply.context!.products.length,12);assert.equal(f.session.state.categoryId,"instagram");
+      assert.equal(f.session.state.product,undefined);assert.equal(f.session.state.checkoutId,undefined);
+      assert.equal(f.session.state.phase,"browse");
+    }
+    const before=structuredClone(f.session.state);
+    assert.deepEqual(await f.service.prepare("a","s",{messageId:"nav-1:agent:0",text:"Instagram",presentation:"typebot"}),platform);
+    assert.deepEqual(f.session.state,before);assert.equal(f.events.length,0);
+  }
+});
+
+test("price follow-ups clarify absent or ambiguous context without choosing products",async()=>{
+  for(const text of ["precios","opciones","cuánto sale"]){
+    const f=fixture(navigationCategories);f.session.state={phase:"browse"};
+    const reply=await f.service.prepare("a","s",{messageId:"missing",text,presentation:"typebot"});
+    assert.match(reply.context!.catalogListing!,/De qué plataforma/);assert.equal(reply.context!.products.length,0);
+    assert.equal(f.searches.length,0);assert.equal(f.session.state.categoryId,undefined);
+    const selected=await f.service.prepare("a","s",{messageId:"known",text:"seguidores de instagram porfavor",presentation:"typebot"});
+    assert.match(selected.context!.catalogListing!,/4.990 CLP/);
+    delete f.session.state.termGroups;delete f.session.state.categoryId;
+    f.session.state.choices![0]!.categoryId="likes";
+    const ambiguous=await f.service.prepare("a","s",{messageId:"ambiguous",text,presentation:"typebot"});
+    assert.match(ambiguous.context!.catalogListing!,/De qué plataforma/);assert.equal(f.searches.length,1);
+    assert.equal(f.session.state.product,undefined);
+  }
+});
+
+test("price follow-ups can reuse a scoped category or unambiguous choices without termGroups",async()=>{
+  const f=fixture(navigationCategories);f.session.state={phase:"browse",categoryId:"instagram"};
+  const category=await f.service.prepare("a","s",{messageId:"category",text:"precios",presentation:"typebot"});
+  assert.match(category.context!.catalogListing!,/4.990 CLP/);
+  delete f.session.state.categoryId;delete f.session.state.termGroups;
+  const choices=await f.service.prepare("a","s",{messageId:"choices",text:"opciones",presentation:"typebot"});
+  assert.match(choices.context!.catalogListing!,/4.990 CLP/);assert.equal(f.session.state.categoryId,"instagram");
+  assert.equal(f.searches.length,2);assert.equal(f.session.state.product,undefined);
+});
 
 test("prepare returns real catalog prices without an OpenAI tool call or product selection",async()=>{
   for(const text of ["¿Cuánto salen 1000 seguidores de Instagram?","precio de 1000 seguidores instagram",
@@ -59,9 +109,11 @@ test("prepare leaves FAQs, greetings, ambiguous text and handoff intents to the 
 
 test("prepare never changes active purchase phases, required inputs, pause or opt-out",async()=>{
   for(const phase of ["quantity","inputs","delivery","confirm","payment","awaiting"] as const){
-    const f=fixture();f.session.state.phase=phase;const before=structuredClone(f.session.state);
-    await f.service.prepare("a","s",{messageId:"price",text:"precio de seguidores instagram",presentation:"typebot"});
-    assert.deepEqual(f.session.state,before);assert.equal(f.searches.length,0);
+    for(const text of ["precio de seguidores instagram","Instagram","Seguidores","Precios"]){
+      const f=fixture(navigationCategories);f.session.state.phase=phase;const before=structuredClone(f.session.state);
+      await f.service.prepare("a","s",{messageId:"price",text,presentation:"typebot"});
+      assert.deepEqual(f.session.state,before);assert.equal(f.searches.length,0);
+    }
   }
   for(const paused of [true,false]){
     const f=fixture();f.session.state={phase:"browse",optedOut:!paused};f.session.paused=paused;

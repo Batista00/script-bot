@@ -11,7 +11,7 @@ import {
 } from "./sales-catalog.js";
 import { secretHash } from "./sales-access.service.js";
 import type { SalesMessage, SalesReply, SalesSession, SalesSettings } from "./sales.types.js";
-import { catalogInquiryTermGroups, conversationalIntent, salesContext } from "./sales-context.js";
+import { catalogInquiryTermGroups, conversationalIntent, isCatalogFollowUp, salesContext } from "./sales-context.js";
 import { SalesNavigation } from "./sales-navigation.js";
 import { mergeCatalogTermGroups,changesCatalogPlatform } from "./sales-catalog.js";
 import { executeAgentDecision } from "./sales-agent-actions.js";
@@ -56,17 +56,37 @@ export class SalesConversationService {
       const hash=secretHash(message.text),old=await this.repository.message(session,message.messageId);
       if(old && old.requestHash!==hash)throw new AppError("Mensaje duplicado con otro contenido",409,"SALES_MESSAGE_CONFLICT");
       if(old?.response)return old.response;
-      const groups=catalogInquiryTermGroups(message.text);
-      if(!groups || (session.state.phase??"browse")!=="browse")return prepared;
+      if((session.state.phase??"browse")!=="browse")return prepared;
+      const groups=catalogInquiryTermGroups(message.text,session.state),followUp=isCatalogFollowUp(message.text);
+      let response:SalesReply|null=null;
+      if(!groups && !followUp){
+        if(conversationalIntent(message.text)!==null || /^\d+$/.test(message.text.trim()))return prepared;
+        const navigation=await new SalesNavigation(this.repository).select(session,message.text);
+        if(!navigation)return prepared;
+        if(navigation!=="selected")response=navigation;
+      }
+      if(followUp && !groups){
+        const ids=new Set(session.state.categoryId?[session.state.categoryId]:(session.state.choices??[]).map(p=>p.categoryId));
+        const category=ids.size===1?(await this.repository.commercialCategories(businessId)).find(c=>ids.has(c.id)):undefined;
+        if(category){
+          session.state.categoryId=category.id;session.state.termGroups=catalogTermGroupsFromText(category.name);
+          session.state.offset=0;session.state.search="";
+        }else response={text:"¿De qué plataforma, categoría o servicio desea ver los precios y opciones?"};
+      }
       // Search only: never pass the customer's text through selection/checkout.
       // BW02 uses :agent:0 here and separate IDs for subsequent tool actions.
       await this.repository.beginMessage(session,message.messageId,hash);
       const settings=await this.repository.settings(businessId);
-      const termGroups=mergeCatalogTermGroups(session.state.termGroups??[],groups);
-      const categoryId=changesCatalogPlatform(session.state.termGroups??[],groups)?undefined:session.state.categoryId;
-      session.state={...session.state,offset:0,search:"",termGroups};
-      if(categoryId)session.state.categoryId=categoryId;else delete session.state.categoryId;
-      const response=await this.catalog(session,settings);
+      if(groups){
+        const termGroups=mergeCatalogTermGroups(session.state.termGroups??[],groups);
+        const categoryId=changesCatalogPlatform(session.state.termGroups??[],groups)?undefined:session.state.categoryId;
+        session.state={...session.state,offset:0,search:"",termGroups};
+        if(categoryId)session.state.categoryId=categoryId;else delete session.state.categoryId;
+      }
+      response??=await this.catalog(session,settings);
+      // This is a verified lookup/navigation result (or a clarification), not an
+      // OpenAI inference that the catalog failed. Typebot already preserves it.
+      response.catalogText??=response.text;
       response.context={...await agentContext(this.repository,this.gateway,this.checkout,session,settings),catalogListing:response.catalogText??null};
       await this.repository.finishMessage(session,message.messageId,response);
       return response;
