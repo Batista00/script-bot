@@ -247,6 +247,33 @@ export class PaymentsService {
     if (payment.providerKey !== "bank_transfer") {
       throw new AppError("Payment is not a bank transfer", 409, "PAYMENT_METHOD_MISMATCH");
     }
+    // Repeating the exact confirmation is idempotent; reusing the payment with
+    // another reference is a caller mistake and must not be silently ignored.
+    if (payment.status === "approved") {
+      if (payment.providerPaymentId !== reference) {
+        throw new AppError(
+          "Payment was already confirmed with another reference",
+          409,
+          "PAYMENT_TRANSFER_REFERENCE_MISMATCH",
+        );
+      }
+      return payment;
+    }
+    if (payment.status !== "pending") throw invalidTransitionError();
+
+    const conflict = await this.repository.findByProviderIdentity(
+      businessId,
+      "bank_transfer",
+      reference,
+    );
+    if (conflict && conflict.id !== payment.id) {
+      throw new AppError(
+        "Bank transfer reference was already used by another payment",
+        409,
+        "PAYMENT_TRANSFER_REFERENCE_CONFLICT",
+      );
+    }
+
     return this.transitionPayment(
       businessId, paymentId, "approved", reference, reference, null, null,
     );
