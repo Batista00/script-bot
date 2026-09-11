@@ -3,11 +3,13 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { ToastProvider } from "../../components/ui";
+import { ApiError } from "../../lib/api/client";
 import { categoriesApi, integrationsApi, providerApi } from "../../lib/api/resources";
 import type { ImportProviderProductInput, ProviderService } from "../../lib/api/types";
 import { BusinessProvider } from "../businesses/business-context";
 import {
   ProviderServicesPage,
+  capabilityLabel,
   commercialInputsFromProvider,
   providerImportPayload,
   providerImportValidationMessage,
@@ -28,6 +30,7 @@ const providerService: ProviderService = {
     optional: [], source: "official",
   },
   metadata: { description: "Descripción del proveedor" },
+  supportsRefill: true, supportsCancel: false,
   lastSyncedAt: "2026-08-20T12:00:00.000Z", createdAt: "2026-08-20T12:00:00.000Z",
   updatedAt: "2026-08-20T12:00:00.000Z",
 };
@@ -119,4 +122,65 @@ test("successful import invalidates every affected Business view", async () => {
       expect(invalidate).toHaveBeenCalledWith({ queryKey: [resource, businessId] });
     }
   });
+});
+
+const integrationId = "499aa88d-a044-4a60-b0c0-e463acfe4ac2";
+
+function renderProviderServices(role: "owner" | "operator" = "owner") {
+  vi.spyOn(integrationsApi, "list").mockResolvedValue([{
+    id: integrationId, businessId, providerKey: "smm_raja", status: "active",
+    config: {}, createdAt: "2026-08-20T12:00:00.000Z", updatedAt: "2026-08-20T12:00:00.000Z",
+  }]);
+  vi.spyOn(providerApi, "list").mockResolvedValue([providerService]);
+  vi.spyOn(providerApi, "state").mockResolvedValue(null);
+  const client = new QueryClient({ defaultOptions: {
+    queries: { retry: false }, mutations: { retry: false },
+  } });
+  render(
+    <QueryClientProvider client={client}><ToastProvider>
+      <BusinessProvider business={{ id: businessId, name: "Flowchat DEV", currency: "CLP", status: "active", role }}>
+        <ProviderServicesPage />
+      </BusinessProvider>
+    </ToastProvider></QueryClientProvider>,
+  );
+}
+
+test("probes the provider connection and reports balance, currency and time", async () => {
+  renderProviderServices();
+  const testCall = vi.spyOn(providerApi, "testConnection").mockResolvedValue({
+    integrationId, providerKey: "smm_raja", connectionStatus: "ok",
+    balance: "12.50", currency: "USD", checkedAt: "2026-09-01T12:00:00.000Z",
+  });
+
+  await screen.findByRole("option", { name: "smm_raja" });
+  await userEvent.selectOptions(screen.getByLabelText("Integración"), integrationId);
+  await userEvent.click(screen.getByRole("button", { name: "Probar conexión" }));
+
+  await waitFor(() => expect(testCall).toHaveBeenCalledWith(businessId, integrationId));
+  expect(await screen.findByText(/12\.50/)).toBeInTheDocument();
+  expect(screen.getByText(/USD/)).toBeInTheDocument();
+  expect(screen.getByText(/Verificado el/)).toBeInTheDocument();
+});
+
+test("shows the translated provider error when the connection probe fails", async () => {
+  renderProviderServices();
+  vi.spyOn(providerApi, "testConnection").mockRejectedValue(new ApiError(
+    502, "PROVIDER_REQUEST_REJECTED",
+    "El proveedor rechazó la solicitud. Revisa que la API key esté vigente y tenga acceso al catálogo.",
+  ));
+
+  await screen.findByRole("option", { name: "smm_raja" });
+  await userEvent.selectOptions(screen.getByLabelText("Integración"), integrationId);
+  await userEvent.click(screen.getByRole("button", { name: "Probar conexión" }));
+
+  expect(await screen.findByText(/El proveedor rechazó la solicitud/)).toBeInTheDocument();
+});
+
+test("renders provider capability badges and an explicit unknown fallback", async () => {
+  renderProviderServices();
+
+  expect(await screen.findByText("Recarga: Sí")).toBeInTheDocument();
+  expect(screen.getByText("Cancelación: No")).toBeInTheDocument();
+  expect(capabilityLabel(null)).toBe("Desconocido");
+  expect(capabilityLabel(undefined)).toBe("Desconocido");
 });

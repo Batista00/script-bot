@@ -87,7 +87,15 @@ export interface ProviderService {
   providerDescription: string | null; orderCapabilities: ProviderOrderCapabilities;
   mappingCount: number;
   metadata: Record<string, unknown>;
+  supportsRefill: boolean | null; supportsCancel: boolean | null;
   providerStatus: Status; lastSyncedAt: string; createdAt: string; updatedAt: string;
+}
+export interface ProviderConnectionTestResult {
+  integrationId: string; providerKey: string; connectionStatus: "ok";
+  balance: string | null; currency: string | null; checkedAt: string;
+}
+export interface PaymentProviderConnectionTestResult {
+  integrationId: string; providerKey: string; connectionStatus: "ok"; checkedAt: string;
 }
 export interface ProductMapping {
   id: string; businessId: string; productId: string; providerServiceId: string;
@@ -131,5 +139,13 @@ export interface CreateMembershipInput {
 }
 export interface UpdateMembershipInput { role?: Role; status?: Status }
 export interface CreateOrderInput { quoteId: string; customerId?: string | null }
+
+export const JOB_STATUSES = ["pending", "running", "completed", "failed", "cancelled"] as const;
+export type JobStatus = (typeof JOB_STATUSES)[number];
+export interface Job {
+  jobId: string; jobType: string; status: JobStatus; attempts: number;
+  maxAttempts: number; runAt: string; lastError: string | null;
+  createdAt: string; updatedAt: string;
+}
 
 export type QueryValue = string | number | null | undefined;

@@ -3,7 +3,7 @@ import { useState, type FormEvent } from "react";
 import { businessQueryKey } from "../../app/query-client";
 import { Button, EmptyState, Field, Modal, PageHeader, Pagination, SelectField, Spinner, StatusBadge, TextAreaField, useToast } from "../../components/ui";
 import { errorMessage } from "../../lib/api/client";
-import { integrationsApi } from "../../lib/api/resources";
+import { integrationsApi, paymentsApi } from "../../lib/api/resources";
 import type { Integration } from "../../lib/api/types";
 import { useBusiness } from "../businesses/business-context";
 
@@ -27,10 +27,21 @@ export function integrationPayload(form: HTMLFormElement, providerKey: string, c
 
 export function IntegrationsPage() {
   const business = useBusiness(); const client = useQueryClient(); const toast = useToast(); const [offset, setOffset] = useState(0); const [editing, setEditing] = useState<Integration | "new" | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string }>>({});
   const query = useQuery({ queryKey: businessQueryKey("integrations", business.id, { offset }), queryFn: () => integrationsApi.list(business.id, { limit: 25, offset }) });
   const mutation = useMutation({ mutationFn: ({ record, body }: { record: Integration | "new"; body: unknown }) => record === "new" ? integrationsApi.create(business.id, body) : integrationsApi.update(business.id, record.id, body), onSuccess: async () => { setEditing(null); await client.invalidateQueries({ queryKey: ["integrations", business.id] }); toast("Integración guardada. Las credenciales no se volverán a mostrar."); } });
+  const testConnection = useMutation({
+    mutationFn: (integrationId: string) => paymentsApi.testConnection(business.id, integrationId),
+    onSuccess: (result) => {
+      setTestResults((previous) => ({ ...previous, [result.integrationId]: { ok: true, message: `Conexión OK · verificado el ${new Date(result.checkedAt).toLocaleString()}` } }));
+      toast("Mercado Pago aceptó las credenciales guardadas.");
+    },
+    onError: (error, integrationId) => {
+      setTestResults((previous) => ({ ...previous, [integrationId]: { ok: false, message: errorMessage(error) } }));
+    },
+  });
   return <><PageHeader title="Integraciones" description="Configuración pública y credenciales write-only cifradas por el backend." action={business.role !== "operator" ? <Button onClick={() => setEditing("new")}>Configurar integración</Button> : undefined} />
-    {business.role === "operator" && <div className="alert">Las integraciones requieren rol owner o admin.</div>}{query.isLoading ? <Spinner /> : query.isError ? <div className="alert error">{errorMessage(query.error)}</div> : !query.data?.length ? <EmptyState title="No hay integraciones configuradas." /> : <div className="table-card"><div className="table-scroll"><table><thead><tr><th>Proveedor</th><th>Estado</th><th>Configuración pública</th><th>Credenciales</th><th /></tr></thead><tbody>{query.data.map((item) => <tr key={item.id}><td>{item.providerKey}</td><td><StatusBadge value={item.status} /></td><td><code>{JSON.stringify(item.config)}</code></td><td>Configurado · ********</td><td>{business.role !== "operator" && <Button className="secondary small" onClick={() => setEditing(item)}>Editar</Button>}</td></tr>)}</tbody></table></div><Pagination offset={offset} limit={25} count={query.data.length} onChange={setOffset} /></div>}
+    {business.role === "operator" && <div className="alert">Puedes probar la conexión de Mercado Pago. Editar integraciones requiere rol owner o admin.</div>}{query.isLoading ? <Spinner /> : query.isError ? <div className="alert error">{errorMessage(query.error)}</div> : !query.data?.length ? <EmptyState title="No hay integraciones configuradas." /> : <div className="table-card"><div className="table-scroll"><table><thead><tr><th>Proveedor</th><th>Estado</th><th>Configuración pública</th><th>Credenciales</th><th /></tr></thead><tbody>{query.data.map((item) => <tr key={item.id}><td>{item.providerKey}</td><td><StatusBadge value={item.status} /></td><td><code>{JSON.stringify(item.config)}</code></td><td>Configurado · ********</td><td><div className="table-actions">{item.providerKey === "mercado_pago" && <Button className="secondary small" disabled={testConnection.isPending && testConnection.variables === item.id} onClick={() => testConnection.mutate(item.id)}>{testConnection.isPending && testConnection.variables === item.id ? "Probando…" : "Probar conexión"}</Button>}{business.role !== "operator" && <Button className="secondary small" onClick={() => setEditing(item)}>Editar</Button>}{testResults[item.id] && <span className={testResults[item.id].ok ? "status status-active" : "alert error"} role="status">{testResults[item.id].message}</span>}</div></td></tr>)}</tbody></table></div><Pagination offset={offset} limit={25} count={query.data.length} onChange={setOffset} /></div>}
     {editing && <IntegrationForm record={editing} pending={mutation.isPending} error={mutation.isError ? errorMessage(mutation.error) : ""} onClose={() => setEditing(null)} onSave={(body) => mutation.mutate({ record: editing, body })} />}
   </>;
 }

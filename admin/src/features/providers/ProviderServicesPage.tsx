@@ -9,7 +9,8 @@ import {
 import { errorMessage } from "../../lib/api/client";
 import { categoriesApi, integrationsApi, providerApi } from "../../lib/api/resources";
 import type {
-  ImportProviderProductInput, ProductInputField, ProviderOrderField, ProviderService,
+  ImportProviderProductInput, ProductInputField, ProviderConnectionTestResult,
+  ProviderOrderField, ProviderService,
 } from "../../lib/api/types";
 import { useBusiness } from "../businesses/business-context";
 
@@ -26,6 +27,27 @@ function optionalNumber(data: FormData, name: string): number | null {
 function providerDescription(service: ProviderService): string {
   return service.providerDescription ??
     (typeof service.metadata.description === "string" ? service.metadata.description : "");
+}
+
+/** null/undefined mean the provider did not report the capability. */
+export function capabilityLabel(value: boolean | null | undefined): string {
+  if (value === true) return "Sí";
+  if (value === false) return "No";
+  return "Desconocido";
+}
+
+export function CapabilityBadge({ label, value }: { label: string; value: boolean | null | undefined }) {
+  const tone = value === true ? "status-active" : value === false ? "status-inactive" : "";
+  return <span className={`status ${tone}`} title={`${label}: ${capabilityLabel(value)}`}>
+    {label}: {capabilityLabel(value)}
+  </span>;
+}
+
+export function CapabilityBadges({ service }: { service: ProviderService }) {
+  return <div className="table-actions">
+    <CapabilityBadge label="Recarga" value={service.supportsRefill} />
+    <CapabilityBadge label="Cancelación" value={service.supportsCancel} />
+  </div>;
 }
 
 const inputCopy: Record<string, { label: string; helpText: string | null }> = {
@@ -116,6 +138,7 @@ export function ProviderServicesPage() {
   const [selected, setSelected] = useState<ProviderService | null>(null);
   const [requiredInputs, setRequiredInputs] = useState<ProductInputField[]>([]);
   const [importValidationError, setImportValidationError] = useState<string | null>(null);
+  const [connectionResult, setConnectionResult] = useState<ProviderConnectionTestResult | null>(null);
   const integrations = useQuery({
     queryKey: businessQueryKey("integrations", business.id, "provider-options"),
     queryFn: () => integrationsApi.list(business.id, { limit: 100, offset: 0 }),
@@ -148,6 +171,14 @@ export function ProviderServicesPage() {
       await client.invalidateQueries({ queryKey: ["provider-services", business.id] });
       await client.invalidateQueries({ queryKey: ["provider-catalog-state", business.id] });
       toast(`Sync: ${result.received} recibidos, ${result.normalized} normalizados, ${result.rejected} rechazados.`);
+    },
+  });
+  const testConnection = useMutation({
+    mutationFn: () => providerApi.testConnection(business.id, integrationId),
+    onSuccess: async (result) => {
+      setConnectionResult(result);
+      await client.invalidateQueries({ queryKey: ["provider-catalog-state", business.id] });
+      toast("Conexión verificada con el proveedor.");
     },
   });
   const importProduct = useMutation({
@@ -189,9 +220,16 @@ export function ProviderServicesPage() {
       action={<><Button className="secondary" onClick={() => {
         void client.invalidateQueries({ queryKey: ["provider-services", business.id] });
         void client.invalidateQueries({ queryKey: ["provider-catalog-state", business.id] });
-      }}>Refrescar</Button>{canWrite && <Button disabled={!integrationId || sync.isPending}
+      }}>Refrescar</Button><Button className="secondary" disabled={!integrationId || testConnection.isPending}
+        onClick={() => { setConnectionResult(null); testConnection.mutate(); }}>
+        {testConnection.isPending ? "Probando…" : "Probar conexión"}</Button>{canWrite && <Button disabled={!integrationId || sync.isPending}
         onClick={() => sync.mutate()}>Sincronizar servicios</Button>}</>}
     />
+    {integrationId && testConnection.isPending && <Spinner label="Probando conexión con el proveedor" />}
+    {integrationId && connectionResult && <div className="alert" role="status">
+      <strong>Conexión OK</strong> · Saldo {connectionResult.balance ?? "no informado"} {connectionResult.currency ?? ""} · Verificado el {new Date(connectionResult.checkedAt).toLocaleString()}
+    </div>}
+    {integrationId && testConnection.isError && <div className="alert error">{errorMessage(testConnection.error)}</div>}
     {integrationId && providerState.data && <div className="filter-bar">
       <div><strong>Conexión</strong><div>{providerState.data.connectionStatus === "ok" ? "OK" : providerState.data.connectionStatus}</div></div>
       <div><strong>Saldo proveedor</strong><div>{providerState.data.providerBalance ?? "—"} {providerState.data.providerCurrency ?? ""}</div></div>
@@ -200,7 +238,7 @@ export function ProviderServicesPage() {
     </div>}
     <div className="filter-bar">
       <SelectField label="Integración" value={integrationId} onChange={(event) => {
-        setIntegrationId(event.target.value); setOffset(0);
+        setIntegrationId(event.target.value); setOffset(0); setConnectionResult(null);
       }}>
         <option value="">Todas</option>
         {integrations.data?.map((item) => <option key={item.id} value={item.id}>{item.providerKey}</option>)}
@@ -232,7 +270,7 @@ export function ProviderServicesPage() {
       : !services.data?.length ? <EmptyState title="No hay servicios sincronizados." />
       : <div className="table-card"><div className="table-scroll"><table>
           <thead><tr><th>Proveedor</th><th>ID externo</th><th>Nombre</th><th>Categoría / tipo</th>
-            <th>Rate</th><th>Min / max</th><th>Estado</th><th>Products</th><th>Último sync</th>
+            <th>Rate</th><th>Min / max</th><th>Estado</th><th>Capacidades</th><th>Products</th><th>Último sync</th>
             {canWrite && <th>Acciones</th>}</tr></thead>
           <tbody>{services.data.map((item) => <tr key={item.id}>
             <td>{item.providerKey}</td><td><code>{item.externalServiceId}</code></td>
@@ -240,6 +278,7 @@ export function ProviderServicesPage() {
             <td>{item.rate ?? "—"} {item.rateCurrency ?? ""}</td>
             <td>{item.minQuantity ?? "—"} / {item.maxQuantity ?? "—"}</td>
             <td><StatusBadge value={item.providerStatus} /></td>
+            <td><CapabilityBadges service={item} /></td>
             <td>{item.mappingCount}</td>
             <td>{new Date(item.lastSyncedAt).toLocaleString()}</td>
             {canWrite && <td><Button className="secondary small" disabled={item.providerStatus !== "active"}
@@ -257,6 +296,9 @@ export function ProviderServicesPage() {
       <div className="alert">
         Referencia proveedor: <strong>{selected.name}</strong> · ID {selected.externalServiceId}
         · rate {selected.rate ?? "no informado"} · límites {selected.minQuantity ?? "—"}–{selected.maxQuantity ?? "—"}.
+      </div>
+      <div className="filter-bar">
+        <div><strong>Capacidades del proveedor</strong><CapabilityBadges service={selected} /></div>
       </div>
       {!selected.orderCapabilities.supported && <div className="alert error">
         El tipo técnico <strong>{selected.serviceType ?? "desconocido"}</strong> no tiene un contrato de pedido oficial verificado. Puedes importarlo inactivo, pero no despacharlo todavía.

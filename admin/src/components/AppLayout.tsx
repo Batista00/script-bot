@@ -1,7 +1,7 @@
 import {
   Boxes, Building2, ChevronRight, CircleDollarSign, ClipboardList,
-  FileText, Gauge, KeyRound, Layers3, Menu, PackageCheck, PlugZap, Receipt,
-  Settings, ShoppingBag, Tags, UserCog, Users, X,
+  FileText, Gauge, KeyRound, Layers3, ListChecks, Menu, PackageCheck, PlugZap,
+  Receipt, Settings, ShoppingBag, Tags, UserCog, Users, X,
   type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -19,7 +19,7 @@ const sections: ReadonlyArray<readonly [heading: string, links: readonly NavEntr
   ["Clientes", [["customers", "Clientes", Users]]],
   ["Catálogo", [["categories", "Categorías", Tags], ["products", "Productos", ShoppingBag], ["pricing", "Precios", CircleDollarSign]]],
   ["Ventas", [["quotes", "Cotizaciones", FileText], ["orders", "Pedidos", ClipboardList], ["payments", "Pagos", Receipt], ["payment-methods", "Métodos de pago", CircleDollarSign]]],
-  ["Operaciones", [["fulfillments", "Fulfillments", PackageCheck]]],
+  ["Operaciones", [["fulfillments", "Fulfillments", PackageCheck], ["jobs", "Jobs", ListChecks]]],
   ["Proveedores", [["provider-services", "Servicios de proveedor", Boxes], ["mappings", "Mapeos", Layers3]]],
   ["", [["integrations", "Integraciones", PlugZap], ["api-credentials", "API Credentials", KeyRound], ["team", "Equipo", UserCog], ["settings", "Configuración", Settings]]],
 ];

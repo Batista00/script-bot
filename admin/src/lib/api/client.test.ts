@@ -68,6 +68,12 @@ const domainCodeCases: Array<[string, number, string]> = [
   ["QUOTE_EXPIRED", 409, "La cotización expiró. Crea una nueva para continuar."],
   ["QUOTE_NOT_AVAILABLE", 404, "La cotización no está disponible para convertirse en pedido."],
   ["CUSTOMER_REQUIRED", 400, "Asigna un cliente a la cotización antes de convertirla en pedido."],
+  ["PAYMENT_PROVIDER_CREDENTIALS_INVALID", 409, "Mercado Pago rechazó las credenciales guardadas. Actualiza el access token desde Integraciones y vuelve a probar."],
+  ["INTEGRATION_INACTIVE", 409, "La integración está inactiva. Actívala desde Integraciones para usar sus credenciales."],
+  ["PAYMENT_PROVIDER_TEST_UNSUPPORTED", 409, "Esta integración no admite probar la conexión. Revisa que el proveedor sea Mercado Pago."],
+  ["JOB_NOT_FOUND", 404, "El job ya no existe. Actualiza la lista para ver el estado actual."],
+  ["JOB_NOT_RETRYABLE", 409, "Este job no se puede reintentar en su estado actual. Actualiza la lista antes de volver a intentarlo."],
+  ["TOO_MANY_REQUESTS", 429, "Demasiadas solicitudes en poco tiempo. Espera un momento y vuelve a intentarlo."],
 ];
 
 test.each(domainCodeCases)("maps %s to an actionable message without leaking internals", async (code, status, expected) => {

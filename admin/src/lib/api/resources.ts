@@ -1,8 +1,9 @@
 import { apiRequest } from "./client";
 import type {
   ApiCredential, ApiCredentialCreated, AuthView, Business, Category, CreateMembershipInput,
-  CreateOrderInput, Customer, Fulfillment, Integration, Membership, Order, Payment,
-  PaymentMethod, Price, Product, ProductMapping, ProviderService, QueryValue, Quote,
+  CreateOrderInput, Customer, Fulfillment, Integration, Job, Membership, Order, Payment,
+  PaymentMethod, PaymentProviderConnectionTestResult, Price, Product, ProductMapping,
+  ProviderConnectionTestResult, ProviderService, QueryValue, Quote,
   ImportProviderProductInput, ImportedProviderProduct, ProviderCatalogState,
   ProviderCatalogSyncResult, UpdateMembershipInput,
 } from "./types";
@@ -56,8 +57,13 @@ export const paymentsApi = {
   get: (businessId: string, id: string) => apiRequest<Payment>(businessPath(businessId, `payments/${id}`)),
   byOrder: (businessId: string, orderId: string) => apiRequest<Payment[]>(businessPath(businessId, `orders/${orderId}/payments`)),
   confirmBankTransfer: (businessId: string, paymentId: string, reference: string) => apiRequest<Payment>(businessPath(businessId, `payments/${paymentId}/confirm-bank-transfer`), { method: "POST", body: { reference } }),
+  testConnection: (businessId: string, integrationId: string) => apiRequest<PaymentProviderConnectionTestResult>(businessPath(businessId, `integrations/${integrationId}/payment-provider/test-connection`), { method: "POST" }),
 };
 export const paymentMethodsApi = crud<PaymentMethod>("payment-methods");
+export const jobsApi = {
+  list: (businessId: string, query: Params = {}) => apiRequest<Job[]>(businessPath(businessId, "jobs"), { query }),
+  retry: (businessId: string, jobId: string) => apiRequest<Job>(businessPath(businessId, `jobs/${jobId}/retry`), { method: "POST" }),
+};
 export const fulfillmentsApi = {
   list: (businessId: string, query: Params = {}) => apiRequest<Fulfillment[]>(businessPath(businessId, "fulfillments"), { query }),
   dispatch: (businessId: string, orderId: string, body: unknown) => apiRequest<Fulfillment>(businessPath(businessId, `orders/${orderId}/fulfillments`), { method: "POST", body }),
@@ -73,6 +79,7 @@ export const providerApi = {
   list: (businessId: string, query: Params = {}) => apiRequest<ProviderService[]>(businessPath(businessId, "provider-services"), { query }),
   sync: (businessId: string, integrationId: string) => apiRequest<ProviderCatalogSyncResult>(businessPath(businessId, `integrations/${integrationId}/provider-services/sync`), { method: "POST" }),
   state: (businessId: string, integrationId: string) => apiRequest<ProviderCatalogState | null>(businessPath(businessId, `integrations/${integrationId}/provider-catalog/state`)),
+  testConnection: (businessId: string, integrationId: string) => apiRequest<ProviderConnectionTestResult>(businessPath(businessId, `integrations/${integrationId}/provider-services/test-connection`), { method: "POST" }),
   importProduct: (businessId: string, body: ImportProviderProductInput) => apiRequest<ImportedProviderProduct>(businessPath(businessId, "provider-services/import-product"), { method: "POST", body }),
   mapping: (businessId: string, productId: string) => apiRequest<ProductMapping>(businessPath(businessId, `products/${productId}/provider-mapping`)),
   createMapping: (businessId: string, productId: string, providerServiceId: string) => apiRequest<ProductMapping>(businessPath(businessId, `products/${productId}/provider-mapping`), { method: "POST", body: { providerServiceId } }),

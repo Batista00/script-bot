@@ -15,6 +15,7 @@ import { CustomersPage } from "../features/customers/CustomersPage";
 import { DashboardPage } from "../features/dashboard/DashboardPage";
 import { FulfillmentsPage } from "../features/fulfillments/FulfillmentsPage";
 import { IntegrationsPage } from "../features/integrations/IntegrationsPage";
+import { JobsPage } from "../features/jobs/JobsPage";
 import { OrdersPage } from "../features/orders/OrdersPage";
 import { PaymentsPage } from "../features/payments/PaymentsPage";
 import { PaymentMethodsPage } from "../features/payments/PaymentMethodsPage";
@@ -45,6 +46,7 @@ export function App() {
           <Route path="payments" element={<PaymentsPage />} />
           <Route path="payment-methods" element={<PaymentMethodsPage />} />
           <Route path="fulfillments" element={<FulfillmentsPage />} />
+          <Route path="jobs" element={<JobsPage />} />
           <Route path="provider-services" element={<ProviderServicesPage />} />
           <Route path="mappings" element={<MappingsPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />
