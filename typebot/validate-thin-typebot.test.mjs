@@ -47,11 +47,17 @@ test("validator rejects reintroduced commercial structures", () => {
 
 test("validator rejects a second conversational entry point or n8n", () => {
   const extra = clone();
+  for (const group of extra.groups) {
+    group.blocks.push({
+      id: `blkextra${group.id}`, type: "Webhook",
+      options: { webhook: { url: "{{backend_base_url}}/bot/v1/conversation/turn", method: "POST" } },
+    });
+  }
   extra.groups[0].blocks.push({
-    id: "blkextra", type: "Webhook",
+    id: "blkextra3", type: "Webhook",
     options: { webhook: { url: "{{backend_base_url}}/bot/v1/conversation/turn", method: "POST" } },
   });
-  assert.throws(() => validateThinTypebot(extra), /exactly once/);
+  assert.throws(() => validateThinTypebot(extra), /once per turn/);
 
   const withN8n = clone();
   withN8n.groups[0].blocks.push({

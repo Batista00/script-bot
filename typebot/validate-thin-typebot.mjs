@@ -51,9 +51,12 @@ export function validateThinTypebot(flow) {
   const endpoints = blocks
     .filter((block) => block.type === "Webhook")
     .map((block) => block.options?.webhook?.url ?? "");
+  // Una llamada por turno: el bucle alterna dos grupos, cada uno con su propio
+  // webhook, porque una pasada debe terminar siempre en una entrada pendiente
+  // (si termina en un bloque ya respondido, Typebot cierra la sesión).
   const conversation = endpoints.filter((url) => url.includes("/bot/v1/conversation/turn"));
-  if (conversation.length !== 1) {
-    fail(`the flow must call /bot/v1/conversation/turn exactly once (found ${conversation.length})`);
+  if (conversation.length < 1 || conversation.length > 2) {
+    fail(`the flow must call /bot/v1/conversation/turn once per turn (found ${conversation.length})`);
   }
   if (endpoints.some((url) => url.includes("n8n"))) fail("n8n must not appear in the flow");
   // El mensaje mostrado es la respuesta del backend, sin transformarla.
