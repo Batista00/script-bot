@@ -16,19 +16,22 @@ Las credenciales de integración son write-only. Los responses públicos no cont
 
 Todas las query keys de datos propios incluyen `businessId`. El Business Switcher remueve de memoria las queries del contexto anterior antes de navegar al nuevo ID. La interfaz oculta acciones incompatibles con el rol, pero esto es solo UX: el backend es la autoridad de seguridad.
 
-No existe API HTTP de administración de memberships/invitaciones, por lo que no se creó una pantalla falsa de equipo. Queda pendiente para una etapa futura.
+La pantalla **Equipo** administra las membresías del negocio contra `/businesses/:businessId/memberships`: listar miembros, invitar (creando la cuenta cuando el correo no existe o asociando la existente), cambiar rol, activar/desactivar acceso y retirar la membresía. Solo `owner` y `admin` la usan; `operator` ve un aviso y no consulta el endpoint. La interfaz replica las reglas del backend antes de enviar (un admin no gestiona owners ni concede `owner`, un admin no edita su propia fila, y el último owner activo no se degrada), pero el backend sigue siendo la autoridad.
 
 ## Módulos
 
 - Dashboard con filas recientes reales, sin presentar conteos parciales como totales.
-- Businesses, Customers, Categories, Products y Pricing.
-- Quotes, Orders y Payments sin recálculo ni aprobación manual.
+- Businesses, Customers, Categories, Products, Pricing y Team (membresías y roles).
+- Quotes, Orders y Payments sin recálculo ni aprobación manual; una cotización `active` puede
+  convertirse en pedido desde la propia tabla.
 - Fulfillments con listado global seguro, dispatch, sync y retry conservador.
 - Provider Services con conexión/saldo, búsqueda y filtros paginados, capacidades de pedido,
   conteo de Products, sync vía backend e importación atómica y editable de
   Product + required inputs + Pricing + Mapping.
 - Integrations genéricas, con formularios especializados para `mercado_pago` y `smm_raja`.
 - API Credentials y Business Settings.
+
+Cuando el negocio activo está `inactive`, aparece una banda de aviso: las operaciones comerciales están bloqueadas y solo queda la administración para reactivarlo. El cliente traduce el `429 TOO_MANY_LOGIN_ATTEMPTS` del rate limiting y los códigos `BUSINESS_INACTIVE`, `LAST_OWNER_REQUIRED`, `MEMBERSHIP_*` y `USER_*` a mensajes accionables en español.
 
 Las tablas operativas usan `limit`/`offset` y navegación Anterior/Siguiente porque las APIs no entregan un total. El dashboard carga ventanas recientes y lo indica expresamente.
 

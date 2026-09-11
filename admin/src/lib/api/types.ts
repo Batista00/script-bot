@@ -121,4 +121,15 @@ export interface ApiCredential {
 }
 export interface ApiCredentialCreated { credential: ApiCredential; token: string }
 
+export interface MembershipUser { id: string; email: string; name: string; status: Status }
+export interface Membership {
+  id: string; businessId: string; userId: string; role: Role; status: Status;
+  createdAt: string; updatedAt: string; user: MembershipUser;
+}
+export interface CreateMembershipInput {
+  email: string; role: Role; name?: string | null; password?: string | null;
+}
+export interface UpdateMembershipInput { role?: Role; status?: Status }
+export interface CreateOrderInput { quoteId: string; customerId?: string | null }
+
 export type QueryValue = string | number | null | undefined;

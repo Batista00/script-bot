@@ -22,6 +22,7 @@ import { PricingPage } from "../features/pricing/PricingPage";
 import { MappingsPage } from "../features/providers/MappingsPage";
 import { ProviderServicesPage } from "../features/providers/ProviderServicesPage";
 import { QuotesPage } from "../features/quotes/QuotesPage";
+import { TeamPage } from "../features/team/TeamPage";
 import { HomeRedirect, RequireAuth, RequireBusiness } from "../routes/guards";
 import { NotFoundPage } from "../routes/NotFoundPage";
 import { queryClient } from "./query-client";
@@ -48,6 +49,7 @@ export function App() {
           <Route path="mappings" element={<MappingsPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />
           <Route path="api-credentials" element={<ApiCredentialsPage />} />
+          <Route path="team" element={<TeamPage />} />
           <Route path="settings" element={<BusinessSettingsPage />} />
           <Route index element={<HomeRedirect />} />
         </Route>

@@ -11,6 +11,7 @@ const safeMessages: Record<number, string> = {
   404: "No se encontró el recurso solicitado.",
   409: "La operación entra en conflicto con el estado actual.",
   422: "No fue posible validar los datos.",
+  429: "Demasiados intentos de inicio de sesión. Espera unos minutos y vuelve a intentarlo.",
   500: "Ocurrió un error interno. Intenta nuevamente.",
   502: "El proveedor respondió de forma inesperada.",
   503: "El servicio no está disponible temporalmente.",
@@ -32,6 +33,20 @@ const safeCodeMessages: Record<string, string> = {
   PROVIDER_CATALOG_NOT_AVAILABLE: "La integración no tiene credenciales válidas para consultar el catálogo.",
   PROVIDER_TEMPORARILY_UNAVAILABLE: "El proveedor no está disponible temporalmente. Intenta nuevamente.",
   PRODUCT_HAS_COMMERCIAL_HISTORY: "El producto tiene historial comercial y no puede eliminarse. Desactívalo para conservar la trazabilidad.",
+  TOO_MANY_LOGIN_ATTEMPTS: "Demasiados intentos de inicio de sesión. Espera unos minutos y vuelve a intentarlo.",
+  BUSINESS_INACTIVE: "El negocio está inactivo y no admite operaciones comerciales. Reactívalo desde Configuración para continuar.",
+  MEMBERSHIP_ROLE_NOT_ALLOWED: "Solo un owner puede gestionar a otros owners o conceder ese rol.",
+  MEMBERSHIP_SELF_MODIFICATION: "No puedes modificar tu propia membresía.",
+  LAST_OWNER_REQUIRED: "El negocio debe conservar al menos un owner activo.",
+  MEMBERSHIP_ALREADY_EXISTS: "Ese usuario ya pertenece al negocio. Reactiva su membresía en lugar de crearla de nuevo.",
+  USER_INACTIVE: "La cuenta de ese correo está inactiva y no puede recibir acceso.",
+  USER_EMAIL_ALREADY_EXISTS: "Ya existe una cuenta registrada con ese correo.",
+  USER_DETAILS_REQUIRED: "Indica nombre y contraseña para crear la cuenta nueva.",
+  INVALID_USER_PASSWORD: "La contraseña debe tener entre 12 y 128 caracteres.",
+  QUOTE_ALREADY_CONVERTED: "Esta cotización ya fue convertida en pedido.",
+  QUOTE_EXPIRED: "La cotización expiró. Crea una nueva para continuar.",
+  QUOTE_NOT_AVAILABLE: "La cotización no está disponible para convertirse en pedido.",
+  CUSTOMER_REQUIRED: "Asigna un cliente a la cotización antes de convertirla en pedido.",
 };
 
 export class ApiError extends Error {

@@ -1,7 +1,7 @@
 import {
   Boxes, Building2, ChevronRight, CircleDollarSign, ClipboardList,
   FileText, Gauge, KeyRound, Layers3, Menu, PackageCheck, PlugZap, Receipt,
-  Settings, ShoppingBag, Tags, Users, X,
+  Settings, ShoppingBag, Tags, UserCog, Users, X,
   type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -21,7 +21,7 @@ const sections: ReadonlyArray<readonly [heading: string, links: readonly NavEntr
   ["Ventas", [["quotes", "Cotizaciones", FileText], ["orders", "Pedidos", ClipboardList], ["payments", "Pagos", Receipt], ["payment-methods", "Métodos de pago", CircleDollarSign]]],
   ["Operaciones", [["fulfillments", "Fulfillments", PackageCheck]]],
   ["Proveedores", [["provider-services", "Servicios de proveedor", Boxes], ["mappings", "Mapeos", Layers3]]],
-  ["", [["integrations", "Integraciones", PlugZap], ["api-credentials", "API Credentials", KeyRound], ["settings", "Configuración", Settings]]],
+  ["", [["integrations", "Integraciones", PlugZap], ["api-credentials", "API Credentials", KeyRound], ["team", "Equipo", UserCog], ["settings", "Configuración", Settings]]],
 ];
 
 export function AppLayout() {
@@ -45,6 +45,7 @@ export function AppLayout() {
     {open && <button className="sidebar-scrim" aria-label="Cerrar menú" onClick={() => setOpen(false)} />}
     <div className="app-main">
       <header className="topbar"><button className="icon-button mobile-only" onClick={() => setOpen(true)} aria-label="Abrir menú"><Menu /></button><BusinessSwitcher businesses={auth?.businesses ?? []} current={business} currentSection={section} /><Button className="secondary" onClick={logout}>Cerrar sesión</Button></header>
+      {business.status === "inactive" && <div className="alert warning" role="status">Este negocio está inactivo: las operaciones comerciales están bloqueadas. Puedes reactivarlo en Configuración; la administración sigue disponible.</div>}
       <div className="breadcrumb"><span>{business.name}</span><ChevronRight size={14} /><strong>{label}</strong></div>
       <main className="page"><Outlet /></main>
     </div>

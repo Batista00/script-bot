@@ -1,9 +1,10 @@
 import { apiRequest } from "./client";
 import type {
-  ApiCredential, ApiCredentialCreated, AuthView, Business, Category, Customer,
-  Fulfillment, Integration, Order, Payment, PaymentMethod, Price, Product, ProductMapping,
-  ProviderService, QueryValue, Quote, ImportProviderProductInput, ImportedProviderProduct,
-  ProviderCatalogState, ProviderCatalogSyncResult,
+  ApiCredential, ApiCredentialCreated, AuthView, Business, Category, CreateMembershipInput,
+  CreateOrderInput, Customer, Fulfillment, Integration, Membership, Order, Payment,
+  PaymentMethod, Price, Product, ProductMapping, ProviderService, QueryValue, Quote,
+  ImportProviderProductInput, ImportedProviderProduct, ProviderCatalogState,
+  ProviderCatalogSyncResult, UpdateMembershipInput,
 } from "./types";
 
 type Params = Record<string, QueryValue>;
@@ -47,6 +48,7 @@ export const quotesApi = {
 export const ordersApi = {
   list: (businessId: string, query: Params = {}) => apiRequest<Order[]>(businessPath(businessId, "orders"), { query }),
   get: (businessId: string, id: string) => apiRequest<Order>(businessPath(businessId, `orders/${id}`)),
+  create: (businessId: string, body: CreateOrderInput) => apiRequest<Order>(businessPath(businessId, "orders"), { method: "POST", body }),
   cancel: (businessId: string, id: string) => apiRequest<Order>(businessPath(businessId, `orders/${id}/cancel`), { method: "POST" }),
 };
 export const paymentsApi = {
@@ -80,4 +82,10 @@ export const credentialsApi = {
   list: (businessId: string, query: Params = {}) => apiRequest<ApiCredential[]>(businessPath(businessId, "api-credentials"), { query }),
   create: (businessId: string, name: string) => apiRequest<ApiCredentialCreated>(businessPath(businessId, "api-credentials"), { method: "POST", body: { name } }),
   update: (businessId: string, id: string, body: unknown) => apiRequest<ApiCredential>(businessPath(businessId, `api-credentials/${id}`), { method: "PATCH", body }),
+};
+export const membershipsApi = {
+  list: (businessId: string) => apiRequest<Membership[]>(businessPath(businessId, "memberships")),
+  create: (businessId: string, body: CreateMembershipInput) => apiRequest<Membership>(businessPath(businessId, "memberships"), { method: "POST", body }),
+  update: (businessId: string, id: string, body: UpdateMembershipInput) => apiRequest<Membership>(businessPath(businessId, `memberships/${id}`), { method: "PATCH", body }),
+  remove: (businessId: string, id: string) => apiRequest<void>(businessPath(businessId, `memberships/${id}`), { method: "DELETE" }),
 };
