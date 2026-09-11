@@ -35,4 +35,6 @@ export interface AuthSessionsRepository {
   ): Promise<void>;
   findActiveUserByTokenHash(tokenHash: string): Promise<User | null>;
   deleteByTokenHash(tokenHash: string): Promise<void>;
+  /** Removes a bounded batch of expired sessions; returns how many were deleted. */
+  deleteExpired(limit?: number): Promise<number>;
 }

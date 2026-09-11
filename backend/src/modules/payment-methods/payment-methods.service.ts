@@ -87,14 +87,6 @@ export class PaymentMethodsService {
     return this.repository.list(businessId, status);
   }
 
-  async getActiveById(businessId: string, paymentMethodId: string): Promise<PaymentMethod> {
-    const method = await this.repository.findById(businessId, paymentMethodId);
-    if (!method || method.status !== "active") {
-      throw new AppError("Payment method not found", 404, "PAYMENT_METHOD_NOT_FOUND");
-    }
-    return method;
-  }
-
   async update(
     businessId: string,
     paymentMethodId: string,

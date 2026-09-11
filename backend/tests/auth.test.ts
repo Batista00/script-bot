@@ -56,6 +56,7 @@ function sessionsStub(overrides: Partial<AuthSessionsRepository> = {}): AuthSess
     create: async () => undefined,
     findActiveUserByTokenHash: async () => null,
     deleteByTokenHash: async () => undefined,
+    deleteExpired: async () => 0,
     ...overrides,
   };
 }
@@ -229,4 +230,51 @@ test("logout deletes the session and makes its token invalid", async () => {
     service.authenticate(login.sessionToken),
     (error: unknown) => error instanceof AppError && error.code === "INVALID_SESSION",
   );
+});
+
+test("login prunes expired sessions before creating a new one", async () => {
+  const passwordHash = await hashPassword("correct-password");
+  let pruneCalls = 0;
+  const service = new AuthService(
+    usersStub({ ...userBase, passwordHash }),
+    sessionsStub({
+      deleteExpired: async () => {
+        pruneCalls += 1;
+        return 3;
+      },
+    }),
+    membershipsStub(),
+    24,
+  );
+
+  await service.login({ email: userBase.email, password: "correct-password" });
+
+  assert.equal(pruneCalls, 1);
+});
+
+test("a failed login does not touch stored sessions", async () => {
+  const passwordHash = await hashPassword("correct-password");
+  let pruneCalls = 0;
+  const service = new AuthService(
+    usersStub({ ...userBase, passwordHash }),
+    sessionsStub({
+      deleteExpired: async () => {
+        pruneCalls += 1;
+        return 0;
+      },
+    }),
+    membershipsStub(),
+    24,
+  );
+
+  await assert.rejects(
+    service.login({ email: userBase.email, password: "wrong-password" }),
+    assertInvalidCredentials,
+  );
+  await assert.rejects(
+    service.login({ email: "missing@example.com", password: "any-password" }),
+    assertInvalidCredentials,
+  );
+
+  assert.equal(pruneCalls, 0);
 });

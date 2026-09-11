@@ -64,5 +64,21 @@ export class PostgresAuthSessionsRepository implements AuthSessionsRepository {
   async deleteByTokenHash(tokenHash: string): Promise<void> {
     await this.db.query("DELETE FROM auth_sessions WHERE token_hash = $1", [tokenHash]);
   }
+
+  async deleteExpired(limit = 500): Promise<number> {
+    // Bounded batch: keeps the table from growing forever without holding a
+    // long lock on the whole expired range.
+    const result = await this.db.query(
+      `DELETE FROM auth_sessions
+       WHERE id IN (
+         SELECT id FROM auth_sessions
+         WHERE expires_at <= now()
+         ORDER BY expires_at ASC
+         LIMIT $1
+       )`,
+      [limit],
+    );
+    return result.rowCount ?? 0;
+  }
 }
 
