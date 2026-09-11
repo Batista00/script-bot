@@ -355,3 +355,16 @@ test("post-sale status resolves the customer's real order from the backend", () 
   // Debe ejecutarse antes de decidir si hay pedido.
   assert.equal(group.blocks[0].id, "blklatestorderwebhook");
 });
+
+test("fulfillment status reads naturally when no preparation is registered", () => {
+  const group = groupById(template, "grpfulfillmentinfo");
+  const builder = group.blocks.find((block) => block.id === "blkfulfillmentstatustext");
+  assert.ok(builder, "fulfillment info must compute its text");
+  assert.match(builder.options.expressionToEvaluate, /Todavía no hay preparación registrada/);
+  const text = group.blocks.find((block) => block.type === "text");
+  const rendered = text.content.richText.flatMap((node) =>
+    (node.children ?? []).map((child) => child.text ?? "")).join("");
+  assert.match(rendered, /\{\{fulfillmentStatusText\}\}/);
+  // Un estado vacio ya no puede imprimir "**".
+  assert.doesNotMatch(rendered, /\{\{fulfillmentStatus\}\}/);
+});

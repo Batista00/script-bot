@@ -3716,6 +3716,15 @@
    },
    "blocks": [
     {
+     "id": "blkfulfillmentstatustext",
+     "type": "Set variable",
+     "options": {
+      "variableId": "vfulfillmentstatustext",
+      "isCode": true,
+      "expressionToEvaluate": "({{fulfillmentStatus}} ? \"La preparación de tu pedido figura como \" + {{fulfillmentStatus}} + \".\" : \"Todavía no hay preparación registrada; aparecerá cuando el pago quede confirmado.\")"
+     }
+    },
+    {
      "id": "blkfulfillmentinfotext",
      "type": "text",
      "content": {
@@ -3725,7 +3734,7 @@
         "type": "p",
         "children": [
          {
-          "text": "ℹ️ La preparación de tu pedido figura como *{{fulfillmentStatus}}*.\nSi aún no hay preparación registrada, aparecerá cuando el pago quede confirmado."
+          "text": "ℹ️ {{fulfillmentStatusText}}"
          }
         ]
        }
@@ -5509,6 +5518,11 @@
   {
    "id": "vpaymentmethodslist",
    "name": "paymentMethodsList",
+   "isSessionVariable": true
+  },
+  {
+   "id": "vfulfillmentstatustext",
+   "name": "fulfillmentStatusText",
    "isSessionVariable": true
   }
  ],
