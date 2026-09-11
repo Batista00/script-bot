@@ -1,6 +1,7 @@
 import type { QueryResultRow } from "pg";
 
 import type { DatabaseExecutor } from "../../core/database/database.js";
+import type { JsonObject } from "../integrations/integrations.types.js";
 import type { PricingType } from "../pricing/pricing.types.js";
 import type { QuoteStatus } from "../quotes/quotes.types.js";
 import {
@@ -17,6 +18,7 @@ import {
 } from "./orders.types.js";
 
 interface OrderRow extends QueryResultRow {
+  delivery: Order["delivery"];
   id: string;
   business_id: string;
   customer_id: string;
@@ -39,10 +41,13 @@ interface OrderItemRow extends QueryResultRow {
   pricing_type: PricingType;
   unit_price: string | number | null;
   total_price: string | number;
+  fulfillment_input: JsonObject;
   created_at: Date | string;
 }
 
 interface QuoteRow extends QueryResultRow {
+  items:OrderQuoteSnapshot["items"];
+  delivery: Order["delivery"];
   id: string;
   business_id: string;
   customer_id: string | null;
@@ -65,8 +70,9 @@ interface CustomerRow extends QueryResultRow {
 interface PostgreSqlError { code?: string; constraint?: string }
 
 const orderColumns = `id, business_id, customer_id, quote_id, status, currency,
-  subtotal, total, created_at, updated_at`;
+  subtotal, total, created_at, updated_at, delivery`;
 const itemColumns = `id, business_id, order_id, product_id, product_name, quantity,
+  fulfillment_input,
   pricing_type, unit_price, total_price, created_at`;
 
 function toIsoString(value: Date | string): string {
@@ -98,12 +104,14 @@ function mapItem(row: OrderItemRow): OrderItem {
     pricingType: row.pricing_type,
     unitPrice: row.unit_price === null ? null : mapMoney(row.unit_price),
     totalPrice: mapMoney(row.total_price),
+    fulfillmentInput: row.fulfillment_input,
     createdAt: toIsoString(row.created_at),
   };
 }
 
 function mapOrder(row: OrderRow, items: OrderItem[] = []): Order {
   return {
+    ...(row.delivery?{delivery:row.delivery}:{}),
     id: row.id,
     businessId: row.business_id,
     customerId: row.customer_id,
@@ -133,7 +141,7 @@ export class PostgresOrdersRepository implements OrdersRepository {
   ): Promise<OrderQuoteSnapshot | null> {
     const result = await executor.query<QuoteRow>(
       `SELECT id, business_id, customer_id, product_id, quantity, product_name,
-              currency, pricing_type, unit_price, total_price, status, expires_at
+              currency, pricing_type, unit_price, total_price, status, expires_at, delivery, items
        FROM quotes
        WHERE business_id = $1 AND id = $2
        FOR UPDATE`,
@@ -141,6 +149,8 @@ export class PostgresOrdersRepository implements OrdersRepository {
     );
     const row = result.rows[0];
     return row ? {
+      ...(row.items?{items:row.items}:{}),
+      ...(row.delivery?{delivery:row.delivery}:{}),
       id: row.id,
       businessId: row.business_id,
       customerId: row.customer_id,
@@ -175,11 +185,11 @@ export class PostgresOrdersRepository implements OrdersRepository {
   ): Promise<Order> {
     try {
       const result = await executor.query<OrderRow>(
-        `INSERT INTO orders (business_id, customer_id, quote_id, status, currency, subtotal, total)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO orders (business_id, customer_id, quote_id, status, currency, subtotal, total, delivery)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
          RETURNING ${orderColumns}`,
         [businessId, input.customerId, input.quoteId, input.status, input.currency,
-          input.subtotal, input.total],
+          input.subtotal, input.total,input.delivery?JSON.stringify(input.delivery):null],
       );
       const row = result.rows[0];
       if (!row) throw new Error("PostgreSQL did not return the created order");
@@ -199,11 +209,12 @@ export class PostgresOrdersRepository implements OrdersRepository {
     const result = await executor.query<OrderItemRow>(
       `INSERT INTO order_items (
          business_id, order_id, product_id, product_name, quantity,
-         pricing_type, unit_price, total_price
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         pricing_type, unit_price, total_price, fulfillment_input
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
        RETURNING ${itemColumns}`,
       [businessId, orderId, input.productId, input.productName, input.quantity,
-        input.pricingType, input.unitPrice, input.totalPrice],
+        input.pricingType, input.unitPrice, input.totalPrice,
+        JSON.stringify(input.fulfillmentInput ?? {})],
     );
     const row = result.rows[0];
     if (!row) throw new Error("PostgreSQL did not return the created order item");

@@ -5,6 +5,7 @@ import {
   requireBusinessMembership,
   requireBusinessRole,
 } from "../auth/auth.middleware.js";
+import { requireActiveBusiness } from "../businesses/businesses.active.middleware.js";
 import { PostgresCustomersRepository } from "../customers/customers.repository.js";
 import { PriceCalculatorService } from "../pricing/price-calculator.service.js";
 import { PostgresPricingRepository } from "../pricing/pricing.repository.js";
@@ -34,10 +35,11 @@ export const quotesRoutes: FastifyPluginAsync = async (app) => {
     requireBusinessMembership(app.membershipsRepository),
     requireBusinessRole(["owner", "admin", "operator"]),
   ];
+  const commercialAuthorization = [...authorization, requireActiveBusiness()];
 
   app.post<{ Params: QuoteBusinessParams; Body: CreateQuoteInput }>(
     "/businesses/:businessId/quotes",
-    { schema: createQuoteSchema, preHandler: authorization },
+    { schema: createQuoteSchema, preHandler: commercialAuthorization },
     controller.create,
   );
   app.get<{ Params: QuoteBusinessParams; Querystring: QuoteListQuery }>(

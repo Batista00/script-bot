@@ -1,3 +1,5 @@
+import type { BusinessStatus } from "../businesses/businesses.types.js";
+
 export const apiCredentialStatuses = ["active", "inactive"] as const;
 export type ApiCredentialStatus = (typeof apiCredentialStatuses)[number];
 
@@ -13,6 +15,15 @@ export interface ApiCredential {
 
 export interface ApiCredentialWithHash extends ApiCredential { tokenHash: string }
 
+/**
+ * Credential accepted by Machine Auth, carrying the tenant status of its
+ * business so the Bot Gateway can refuse an inactive business without an
+ * extra query. Never exposed through the administrative API.
+ */
+export interface ActiveApiCredential extends ApiCredentialWithHash {
+  businessStatus: BusinessStatus;
+}
+
 export interface CreateApiCredentialInput { name: string }
 export interface UpdateApiCredentialInput {
   name?: string;
@@ -27,7 +38,7 @@ export interface ApiCredentialsRepository {
   ): Promise<ApiCredential>;
   list(businessId: string): Promise<ApiCredential[]>;
   findById(businessId: string, credentialId: string): Promise<ApiCredential | null>;
-  findActiveByHash(tokenHash: string): Promise<ApiCredentialWithHash | null>;
+  findActiveByHash(tokenHash: string): Promise<ActiveApiCredential | null>;
   update(
     businessId: string,
     credentialId: string,

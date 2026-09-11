@@ -8,6 +8,8 @@ export const paymentStatuses = [
   "cancelled",
   "expired",
   "failed",
+  "refunded",
+  "chargeback",
 ] as const;
 
 export type PaymentStatus = (typeof paymentStatuses)[number];
@@ -142,6 +144,19 @@ export interface PaymentsRepository {
     approvedAt: string | null,
     executor: DatabaseExecutor,
   ): Promise<Payment | null>;
+  /** Moves an approved payment to a post-approval status, keeping approved_at. */
+  transitionFromApproved(
+    businessId: string,
+    paymentId: string,
+    input: { status: PaymentStatus; providerPaymentId: string | null },
+    executor: DatabaseExecutor,
+  ): Promise<Payment | null>;
+  /** Flags the order for operator attention after a refund or chargeback. */
+  markOrderFailed(
+    businessId: string,
+    orderId: string,
+    executor: DatabaseExecutor,
+  ): Promise<boolean>;
   markOrderPaid(
     businessId: string,
     orderId: string,

@@ -5,6 +5,7 @@ export const categoryStatuses = ["active", "inactive"] as const;
 export type CategoryStatus = (typeof categoryStatuses)[number];
 
 export interface Category {
+  parentId?: string | null;
   id: string;
   businessId: string;
   name: string;
@@ -14,10 +15,12 @@ export interface Category {
 }
 
 export interface CreateCategoryInput {
+  parentId?: string | null;
   name: string;
 }
 
 export interface UpdateCategoryInput {
+  parentId?: string | null;
   name?: string;
   status?: CategoryStatus;
 }
@@ -35,6 +38,7 @@ export interface CategoryListQuery {
 }
 
 export interface CategoryPersistenceInput {
+  parentId?: string | null;
   name: string;
   status: CategoryStatus;
 }

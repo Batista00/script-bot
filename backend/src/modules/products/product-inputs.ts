@@ -113,10 +113,15 @@ export function validateCommercialInput(
     if (field.type === "url") {
       try {
         const url = new URL(text);
-        if (url.protocol !== "http:" && url.protocol !== "https:") invalid();
+        if ((url.protocol !== "http:" && url.protocol !== "https:") || url.username || url.password || text.length > 2048) invalid();
       } catch {
         invalid();
       }
+    }
+    if (field.type === "date") {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) invalid();
+      const parsed = new Date(`${text}T00:00:00.000Z`);
+      if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== text) invalid();
     }
   }
   return input;

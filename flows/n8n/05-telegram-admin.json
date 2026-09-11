@@ -1,0 +1,260 @@
+{
+  "name": "BW 05 — Telegram Admin → revisión humana",
+  "nodes": [
+    {
+      "id": "telegram-webhook",
+      "name": "Telegram webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bw-telegram-admin",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "7a0eb3f8-49fb-4314-ae7c-6114b3ec4a4d"
+    },
+    {
+      "id": "config",
+      "name": "Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const config={\"backendBaseUrl\":\"https://admin.pablete.xyz/api\",\"typebotBaseUrl\":\"https://bot.pablete.xyz\",\"n8nBaseUrl\":\"https://n8n.pablete.xyz\",\"typebotPublicId\":\"CONFIGURAR_PUBLIC_ID\",\"evolutionBaseUrl\":\"https://evo.pablete.xyz\",\"instance\":\"CONFIGURAR_INSTANCIA\",\"automationIntegrationId\":\"CONFIGURAR_UUID\",\"telegramIntegrationId\":\"CONFIGURAR_TELEGRAM_UUID\",\"openaiModel\":\"CONFIGURAR_MODELO\",\"evidenceAiEnabled\":true}; return $input.all().map((item,i)=>({json:{...item.json,config},pairedItem:{item:i}}));"
+      }
+    },
+    {
+      "id": "validate-telegram-update",
+      "name": "Validate Telegram update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const update=$json.body&&typeof $json.body==='object'?$json.body:{};\nconst headers=$json.headers&&typeof $json.headers==='object'?$json.headers:{};\nconst secret=String(headers['x-telegram-bot-api-secret-token']||'');\nif(!/^[A-Za-z0-9_-]{32,256}$/.test(secret))throw new Error('TELEGRAM_SECRET_MISSING');\nconst callback=update.callback_query;\nconst message=update.message;\nconst callbackValid=Boolean(callback&&typeof callback.id==='string'&&Number.isInteger(callback.from?.id)&&\n  /^(?:approve|reject|info):[A-Za-z0-9_-]{32}$/.test(String(callback.data||'')));\nconst messageValid=Boolean(message&&Number.isInteger(message.chat?.id)&&\n  /^\\/abono(?:@[A-Za-z0-9_]+)? [A-Za-z0-9_-]{32} .{1,128}$/.test(String(message.text||'')));\nreturn [{json:{valid:callbackValid||messageValid,secret,update}}];"
+      }
+    },
+    {
+      "id": "operational-update",
+      "name": "Operational update",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "Operational update-condition",
+              "leftValue": "={{ $json.valid === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "forward-authorized-decision",
+      "name": "Forward authorized decision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.config.backendBaseUrl + '/webhooks/telegram/' + encodeURIComponent($('Config').first().json.config.telegramIntegrationId) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.update }}",
+        "options": {
+          "timeout": 30000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-telegram-bot-api-secret-token",
+              "value": "={{ $json.secret }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "verify-backend-decision",
+      "name": "Verify backend decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const status=Number($json.statusCode||200);if(status<200||status>=300)throw new Error('TELEGRAM_DECISION_REJECTED');return [{json:{ok:true}}];"
+      }
+    },
+    {
+      "id": "ignore-non-operational-update",
+      "name": "Ignore non operational update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        0
+      ],
+      "parameters": {
+        "jsCode": "return [{json:{ok:true,ignored:true}}];"
+      }
+    },
+    {
+      "id": "reply-telegram",
+      "name": "Reply Telegram",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1680,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Telegram webhook": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Validate Telegram update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Telegram update": {
+      "main": [
+        [
+          {
+            "node": "Operational update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Operational update": {
+      "main": [
+        [
+          {
+            "node": "Forward authorized decision",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignore non operational update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Forward authorized decision": {
+      "main": [
+        [
+          {
+            "node": "Verify backend decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify backend decision": {
+      "main": [
+        [
+          {
+            "node": "Reply Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ignore non operational update": {
+      "main": [
+        [
+          {
+            "node": "Reply Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none",
+    "saveManualExecutions": false,
+    "executionTimeout": 240
+  },
+  "pinData": {},
+  "tags": []
+}

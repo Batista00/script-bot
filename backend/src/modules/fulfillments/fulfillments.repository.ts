@@ -140,15 +140,43 @@ export class PostgresFulfillmentsRepository implements FulfillmentsRepository {
     executor: DatabaseExecutor,
   ): Promise<DispatchOrderItem | null> {
     const result = await executor.query<{
-      id: string; product_id: string; quantity: number;
+      id: string; product_id: string; quantity: number; fulfillment_input: JsonObject;
     }>(
-      `SELECT id, product_id, quantity FROM order_items
+      `SELECT id, product_id, quantity, fulfillment_input FROM order_items
        WHERE business_id = $1 AND order_id = $2 AND id = $3
        FOR UPDATE`,
       [businessId, orderId, orderItemId],
     );
     const row = result.rows[0];
-    return row ? { orderItemId: row.id, productId: row.product_id, quantity: row.quantity } : null;
+    return row
+      ? {
+          orderItemId: row.id,
+          productId: row.product_id,
+          quantity: row.quantity,
+          fulfillmentInput: row.fulfillment_input,
+        }
+      : null;
+  }
+
+  async listOrderItems(
+    businessId: string,
+    orderId: string,
+    executor: DatabaseExecutor,
+  ): Promise<DispatchOrderItem[]> {
+    const result = await executor.query<{
+      id: string; product_id: string; quantity: number; fulfillment_input: JsonObject;
+    }>(
+      `SELECT id, product_id, quantity, fulfillment_input FROM order_items
+       WHERE business_id = $1 AND order_id = $2
+       ORDER BY created_at ASC, id ASC`,
+      [businessId, orderId],
+    );
+    return result.rows.map((row) => ({
+      orderItemId: row.id,
+      productId: row.product_id,
+      quantity: row.quantity,
+      fulfillmentInput: row.fulfillment_input,
+    }));
   }
 
   async findActiveProviderContext(
@@ -244,8 +272,8 @@ export class PostgresFulfillmentsRepository implements FulfillmentsRepository {
     return result.rows[0] ? mapFulfillment(result.rows[0]) : null;
   }
 
-  async listByOrder(businessId: string, orderId: string): Promise<Fulfillment[]> {
-    const result = await this.db.query<FulfillmentRow>(
+  async listByOrder(businessId: string, orderId: string,executor:DatabaseExecutor=this.db): Promise<Fulfillment[]> {
+    const result = await executor.query<FulfillmentRow>(
       `SELECT ${columns} FROM fulfillments
        WHERE business_id = $1 AND order_id = $2 ORDER BY created_at, id`,
       [businessId, orderId],
@@ -367,8 +395,9 @@ export class PostgresFulfillmentsRepository implements FulfillmentsRepository {
     executor: DatabaseExecutor,
   ): Promise<number> {
     const result = await executor.query<{ count: number }>(
-      `SELECT count(*)::integer AS count FROM fulfillments
-       WHERE business_id = $1 AND order_id = $2 AND status <> 'completed'`,
+      `SELECT count(*)::integer AS count FROM order_items i
+       LEFT JOIN fulfillments f ON f.business_id=i.business_id AND f.order_item_id=i.id AND f.order_id=i.order_id
+       WHERE i.business_id = $1 AND i.order_id = $2 AND f.status IS DISTINCT FROM 'completed'`,
       [businessId, orderId],
     );
     return result.rows[0]?.count ?? 0;

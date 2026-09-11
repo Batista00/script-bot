@@ -1,9 +1,14 @@
 import Fastify, { type FastifyInstance } from "fastify";
 
-import type { Env } from "./config/env.js";
+import { type Env, resolveTrustProxy } from "./config/env.js";
+import { AiOrchestratorService } from "./modules/ai-orchestrator/ai-orchestrator.service.js";
+import { aiOrchestratorRoutes } from "./modules/ai-orchestrator/ai-orchestrator.routes.js";
+import { OpenAiResponsesClient } from "./modules/ai-orchestrator/openai-responses.client.js";
 import { databasePlugin } from "./core/database/database.plugin.js";
 import { registerErrorHandler } from "./core/errors/error-handler.js";
 import { createLoggerOptions } from "./core/logger/logger.js";
+import { EvolutionAdapter } from "./integrations/evolution/evolution.adapter.js";
+import { NativeEvolutionClient } from "./integrations/evolution/evolution.client.js";
 import { NativeMercadoPagoClient } from "./integrations/mercado-pago/mercado-pago.client.js";
 import { MercadoPagoPaymentProvider } from "./integrations/mercado-pago/mercado-pago.provider.js";
 import { mercadoPagoWebhookRoutes } from "./integrations/mercado-pago/mercado-pago.webhook.routes.js";
@@ -14,7 +19,16 @@ import { SmmRajaFulfillmentAdapter } from "./integrations/smm-raja/smm-raja.fulf
 import { PostgresApiCredentialsRepository } from "./modules/api-credentials/api-credentials.repository.js";
 import { apiCredentialsRoutes } from "./modules/api-credentials/api-credentials.routes.js";
 import { ApiCredentialsService } from "./modules/api-credentials/api-credentials.service.js";
+import {
+  FixedWindowRateLimiter,
+  rateLimitGuard,
+} from "./core/rate-limit/fixed-window-rate-limiter.js";
 import { authPlugin } from "./modules/auth/auth.plugin.js";
+import {
+  LoginRateLimiter,
+  loginRateLimitDefaults,
+  loginRateLimitGuard,
+} from "./modules/auth/auth.login-rate-limit.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { businessesRoutes } from "./modules/businesses/businesses.routes.js";
 import { PostgresBusinessesRepository } from "./modules/businesses/businesses.repository.js";
@@ -35,7 +49,13 @@ import { integrationsRoutes } from "./modules/integrations/integrations.routes.j
 import { IntegrationCredentialsCrypto } from "./modules/integrations/integrations.crypto.js";
 import { PostgresIntegrationsRepository } from "./modules/integrations/integrations.repository.js";
 import { IntegrationsService } from "./modules/integrations/integrations.service.js";
+import { PostgresJobsRepository } from "./modules/jobs/jobs.repository.js";
+import { jobsRoutes } from "./modules/jobs/jobs.routes.js";
+import { JobsService } from "./modules/jobs/jobs.service.js";
 import { MachineAuthService } from "./modules/machine-auth/machine-auth.service.js";
+import { PostgresMembershipsRepository } from "./modules/memberships/memberships.repository.js";
+import { businessMembershipsRoutes } from "./modules/memberships/memberships.routes.js";
+import { BusinessMembershipsService } from "./modules/memberships/memberships.service.js";
 import { PostgresOrdersRepository } from "./modules/orders/orders.repository.js";
 import { ordersRoutes } from "./modules/orders/orders.routes.js";
 import { OrdersService } from "./modules/orders/orders.service.js";
@@ -62,10 +82,17 @@ import { ProviderProductImportService } from "./modules/provider-catalog/provide
 import { PostgresQuotesRepository } from "./modules/quotes/quotes.repository.js";
 import { quotesRoutes } from "./modules/quotes/quotes.routes.js";
 import { QuotesService } from "./modules/quotes/quotes.service.js";
+import { PostgresUsersRepository } from "./modules/users/users.repository.js";
+import { PostgresWhatsappRepository } from "./modules/whatsapp/whatsapp.repository.js";
+import { whatsappRoutes } from "./modules/whatsapp/whatsapp.routes.js";
+import { WhatsappService } from "./modules/whatsapp/whatsapp.service.js";
+import { WhatsappWebhookService } from "./modules/whatsapp/whatsapp.webhook.service.js";
+import { registerSalesAutomation } from "./modules/sales/sales.plugin.js";
 
 export async function buildApp(config: Env): Promise<FastifyInstance> {
   const app = Fastify({
     bodyLimit: 32 * 1024,
+    trustProxy: resolveTrustProxy(config.TRUST_PROXY),
     ajv: {
       customOptions: {
         coerceTypes: false,
@@ -75,6 +102,27 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   });
 
   registerErrorHandler(app);
+
+  // Public surfaces are throttled per identity: the login by client address,
+  // the Bot Gateway by machine credential and the provider webhook by address.
+  const webhookRateLimit = rateLimitGuard({
+    limiter: new FixedWindowRateLimiter({
+      max: config.WEBHOOK_RATE_LIMIT_MAX ?? 240,
+      windowSeconds: config.WEBHOOK_RATE_LIMIT_WINDOW_SECONDS ?? 60,
+    }),
+    key: (request) => (request.ip.length > 0 ? request.ip : "unknown"),
+    code: "TOO_MANY_REQUESTS",
+    message: "Too many requests. Try again later.",
+  });
+  const botRateLimit = rateLimitGuard({
+    limiter: new FixedWindowRateLimiter({
+      max: config.BOT_RATE_LIMIT_MAX ?? 600,
+      windowSeconds: config.BOT_RATE_LIMIT_WINDOW_SECONDS ?? 60,
+    }),
+    key: (request) => request.machineAuthContext?.credentialId ?? request.ip,
+    code: "TOO_MANY_REQUESTS",
+    message: "Too many requests. Try again later.",
+  });
   await app.register(databasePlugin, {
     connectionString: config.DATABASE_URL,
   });
@@ -92,12 +140,15 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   );
   const paymentMethodsRepository = new PostgresPaymentMethodsRepository(app.db);
   const paymentMethodsService = new PaymentMethodsService(paymentMethodsRepository);
+  const jobsService = new JobsService(new PostgresJobsRepository(app.db));
   const paymentsService = new PaymentsService(
     new PostgresPaymentsRepository(app.db),
     app.db,
     new PaymentProviderRegistry([mercadoPagoProvider, new BankTransferPaymentProvider()]),
     undefined,
     paymentMethodsRepository,
+    jobsService,
+    integrationsService,
   );
   const mercadoPagoWebhookService = new MercadoPagoWebhookService(
     integrationsService,
@@ -136,6 +187,14 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   );
   const apiCredentialsRepository = new PostgresApiCredentialsRepository(app.db);
   const apiCredentialsService = new ApiCredentialsService(apiCredentialsRepository);
+  const machineAuthService = new MachineAuthService(apiCredentialsRepository);
+
+  const aiInterpreter = new OpenAiResponsesClient({
+    apiKey: config.OPENAI_API_KEY,
+    model: config.OPENAI_MODEL ?? "gpt-5.4-nano",
+    timeoutMs: config.OPENAI_TIMEOUT_MS ?? 10_000,
+  });
+  const aiOrchestratorService = new AiOrchestratorService(aiInterpreter);
   const categoriesRepository = new PostgresCategoriesRepository(app.db);
   const customersRepository = new PostgresCustomersRepository(app.db);
   const productsRepository = new PostgresProductsRepository(app.db);
@@ -155,19 +214,62 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
     fulfillmentService,
     paymentMethodsService,
     new PostgresBusinessesRepository(app.db),
+    jobsService,
+  );
+  const whatsappRepository = new PostgresWhatsappRepository(app.db);
+  const whatsappService = new WhatsappService(
+    whatsappRepository,
+    integrationsService,
+    new CustomersService(customersRepository),
+    new EvolutionAdapter(integrationsService, new NativeEvolutionClient(), config.NODE_ENV),
+  );
+  const whatsappWebhookService = new WhatsappWebhookService(
+    integrationsService,
+    new CustomersService(customersRepository),
+    whatsappRepository,
   );
   await app.register(healthRoutes);
-  await app.register(mercadoPagoWebhookRoutes, { service: mercadoPagoWebhookService });
+  await app.register(mercadoPagoWebhookRoutes, {
+    service: mercadoPagoWebhookService,
+    rateLimit: webhookRateLimit,
+  });
   await app.register(integrationsRoutes, { service: integrationsService });
-  await app.register(authRoutes, { prefix: "/auth", config });
+  const loginRateLimiter = new LoginRateLimiter({
+    max: config.AUTH_LOGIN_RATE_LIMIT_MAX ?? loginRateLimitDefaults.max,
+    windowSeconds:
+      config.AUTH_LOGIN_RATE_LIMIT_WINDOW_SECONDS ?? loginRateLimitDefaults.windowSeconds,
+  });
+  await app.register(authRoutes, {
+    prefix: "/auth",
+    config,
+    loginRateLimit: loginRateLimitGuard(loginRateLimiter),
+  });
   await app.register(businessesRoutes, { prefix: "/businesses" });
+  await app.register(businessMembershipsRoutes, {
+    service: new BusinessMembershipsService(
+      new PostgresMembershipsRepository(app.db),
+      new PostgresUsersRepository(app.db),
+      app.db,
+    ),
+  });
   await app.register(apiCredentialsRoutes, { service: apiCredentialsService });
   await app.register(botGatewayRoutes, {
     prefix: "/bot/v1",
     service: botGatewayService,
-    machineAuth: new MachineAuthService(apiCredentialsRepository),
+    machineAuth: machineAuthService,
+    rateLimit: botRateLimit,
+  });
+  await app.register(aiOrchestratorRoutes, {
+    prefix: "/bot/v1/assistant",
+    service: aiOrchestratorService,
+    machineAuth: machineAuthService,
   });
   await app.register(customersRoutes);
+  await app.register(whatsappRoutes, {
+    service: whatsappService,
+    webhookService: whatsappWebhookService,
+    rateLimit: webhookRateLimit,
+  });
   await app.register(categoriesRoutes);
   await app.register(productsRoutes);
   await app.register(providerCatalogRoutes, {
@@ -180,6 +282,9 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   await app.register(ordersRoutes);
   await app.register(paymentsRoutes, { service: paymentsService });
   await app.register(paymentMethodsRoutes, { service: paymentMethodsService });
+  await app.register(jobsRoutes, { service: jobsService });
+  await registerSalesAutomation(app, config, botGatewayService, integrationsService, paymentsService,
+    new ProviderFulfillmentRegistry([new SmmRajaFulfillmentAdapter(integrationsService, smmRajaClient)]));
 
   return app;
 }

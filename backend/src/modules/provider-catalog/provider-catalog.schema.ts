@@ -39,7 +39,8 @@ const serviceResponseSchema = {
   required: [
     "id", "businessId", "integrationId", "providerKey", "externalServiceId",
     "name", "category", "serviceType", "rate", "rateCurrency", "minQuantity",
-    "maxQuantity", "providerDescription", "orderCapabilities", "providerStatus",
+    "maxQuantity", "providerDescription", "supportsRefill", "supportsCancel",
+    "orderCapabilities", "providerStatus",
     "mappingCount", "metadata", "lastSyncedAt", "createdAt", "updatedAt",
   ],
   properties: {
@@ -49,7 +50,10 @@ const serviceResponseSchema = {
     serviceType: { type: ["string", "null"] }, rate: { type: ["string", "null"] },
     rateCurrency: { type: ["string", "null"] },
     minQuantity: { type: ["integer", "null"] }, maxQuantity: { type: ["integer", "null"] },
-    providerDescription: { type: ["string", "null"] }, orderCapabilities: capabilitiesSchema,
+    providerDescription: { type: ["string", "null"] },
+    supportsRefill: { type: ["boolean", "null"] },
+    supportsCancel: { type: ["boolean", "null"] },
+    orderCapabilities: capabilitiesSchema,
     providerStatus: statusSchema, mappingCount: { type: "integer", minimum: 0 },
     metadata: { type: "object", additionalProperties: true },
     lastSyncedAt: { type: "string", format: "date-time" },
@@ -128,6 +132,31 @@ export const syncProviderServicesSchema = {
         rejectionReasons: { type: "object", additionalProperties: { type: "integer", minimum: 0 } },
         updated: { type: "integer", minimum: 0 }, reactivated: { type: "integer", minimum: 0 },
         deactivated: { type: "integer", minimum: 0 },
+      },
+    },
+    400: errorResponseSchema, 401: errorResponseSchema, 403: errorResponseSchema,
+    404: errorResponseSchema, 409: errorResponseSchema, 502: errorResponseSchema,
+    503: errorResponseSchema,
+  },
+} satisfies FastifySchema;
+
+export const testProviderConnectionSchema = {
+  params: {
+    type: "object", additionalProperties: false,
+    required: ["businessId", "integrationId"],
+    properties: { businessId: uuidSchema, integrationId: uuidSchema },
+  },
+  response: {
+    200: {
+      type: "object", additionalProperties: false,
+      required: ["integrationId", "providerKey", "connectionStatus", "balance", "currency", "checkedAt"],
+      properties: {
+        integrationId: uuidSchema,
+        providerKey: { type: "string" },
+        connectionStatus: { type: "string", const: "ok" },
+        balance: { type: ["string", "null"] },
+        currency: { type: ["string", "null"] },
+        checkedAt: { type: "string", format: "date-time" },
       },
     },
     400: errorResponseSchema, 401: errorResponseSchema, 403: errorResponseSchema,

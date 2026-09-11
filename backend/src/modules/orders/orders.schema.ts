@@ -1,4 +1,5 @@
 import type { FastifySchema } from "fastify";
+import { physicalDeliveryHttpSchema } from "../products/physical-delivery.js";
 
 const errorResponseSchema = {
   type: "object", additionalProperties: false, required: ["error"],
@@ -56,6 +57,7 @@ const orderResponseSchema = {
     status: orderStatusSchema,
     currency: { type: "string", pattern: "^[A-Z]{3}$" },
     subtotal: { type: "integer", minimum: 1, maximum: 9_007_199_254_740_991 },
+    delivery:physicalDeliveryHttpSchema,
     total: { type: "integer", minimum: 1, maximum: 9_007_199_254_740_991 },
     createdAt: { type: "string", format: "date-time" },
     updatedAt: { type: "string", format: "date-time" },

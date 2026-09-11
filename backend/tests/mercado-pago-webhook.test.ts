@@ -38,7 +38,7 @@ class FakeWebhookIntegrationLookup {
     businessId: paymentBusinessA,
     providerKey: "mercado_pago",
     config: {},
-    credentials: { accessToken: "access-token", webhookSecret },
+    credentials: { publicKey: "public-key", accessToken: "access-token", webhookSecret },
   };
 
   async getActiveIntegrationById(): Promise<ActiveIntegration | null> {
@@ -292,7 +292,7 @@ test("attempting to replace a bound provider payment id is rejected", async () =
 
 test("unsupported status is warned without inventing a transition", async () => {
   const client = new FakeWebhookClient();
-  client.resource.status = "refunded";
+  client.resource.status = "in_mediation";
   const warnings: string[] = [];
   const payments = new CapturingPayments();
   const service = new MercadoPagoWebhookService(
@@ -302,8 +302,22 @@ test("unsupported status is warned without inventing a transition", async () => 
     (details) => warnings.push(details.providerStatus),
   );
   assert.equal((await service.process(webhookInput())).processed, false);
-  assert.deepEqual(warnings, ["refunded"]);
+  assert.deepEqual(warnings, ["in_mediation"]);
   assert.equal(payments.updates.length, 0);
+});
+
+test("refunded and charged_back are forwarded as verified transitions", async () => {
+  for (const [external, expected] of [["refunded", "refunded"], ["charged_back", "chargeback"]] as const) {
+    const client = new FakeWebhookClient();
+    client.resource.status = external;
+    const payments = new CapturingPayments();
+    const service = new MercadoPagoWebhookService(
+      new FakeWebhookIntegrationLookup(), payments, client,
+    );
+    assert.equal((await service.process(webhookInput())).processed, true);
+    assert.equal(payments.updates.length, 1);
+    assert.equal(payments.updates[0]?.status, expected);
+  }
 });
 
 test("temporary Mercado Pago API failure returns a retryable 503", async () => {

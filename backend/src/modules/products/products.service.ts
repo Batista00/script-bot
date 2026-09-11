@@ -1,6 +1,7 @@
 import { AppError } from "../../core/errors/app-error.js";
 import type { CategoriesRepository } from "../categories/categories.types.js";
 import { normalizeProductInputs } from "./product-inputs.js";
+import { normalizeProductDelivery } from "./product-delivery.js";
 import {
   type CreateProductInput,
   type Product,
@@ -98,6 +99,7 @@ export function normalizeCreateProductInput(input: CreateProductInput): ProductP
     minQuantity: normalizeQuantity(input.minQuantity, "minQuantity"),
     maxQuantity: normalizeQuantity(input.maxQuantity, "maxQuantity"),
     requiredInputs: normalizeProductInputs(input.requiredInputs),
+    deliveryConfig: normalizeProductDelivery(input.deliveryConfig, input.type),
     status: "active",
   };
   validateQuantityRange(values.minQuantity, values.maxQuantity);
@@ -141,6 +143,9 @@ export class ProductsService {
   }
 
   list(businessId: string, options: ProductListOptions): Promise<Product[]> {
+    if (options.search !== undefined && (!options.search.trim() || options.search.trim().length > 160)) {
+      throw new AppError("La búsqueda debe tener entre 1 y 160 caracteres",400,"INVALID_PRODUCT_SEARCH");
+    }
     return this.repository.list(businessId, options);
   }
 
@@ -191,6 +196,8 @@ export class ProductsService {
         ? (existing.requiredInputs ?? [])
         : normalizeProductInputs(input.requiredInputs),
       status: input.status ?? existing.status,
+      deliveryConfig: normalizeProductDelivery(input.deliveryConfig === undefined
+        ? existing.deliveryConfig : input.deliveryConfig, input.type ?? existing.type),
     };
     validateQuantityRange(values.minQuantity, values.maxQuantity);
     await this.requireCategory(businessId, values.categoryId);

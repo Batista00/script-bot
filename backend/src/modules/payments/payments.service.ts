@@ -1,12 +1,41 @@
 import type { Pool } from "pg";
 
 import { withTransaction } from "../../core/database/database.js";
+import type { DatabaseExecutor } from "../../core/database/database.js";
 import { AppError } from "../../core/errors/app-error.js";
+import type { EnqueueJobInput } from "../jobs/jobs.types.js";
+import { jobTypes } from "../jobs/jobs.types.js";
 import type { PaymentMethodsRepository } from "../payment-methods/payment-methods.types.js";
+
+/**
+ * Minimal jobs port so Payments stays decoupled from the queue implementation
+ * and remains easy to unit test.
+ */
+export interface JobEnqueuer {
+  enqueue(input: EnqueueJobInput, executor?: DatabaseExecutor): Promise<unknown>;
+}
+
+/** Minimal integrations port used by the read-only connection test. */
+export interface IntegrationLookup {
+  getById(
+    businessId: string,
+    integrationId: string,
+  ): Promise<{ id: string; businessId: string; providerKey: string; status: string }>;
+}
+
+export interface PaymentProviderConnectionTest {
+  integrationId: string;
+  providerKey: string;
+  connectionStatus: "ok";
+  checkedAt: string;
+}
+
 import {
   type CreateProviderPaymentResult,
+  PaymentProviderCredentialsInvalidError,
   PaymentProviderCurrencyNotSupportedError,
   PaymentProviderUnavailableError,
+  type ProviderPaymentStatus,
 } from "./payments.provider.js";
 import { normalizeProviderKey, PaymentProviderRegistry } from "./payments.registry.js";
 import {
@@ -109,6 +138,8 @@ export class PaymentsService {
     private readonly providers: PaymentProviderRegistry,
     private readonly now: () => Date = () => new Date(),
     private readonly paymentMethods?: PaymentMethodsRepository,
+    private readonly jobs?: JobEnqueuer,
+    private readonly integrations?: IntegrationLookup,
   ) {}
 
   async create(
@@ -247,9 +278,121 @@ export class PaymentsService {
     if (payment.providerKey !== "bank_transfer") {
       throw new AppError("Payment is not a bank transfer", 409, "PAYMENT_METHOD_MISMATCH");
     }
+    // Repeating the exact confirmation is idempotent; reusing the payment with
+    // another reference is a caller mistake and must not be silently ignored.
+    if (payment.status === "approved") {
+      if (payment.providerPaymentId !== reference) {
+        throw new AppError(
+          "Payment was already confirmed with another reference",
+          409,
+          "PAYMENT_TRANSFER_REFERENCE_MISMATCH",
+        );
+      }
+      return payment;
+    }
+    if (payment.status !== "pending") throw invalidTransitionError();
+
+    const conflict = await this.repository.findByProviderIdentity(
+      businessId,
+      "bank_transfer",
+      reference,
+    );
+    if (conflict && conflict.id !== payment.id) {
+      throw new AppError(
+        "Bank transfer reference was already used by another payment",
+        409,
+        "PAYMENT_TRANSFER_REFERENCE_CONFLICT",
+      );
+    }
+
     return this.transitionPayment(
       businessId, paymentId, "approved", reference, reference, null, null,
     );
+  }
+
+  /**
+   * Applies a provider status located by provider identity without verifying
+   * amount or currency. It exists for controlled reconciliation and tests;
+   * production webhooks MUST use `applyVerifiedProviderUpdate`, which validates
+   * the financial snapshot before touching Payment and Order.
+   */
+  /**
+   * Read-only credential check: asks the provider to authenticate with the
+   * stored secrets. Nothing is created or modified.
+   */
+  async testConnection(
+    businessId: string,
+    integrationId: string,
+  ): Promise<PaymentProviderConnectionTest> {
+    if (!this.integrations) throw providerNotAvailableError();
+    const integration = await this.integrations.getById(businessId, integrationId);
+    if (integration.status !== "active") {
+      throw new AppError("Integration is inactive", 409, "INTEGRATION_INACTIVE");
+    }
+    const provider = this.providers.resolve(integration.providerKey);
+    if (!provider) throw providerNotAvailableError();
+    if (!provider.verifyCredentials) {
+      throw new AppError(
+        "Payment provider does not support connection tests",
+        409,
+        "PAYMENT_PROVIDER_TEST_UNSUPPORTED",
+      );
+    }
+    try {
+      await provider.verifyCredentials({ businessId, integrationId });
+    } catch (error) {
+      if (error instanceof PaymentProviderCredentialsInvalidError) {
+        throw new AppError(
+          "Payment provider rejected the stored credentials",
+          409,
+          "PAYMENT_PROVIDER_CREDENTIALS_INVALID",
+        );
+      }
+      if (error instanceof PaymentProviderUnavailableError) throw providerNotAvailableError();
+      if (error instanceof AppError) throw error;
+      throw providerNotAvailableError();
+    }
+    return {
+      integrationId,
+      providerKey: integration.providerKey,
+      connectionStatus: "ok",
+      checkedAt: this.now().toISOString(),
+    };
+  }
+
+  /**
+   * Server-to-server reconciliation for a pending payment. Used by the worker
+   * when a webhook never arrived: the provider is queried, the financial
+   * snapshot is verified and the standard verified transition is applied.
+   */
+  async reconcilePending(
+    businessId: string,
+    paymentId: string,
+  ): Promise<"ignored" | "pending" | "terminal"> {
+    const payment = await this.repository.findById(businessId, paymentId);
+    if (!payment || payment.status !== "pending") return "ignored";
+    if (payment.providerKey === "bank_transfer") return "ignored";
+    const provider = this.providers.resolve(payment.providerKey);
+    if (!provider?.fetchStatus) return "ignored";
+
+    const status: ProviderPaymentStatus | null = await provider.fetchStatus({
+      businessId,
+      paymentId: payment.id,
+      providerReferenceId: payment.providerReferenceId,
+      providerPaymentId: payment.providerPaymentId,
+    });
+    if (status === null) return "ignored";
+
+    const updated = await this.applyVerifiedProviderUpdate({
+      businessId,
+      paymentId: payment.id,
+      providerKey: payment.providerKey,
+      providerPaymentId: status.providerPaymentId,
+      status: status.status,
+      amount: status.amount,
+      currency: status.currency,
+    });
+    return updated.status === "pending" ? "pending" : "terminal";
   }
 
   async applyProviderUpdate(
@@ -456,6 +599,25 @@ export class PaymentsService {
         throw invalidTransitionError();
       }
       if (payment.status === targetStatus) return payment;
+
+      // Refunds and chargebacks arrive after the sale was approved. They keep
+      // the approval trail and flag the order for operator attention.
+      if (targetStatus === "refunded" || targetStatus === "chargeback") {
+        if (payment.status !== "approved") throw invalidTransitionError();
+        const reversed = await this.repository.transitionFromApproved(
+          businessId,
+          payment.id,
+          { status: targetStatus, providerPaymentId },
+          client,
+        );
+        if (!reversed) throw invalidTransitionError();
+        const order = await this.repository.findOrderForPayment(businessId, payment.orderId, client);
+        if (order && (order.status === "paid" || order.status === "processing")) {
+          await this.repository.markOrderFailed(businessId, order.id, client);
+        }
+        return reversed;
+      }
+
       if (payment.status !== "pending" || targetStatus === "pending") {
         throw invalidTransitionError();
       }
@@ -503,6 +665,14 @@ export class PaymentsService {
           if (!(await this.repository.markOrderPaid(businessId, order.id, client))) {
             throw new AppError("Order is not payable", 409, "ORDER_NOT_PAYABLE");
           }
+          // Enqueue the fulfillment work inside the same transaction: the order
+          // is paid and the job is durable together, with no external call here.
+          // A worker picks it up and submits the provider order.
+          await this.jobs?.enqueue({
+            jobType: jobTypes.orderFulfill,
+            jobKey: order.id,
+            payload: { businessId, orderId: order.id },
+          }, client);
           return updated;
         }
 

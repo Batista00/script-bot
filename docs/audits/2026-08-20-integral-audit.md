@@ -1,5 +1,23 @@
 # Auditoría integral BOT WHATSAP — 2026-08-20
 
+> **Nota de vigencia.** Este informe es una fotografía del baseline `3a3b5fb`. El repositorio
+> avanzó después y varias afirmaciones ya no aplican:
+>
+> - Las migraciones 000013 y 000014 se agregaron en `2efb6d8`, por lo que "no se prevé schema
+>   nuevo" (más abajo) aplica solo a los cambios evaluados entonces. Hoy existen 15 migraciones.
+> - Se agregaron después: rate limiting en `POST /auth/login`, `business.status` efectivo,
+>   administración de memberships, `GET /health/ready` y el refactor del validador Typebot.
+> - Las cifras de tests listadas (228/242 unit, 14/20 admin) no coinciden con el conteo actual;
+>   usar siempre la salida real de `pnpm test` y `pnpm test`.
+> - AUD-009 aparece como "resuelto y verificado LIVE" en su sección y como "no verificable" en el
+>   cierre; la lectura correcta es que la verificación fue LIVE el 2026-08-23 fuera del alcance
+>   local. Las cifras de servicios del proveedor también difieren entre este informe (6.325) y
+>   `docs/providers/smm-raja-discovery.md` (6.311 recibidos / 6.310 normalizados); prevalece el
+>   documento de descubrimiento.
+>
+> Hallazgos aún abiertos al cierre de esta nota: AUD-004 (Typebot no completa Fulfillment) y
+> AUD-008 (estados de error y selectores del panel).
+
 ## Alcance y baseline
 
 Auditoría local, sin SSH, deployment, Docker, datos productivos, pagos reales ni órdenes reales de proveedor. Rama: `codex/auditoria-integral-local` sobre `3a3b5fb`.

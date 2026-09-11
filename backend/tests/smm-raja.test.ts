@@ -97,13 +97,15 @@ test("normalization preserves decimal strings, min/max, and safe metadata", () =
     minQuantity: 10,
     maxQuantity: 1000,
     providerDescription: null,
+    supportsRefill: true,
+    supportsCancel: null,
     orderCapabilities: {
       supported: true,
       required: [{ key: "targetUrl", providerField: "link", type: "url" }],
       optional: [],
       source: "official",
     },
-    metadata: { refill: true, nested: { public: "kept" } },
+    metadata: { nested: { public: "kept" } },
   });
 });
 

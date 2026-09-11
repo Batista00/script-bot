@@ -42,15 +42,16 @@ test("machine authentication accepts only the exact active credential", async ()
     credentialId: created.credential.id,
     businessId: businessA,
     credentialName: "Typebot",
+    businessStatus: "active",
   });
   assert.equal(await machine.authenticate("bw_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"), null);
   await credentials.update(businessA, created.credential.id, { status: "inactive" });
   assert.equal(await machine.authenticate(created.token), null);
 });
 
-test("logger redacts machine Authorization and human Cookie headers", () => {
+test("logger redacts machine Authorization, cookies, Telegram secret and request bodies", () => {
   const options = createLoggerOptions("info");
   assert.deepEqual(options.redact.paths.sort(), [
-    "req.headers.authorization", "req.headers.cookie",
+    "req.body", "req.headers.authorization", "req.headers.cookie", "req.headers['x-telegram-bot-api-secret-token']",
   ]);
 });

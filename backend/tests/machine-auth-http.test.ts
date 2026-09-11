@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import type { InjectOptions } from "fastify";
 
 import { buildApp } from "../src/app.js";
 import type { Env } from "../src/config/env.js";
@@ -21,7 +22,11 @@ const config: Env = {
   LOG_LEVEL: "silent", AUTH_SESSION_TTL_HOURS: 168,
 };
 
-async function appWithRole(role: BusinessRole, active = true) {
+async function appWithRole(
+  role: BusinessRole,
+  active = true,
+  businessStatus: "active" | "inactive" = "active",
+) {
   const app = await buildApp(config);
   app.authService.authenticate = async (session) => {
     if (session !== "session") {
@@ -33,12 +38,14 @@ async function appWithRole(role: BusinessRole, active = true) {
     };
   };
   app.membershipsRepository.findByBusinessAndUser = async () => ({
+    status: "active", businessStatus,
     id: membershipId, businessId: businessA, userId, role, createdAt: now, updatedAt: now,
   });
   const credentialRow = {
     id: credentialId, business_id: businessA, name: "Typebot Principal",
     token_hash: hashApiCredentialToken(token), token_prefix: token.slice(0, 11),
-    status: active ? "active" : "inactive", created_at: now, updated_at: now,
+    status: active ? "active" : "inactive", business_status: businessStatus,
+    created_at: now, updated_at: now,
   };
   app.db.query = (async (sql: string, values?: unknown[]) => {
     if (sql.includes("INSERT INTO business_api_credentials")) {
@@ -139,4 +146,142 @@ test("inactive credential receives the same 401 as an invalid token", async (t) 
   });
   assert.equal(response.statusCode, 401);
   assert.equal(response.json().error.code, "MACHINE_AUTHENTICATION_REQUIRED");
+});
+
+test("the machine credential reads the operational views of its business", async (t) => {
+  const app = await appWithRole("owner");
+  t.after(async () => app.close());
+
+  for (const url of [
+    "/bot/v1/operations/jobs?status=failed&limit=10",
+    "/bot/v1/operations/orders?limit=10",
+    "/bot/v1/operations/payments?limit=10",
+    "/bot/v1/operations/fulfillments?limit=10",
+  ]) {
+    const response = await app.inject({
+      method: "GET", url, headers: { authorization: `Bearer ${token}` },
+    });
+    assert.equal(response.statusCode, 200, url);
+  }
+
+  const anonymous = await app.inject({ method: "GET", url: "/bot/v1/operations/jobs" });
+  assert.equal(anonymous.statusCode, 401);
+  assert.equal(anonymous.json().error.code, "MACHINE_AUTHENTICATION_REQUIRED");
+
+  const humanRoute = await app.inject({
+    method: "GET", url: `/businesses/${businessA}/jobs`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(humanRoute.statusCode, 401);
+});
+
+test("an inactive business blocks the bot channel and commercial writes but keeps administration", async (t) => {
+  const app = await appWithRole("owner", true, "inactive");
+  t.after(async () => app.close());
+  const session = { cookie: `${sessionCookieName}=session` };
+
+  const blocked: InjectOptions[] = [
+    { method: "GET", url: "/bot/v1/categories", headers: { authorization: `Bearer ${token}` } },
+    { method: "GET", url: "/bot/v1/payment-methods", headers: { authorization: `Bearer ${token}` } },
+    {
+      method: "POST", url: "/bot/v1/customers/resolve",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { phone: "+56911111111" },
+    },
+    {
+      method: "POST", url: `/businesses/${businessA}/categories`,
+      headers: session, payload: { name: "Instagram" },
+    },
+    {
+      method: "POST", url: `/businesses/${businessA}/products`,
+      headers: session, payload: { name: "Seguidores", type: "service" },
+    },
+    {
+      method: "POST", url: `/businesses/${businessA}/quotes`,
+      headers: session, payload: { productId: categoryId, quantity: 1, currency: "CLP" },
+    },
+  ];
+  for (const request of blocked) {
+    const response = await app.inject(request);
+    assert.equal(response.statusCode, 409, `${request.method} ${request.url}`);
+    assert.equal(response.json().error.code, "BUSINESS_INACTIVE");
+  }
+
+  const adminRead = await app.inject({
+    method: "GET", url: `/businesses/${businessA}/api-credentials`, headers: session,
+  });
+  assert.equal(adminRead.statusCode, 200);
+
+  const commercialRead = await app.inject({
+    method: "GET", url: `/businesses/${businessA}/categories`, headers: session,
+  });
+  assert.equal(commercialRead.statusCode, 200);
+});
+
+test("AI assistant requires Machine Auth", async (t) => {
+  const app = await appWithRole("owner");
+  t.after(async () => app.close());
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/bot/v1/assistant/message",
+    payload: {
+      message: "quiero seguidores de instagram",
+    },
+  });
+
+  assert.equal(response.statusCode, 401);
+  assert.equal(
+    response.json().error.code,
+    "MACHINE_AUTHENTICATION_REQUIRED",
+  );
+});
+
+test("AI assistant has safe fallback without OpenAI key", async (t) => {
+  const app = await appWithRole("owner");
+  t.after(async () => app.close());
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/bot/v1/assistant/message",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+    payload: {
+      message: "quiero 1000 seguidores de instagram",
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+
+  const body = response.json();
+
+  assert.equal(body.intent, "unknown");
+  assert.equal(body.action, "clarify");
+  assert.equal(body.confidence, 0);
+  assert.equal(body.data.aiConfigured, false);
+});
+
+test("AI assistant ignores client supplied businessId", async (t) => {
+  const app = await appWithRole("owner");
+  t.after(async () => app.close());
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/bot/v1/assistant/message",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+    payload: {
+      message: "quiero seguidores de instagram",
+      businessId: "11111111-1111-4111-8111-111111111111",
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+
+  const body = response.json();
+
+  assert.equal(body.data.aiConfigured, false);
+  assert.equal(body.intent, "unknown");
 });

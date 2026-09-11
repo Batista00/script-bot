@@ -33,6 +33,8 @@ export interface ProviderOrderStatusResult {
 
 export interface ProviderFulfillmentAdapter {
   readonly key: string;
+  /** Local validation only: never calls an external API. */
+  validateOrder?(input: CreateProviderOrderInput): void;
   createOrder(input: CreateProviderOrderInput): Promise<CreateProviderOrderResult>;
   getOrderStatus(input: GetProviderOrderStatusInput): Promise<ProviderOrderStatusResult>;
 }

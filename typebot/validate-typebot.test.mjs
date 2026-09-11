@@ -1,13 +1,19 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { validateTypebotSemantics } from "./validate-typebot.mjs";
+import {
+  validateTypebotDocument,
+  validateTypebotSemantics,
+  validateTypebotTemplate,
+} from "./validate-typebot.mjs";
 
-const template = JSON.parse(await readFile(
-  new URL("./bot-whatsap-commerce-v1.json", import.meta.url),
-  "utf8",
-));
+const templateUrl = new URL("./bot-whatsap-commerce-v1.json", import.meta.url);
+const validatorPath = fileURLToPath(new URL("./validate-typebot.mjs", import.meta.url));
+
+const template = JSON.parse(await readFile(templateUrl, "utf8"));
 const blocks = () => structuredClone(template.groups.flatMap((group) => group.blocks ?? []));
 
 test("current template satisfies Typebot semantic constraints", () => {
@@ -41,4 +47,214 @@ test("validator requires code mode and unquoted quantity interpolation", () => {
   quantity.options.expressionToEvaluate =
     'Number.isInteger(Number("{{quantityInput}}")) && Number("{{quantityInput}}") > 0';
   assert.throws(() => validateTypebotSemantics(mutated), /unquoted quantityInput/);
+});
+
+test("pure document validator accepts the real template", () => {
+  assert.doesNotThrow(() => validateTypebotDocument(structuredClone(template)));
+});
+
+test("pure template validator rejects invalid JSON", () => {
+  assert.throws(() => validateTypebotTemplate("{ not json"), /invalid JSON/);
+});
+
+test("pure document validator rejects an invalid template", () => {
+  const wrongVersion = structuredClone(template);
+  wrongVersion.version = "5.0";
+  assert.throws(() => validateTypebotDocument(wrongVersion), /version must be exactly 6.1/);
+
+  const missingVariable = structuredClone(template);
+  missingVariable.variables = missingVariable.variables.filter(({ name }) => name !== "checkoutUrl");
+  assert.throws(
+    () => validateTypebotDocument(missingVariable),
+    /required variable checkoutUrl is missing/,
+  );
+
+  const duplicateIds = structuredClone(template);
+  duplicateIds.variables.push({ ...duplicateIds.variables[0] });
+  assert.throws(() => validateTypebotDocument(duplicateIds), /duplicate ID/);
+});
+
+test("importing the validator is silent and side-effect free", () => {
+  const result = spawnSync(
+    process.execPath,
+    ["--input-type=module", "-e", `await import(${JSON.stringify(pathToFileURL(validatorPath).href)})`],
+    { encoding: "utf8" },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, "");
+  assert.equal(result.stderr, "");
+});
+
+test("CLI execution validates the real template and exits 0", () => {
+  const result = spawnSync(process.execPath, [validatorPath], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), "Typebot template valid");
+});
+
+const findBlock = (document, id) =>
+  document.groups.flatMap((group) => group.blocks ?? []).find((block) => block.id === id);
+
+const groupById = (document, id) => document.groups.find((group) => group.id === id);
+
+test("template reads fulfillment status through allowed read-only GET endpoints", () => {
+  const single = structuredClone(template);
+  groupById(single, "grppostventa").blocks.push({
+    id: "blkfulfillmentsingle",
+    type: "Webhook",
+    options: {
+      webhook: {
+        url: "{{backend_base_url}}/bot/v1/fulfillments/{{fulfillmentId}}",
+        method: "GET",
+        headers: [{
+          id: "hdrsinglefulfillment",
+          key: "Authorization",
+          value: "Bearer {{backend_token}}",
+        }],
+      },
+    },
+  });
+  assert.doesNotThrow(() => validateTypebotDocument(single));
+
+  const dispatched = structuredClone(single);
+  const block = findBlock(dispatched, "blkfulfillmentsingle");
+  block.options.webhook.method = "POST";
+  block.options.webhook.body = "{}";
+  block.options.webhook.headers.push({
+    id: "hdrctsingle", key: "Content-Type", value: "application/json",
+  });
+  assert.throws(() => validateTypebotDocument(dispatched), /must not dispatch fulfillments/);
+});
+
+test("validator rejects fulfillment sync and unlisted fulfillment endpoints", () => {
+  const synced = structuredClone(template);
+  groupById(synced, "grppostventa").blocks.push({
+    id: "blkfulfillmentsync",
+    type: "Webhook",
+    options: {
+      webhook: {
+        url: "{{backend_base_url}}/bot/v1/orders/{{orderId}}/fulfillments/sync",
+        method: "GET",
+        headers: [{
+          id: "hdrsyncfulfillment",
+          key: "Authorization",
+          value: "Bearer {{backend_token}}",
+        }],
+      },
+    },
+  });
+  assert.throws(() => validateTypebotDocument(synced), /forbidden fulfillment endpoint/);
+});
+
+test("validator rejects a POST dispatch of the order fulfillments", () => {
+  const dispatched = structuredClone(template);
+  const block = findBlock(dispatched, "blkorderfulfillmentswebhook");
+  block.options.webhook.method = "POST";
+  block.options.webhook.body = "{}";
+  block.options.webhook.headers.push({
+    id: "hdrctdispatch", key: "Content-Type", value: "application/json",
+  });
+  assert.throws(() => validateTypebotDocument(dispatched), /must not dispatch fulfillments/);
+});
+
+test("a fixture that still uses the payments endpoints keeps passing", () => {
+  const fixture = structuredClone(template);
+  const urls = fixture.groups.flatMap((group) => group.blocks ?? [])
+    .filter((block) => block.type === "Webhook")
+    .map((block) => block.options.webhook.url);
+  assert.ok(urls.includes("{{backend_base_url}}/bot/v1/orders/{{orderId}}/payments"));
+  assert.ok(urls.includes("{{backend_base_url}}/bot/v1/payments/{{paymentId}}"));
+  assert.doesNotThrow(() => validateTypebotDocument(fixture));
+});
+
+test("validator rejects Business and provider identifiers", () => {
+  for (const marker of ["businessId", "providerServiceId", "provider_service_id", "externalServiceId"]) {
+    const mutated = structuredClone(template);
+    findBlock(mutated, "blkproductmenutext").content.richText[0].children[0].text = marker;
+    assert.throws(
+      () => validateTypebotDocument(mutated),
+      /forbidden Business\/provider identifier/,
+      marker,
+    );
+  }
+});
+
+test("validator rejects provider costs and API key fields", () => {
+  for (const marker of ["providerCost", "provider_cost", "cost_price", "apiKey", "api_key"]) {
+    const mutated = structuredClone(template);
+    findBlock(mutated, "blkproductmenutext").content.richText[0].children[0].text = marker;
+    assert.throws(
+      () => validateTypebotDocument(mutated),
+      /forbidden provider cost or credential field/,
+      marker,
+    );
+  }
+});
+
+test("required Gateway endpoints cover the extended commerce flow", () => {
+  const cases = [
+    ["blkproductswebhook", "/bot/v1/products?limit=5&offset=0&type=service"],
+    ["blkproductdetailwebhook", "/bot/v1/products/{{selectedProductId}}"],
+    ["blkquotewebhook", "/bot/v1/quotes"],
+    ["blkorderwebhook", "/bot/v1/orders"],
+    ["blkorderquerywebhook", "/bot/v1/orders/{{orderId}}"],
+    ["blkorderfulfillmentswebhook", "/bot/v1/orders/{{orderId}}/fulfillments"],
+    ["blkpaymentmethodswebhook", "/bot/v1/payment-methods"],
+    ["blkpaymentwebhook", "/bot/v1/orders/{{orderId}}/payments"],
+    ["blkgetpaymentwebhook", "/bot/v1/payments/{{paymentId}}"],
+  ];
+  for (const [blockId, fragment] of cases) {
+    const mutated = structuredClone(template);
+    findBlock(mutated, blockId).options.webhook.url = "{{backend_base_url}}/bot/v1/unrelated";
+    assert.throws(
+      () => validateTypebotDocument(mutated),
+      (error) => error.message.includes(`required Gateway endpoint is missing: ${fragment}`),
+      fragment,
+    );
+  }
+});
+
+test("template never hardcodes provider keys and creates payments with paymentMethodId", () => {
+  const raw = JSON.stringify(template);
+  assert.ok(!raw.includes("mercado_pago"));
+  assert.ok(!raw.includes("providerKey"));
+  const webhook = findBlock(template, "blkpaymentwebhook").options.webhook;
+  assert.ok(webhook.body.includes("{{selectedPaymentMethodId}}"));
+  assert.ok(!webhook.body.includes("providerKey"));
+  const idempotency = webhook.headers.find(({ key }) => key === "Idempotency-Key");
+  assert.equal(idempotency.value, "{{paymentIdempotencyKey}}");
+  const idempotencyBlock = findBlock(template, "blksetpaymentidempotency");
+  assert.ok(idempotencyBlock.options.expressionToEvaluate.includes("{{orderId}}"));
+});
+
+test("fulfillmentInput is built generically from backend-provided keys", () => {
+  const builder = findBlock(template, "blkbuildfulfillmentinput");
+  assert.equal(builder.options.isCode, true);
+  assert.match(builder.options.expressionToEvaluate, /selectedInput1Key/);
+  assert.match(builder.options.expressionToEvaluate, /JSON\.stringify/);
+  assert.doesNotMatch(builder.options.expressionToEvaluate, /targetUrl|instagram|telegram/i);
+});
+
+test("quantity is validated against the backend min and max", () => {
+  const quantityCheck = findBlock(template, "blkquantitycondition");
+  assert.ok(quantityCheck.items.some((item) => item.content.comparisons.some(
+    ({ variableId, value }) => variableId === "vquantityvalid" && value === "false",
+  )));
+});
+
+test("order flow reuses the error path when a quote was already converted", () => {
+  const orderCheck = findBlock(template, "blkordercheck");
+  const item = orderCheck.items.find(({ id }) => id === "itmorderalreadyconverted");
+  assert.ok(item);
+  assert.equal(item.content.comparisons[0].value, "QUOTE_ALREADY_CONVERTED");
+  const body = findBlock(template, "blkorderwebhook").options.webhook.body;
+  assert.ok(body.includes("{{fulfillmentInput}}"));
+});
+
+test("post-sale status and transfer handoff are present", () => {
+  assert.ok(findBlock(template, "blkorderquerywebhook"));
+  assert.ok(findBlock(template, "blkorderfulfillmentswebhook"));
+  assert.ok(findBlock(template, "blkfulfillmentproblemtext"));
+  assert.ok(findBlock(template, "blkbanksummarytext"));
+  assert.ok(findBlock(template, "blkmainmenuchoices"));
+  assert.ok(findBlock(template, "blkhumanchoices"));
 });

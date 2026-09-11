@@ -1,4 +1,5 @@
 import type { FastifySchema } from "fastify";
+import { productDeliveryHttpSchema } from "../products/product-delivery.js";
 
 const uuid = { type: "string", format: "uuid" } as const;
 const nullableUuid = { anyOf: [uuid, { type: "null" }] } as const;
@@ -51,7 +52,7 @@ const product = {
     id: uuid, businessId: uuid, categoryId: nullableUuid, name: { type: "string" },
     description: nullableString(5000), type: { type: "string", enum: ["service", "product"] },
     sku: nullableString(64), minQuantity: nullableQuantity, maxQuantity: nullableQuantity,
-    requiredInputs, status: { type: "string", enum: ["active", "inactive"] },
+    requiredInputs, deliveryConfig:productDeliveryHttpSchema, status: { type: "string", enum: ["active", "inactive"] },
     createdAt: { type: "string", format: "date-time" },
     updatedAt: { type: "string", format: "date-time" },
   },
@@ -100,6 +101,7 @@ export const importProviderServiceSchema = {
       retailPrice: { type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
       status: { type: "string", enum: ["active", "inactive"] },
       requiredInputs,
+      deliveryConfig:productDeliveryHttpSchema,
     },
   },
   response: {

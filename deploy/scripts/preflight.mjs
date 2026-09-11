@@ -17,6 +17,18 @@ const requiredKeys = [
   "BACKEND_HOST_PORT",
 ];
 const logLevels = new Set(["fatal", "error", "warn", "info", "debug", "trace", "silent"]);
+// Variables del worker de background. Son OPCIONALES: el código y el compose
+// tienen defaults seguros, así que solo se validan cuando están presentes y no
+// vacías. Los rangos replican backend/src/config/env.ts.
+const optionalWorkerIntegers = [
+  ["WORKER_POLL_INTERVAL_MS", 250, 60_000],
+  ["WORKER_BATCH_SIZE", 1, 200],
+  ["WORKER_LEASE_SECONDS", 30, 3_600],
+  ["WORKER_RECONCILE_ORDERS_SECONDS", 0, 86_400],
+  ["WORKER_RECONCILE_FULFILLMENTS_SECONDS", 0, 86_400],
+  ["WORKER_RECONCILE_PAYMENTS_SECONDS", 0, 86_400],
+  ["WORKER_PRUNE_SESSIONS_SECONDS", 0, 604_800],
+];
 
 function stop(errors) {
   for (const error of errors) console.error(`- ${error}`);
@@ -102,6 +114,13 @@ function validateCommon(values, errors) {
   }
   if (values.get("BACKEND_BIND_ADDRESS") !== "127.0.0.1") {
     errors.push("BACKEND_BIND_ADDRESS must be 127.0.0.1 for the provided Compose file");
+  }
+  for (const [key, minimum, maximum] of optionalWorkerIntegers) {
+    const value = values.get(key);
+    if (value === undefined || value === "") continue;
+    if (!integerInRange(value, minimum, maximum)) {
+      errors.push(`${key} must be an integer between ${minimum} and ${maximum}`);
+    }
   }
 }
 

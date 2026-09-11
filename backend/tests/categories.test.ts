@@ -117,6 +117,7 @@ async function buildOperatorApp() {
     updatedAt: now,
   });
   app.membershipsRepository.findByBusinessAndUser = async () => ({
+    status: "active", businessStatus: "active",
     id: membershipId,
     businessId: businessA,
     userId,

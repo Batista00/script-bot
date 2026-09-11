@@ -4,6 +4,8 @@ export const quoteStatuses = ["active", "expired", "converted", "cancelled"] as 
 export type QuoteStatus = (typeof quoteStatuses)[number];
 
 export interface Quote {
+  items?: import("./quote-cart.js").QuoteItem[];
+  delivery?: import("../products/physical-delivery.js").PhysicalDelivery | null;
   id: string;
   businessId: string;
   customerId: string | null;
@@ -20,6 +22,8 @@ export interface Quote {
 }
 
 export interface CreateQuoteInput {
+  additionalItems?: import("./quote-cart.js").QuoteSelection[];
+  delivery?: import("../products/physical-delivery.js").DeliverySelection;
   productId: string;
   quantity: number;
   currency: string;
@@ -28,6 +32,8 @@ export interface CreateQuoteInput {
 }
 
 export interface QuotePersistenceInput {
+  items?: import("./quote-cart.js").QuoteItem[];
+  delivery?: import("../products/physical-delivery.js").PhysicalDelivery | null;
   customerId: string | null;
   productId: string;
   quantity: number;

@@ -80,6 +80,7 @@ function createHarness(failureStage?: FailureStage): {
     updatedAt: now,
   };
   const membership: BusinessMembership = {
+    status: "active", businessStatus: "active",
     id: "273676c0-da1f-47d4-a0a7-15624760233b",
     businessId: business.id,
     userId: user.id,

@@ -1,9 +1,11 @@
 import { apiRequest } from "./client";
 import type {
-  ApiCredential, ApiCredentialCreated, AuthView, Business, Category, Customer,
-  Fulfillment, Integration, Order, Payment, PaymentMethod, Price, Product, ProductMapping,
-  ProviderService, QueryValue, Quote, ImportProviderProductInput, ImportedProviderProduct,
-  ProviderCatalogState, ProviderCatalogSyncResult,
+  ApiCredential, ApiCredentialCreated, AuthView, Business, Category, CreateMembershipInput,
+  CreateOrderInput, Customer, Fulfillment, Integration, Job, Membership, Order, Payment,
+  PaymentMethod, PaymentProviderConnectionTestResult, Price, Product, ProductMapping,
+  ProviderConnectionTestResult, ProviderService, QueryValue, Quote,
+  ImportProviderProductInput, ImportedProviderProduct, ProviderCatalogState,
+  ProviderCatalogSyncResult, UpdateMembershipInput,
 } from "./types";
 
 type Params = Record<string, QueryValue>;
@@ -47,6 +49,7 @@ export const quotesApi = {
 export const ordersApi = {
   list: (businessId: string, query: Params = {}) => apiRequest<Order[]>(businessPath(businessId, "orders"), { query }),
   get: (businessId: string, id: string) => apiRequest<Order>(businessPath(businessId, `orders/${id}`)),
+  create: (businessId: string, body: CreateOrderInput) => apiRequest<Order>(businessPath(businessId, "orders"), { method: "POST", body }),
   cancel: (businessId: string, id: string) => apiRequest<Order>(businessPath(businessId, `orders/${id}/cancel`), { method: "POST" }),
 };
 export const paymentsApi = {
@@ -54,8 +57,13 @@ export const paymentsApi = {
   get: (businessId: string, id: string) => apiRequest<Payment>(businessPath(businessId, `payments/${id}`)),
   byOrder: (businessId: string, orderId: string) => apiRequest<Payment[]>(businessPath(businessId, `orders/${orderId}/payments`)),
   confirmBankTransfer: (businessId: string, paymentId: string, reference: string) => apiRequest<Payment>(businessPath(businessId, `payments/${paymentId}/confirm-bank-transfer`), { method: "POST", body: { reference } }),
+  testConnection: (businessId: string, integrationId: string) => apiRequest<PaymentProviderConnectionTestResult>(businessPath(businessId, `integrations/${integrationId}/payment-provider/test-connection`), { method: "POST" }),
 };
 export const paymentMethodsApi = crud<PaymentMethod>("payment-methods");
+export const jobsApi = {
+  list: (businessId: string, query: Params = {}) => apiRequest<Job[]>(businessPath(businessId, "jobs"), { query }),
+  retry: (businessId: string, jobId: string) => apiRequest<Job>(businessPath(businessId, `jobs/${jobId}/retry`), { method: "POST" }),
+};
 export const fulfillmentsApi = {
   list: (businessId: string, query: Params = {}) => apiRequest<Fulfillment[]>(businessPath(businessId, "fulfillments"), { query }),
   dispatch: (businessId: string, orderId: string, body: unknown) => apiRequest<Fulfillment>(businessPath(businessId, `orders/${orderId}/fulfillments`), { method: "POST", body }),
@@ -68,9 +76,11 @@ export const integrationsApi = {
   update: (businessId: string, id: string, body: unknown) => apiRequest<Integration>(businessPath(businessId, `integrations/${id}`), { method: "PATCH", body }),
 };
 export const providerApi = {
+  get: (businessId:string,id:string) => apiRequest<ProviderService>(businessPath(businessId,`provider-services/${id}`)),
   list: (businessId: string, query: Params = {}) => apiRequest<ProviderService[]>(businessPath(businessId, "provider-services"), { query }),
   sync: (businessId: string, integrationId: string) => apiRequest<ProviderCatalogSyncResult>(businessPath(businessId, `integrations/${integrationId}/provider-services/sync`), { method: "POST" }),
   state: (businessId: string, integrationId: string) => apiRequest<ProviderCatalogState | null>(businessPath(businessId, `integrations/${integrationId}/provider-catalog/state`)),
+  testConnection: (businessId: string, integrationId: string) => apiRequest<ProviderConnectionTestResult>(businessPath(businessId, `integrations/${integrationId}/provider-services/test-connection`), { method: "POST" }),
   importProduct: (businessId: string, body: ImportProviderProductInput) => apiRequest<ImportedProviderProduct>(businessPath(businessId, "provider-services/import-product"), { method: "POST", body }),
   mapping: (businessId: string, productId: string) => apiRequest<ProductMapping>(businessPath(businessId, `products/${productId}/provider-mapping`)),
   createMapping: (businessId: string, productId: string, providerServiceId: string) => apiRequest<ProductMapping>(businessPath(businessId, `products/${productId}/provider-mapping`), { method: "POST", body: { providerServiceId } }),
@@ -80,4 +90,10 @@ export const credentialsApi = {
   list: (businessId: string, query: Params = {}) => apiRequest<ApiCredential[]>(businessPath(businessId, "api-credentials"), { query }),
   create: (businessId: string, name: string) => apiRequest<ApiCredentialCreated>(businessPath(businessId, "api-credentials"), { method: "POST", body: { name } }),
   update: (businessId: string, id: string, body: unknown) => apiRequest<ApiCredential>(businessPath(businessId, `api-credentials/${id}`), { method: "PATCH", body }),
+};
+export const membershipsApi = {
+  list: (businessId: string) => apiRequest<Membership[]>(businessPath(businessId, "memberships")),
+  create: (businessId: string, body: CreateMembershipInput) => apiRequest<Membership>(businessPath(businessId, "memberships"), { method: "POST", body }),
+  update: (businessId: string, id: string, body: UpdateMembershipInput) => apiRequest<Membership>(businessPath(businessId, `memberships/${id}`), { method: "PATCH", body }),
+  remove: (businessId: string, id: string) => apiRequest<void>(businessPath(businessId, `memberships/${id}`), { method: "DELETE" }),
 };

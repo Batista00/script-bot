@@ -1,4 +1,5 @@
 import type { DatabaseExecutor } from "../../core/database/database.js";
+import type { JsonObject } from "../integrations/integrations.types.js";
 import type { PricingType } from "../pricing/pricing.types.js";
 import type { QuoteStatus } from "../quotes/quotes.types.js";
 
@@ -23,10 +24,13 @@ export interface OrderItem {
   pricingType: PricingType;
   unitPrice: number | null;
   totalPrice: number;
+  /** Commercial input captured for the provider, empty when it is collected later. */
+  fulfillmentInput?: JsonObject;
   createdAt: string;
 }
 
 export interface Order {
+  delivery?: import("../products/physical-delivery.js").PhysicalDelivery | null;
   id: string;
   businessId: string;
   customerId: string;
@@ -43,6 +47,12 @@ export interface Order {
 export interface CreateOrderInput {
   quoteId: string;
   customerId?: string | null;
+  /**
+   * Provider input captured with the sale (link, username, comments, ...).
+   * Stored on the order item so the fulfillment worker can dispatch without
+   * asking the customer again.
+   */
+  fulfillmentInput?: JsonObject;
 }
 
 export interface OrderListOptions {
@@ -60,6 +70,8 @@ export interface OrderListQuery {
 }
 
 export interface OrderQuoteSnapshot {
+  items?: import("../quotes/quote-cart.js").QuoteItem[];
+  delivery?: import("../products/physical-delivery.js").PhysicalDelivery | null;
   id: string;
   businessId: string;
   customerId: string | null;
@@ -80,6 +92,7 @@ export interface OrderCustomer {
 }
 
 export interface OrderPersistenceInput {
+  delivery?: import("../products/physical-delivery.js").PhysicalDelivery | null;
   customerId: string;
   quoteId: string;
   currency: string;
@@ -95,6 +108,7 @@ export interface OrderItemPersistenceInput {
   pricingType: PricingType;
   unitPrice: number | null;
   totalPrice: number;
+  fulfillmentInput?: JsonObject;
 }
 
 export class QuoteConversionConflictError extends Error {

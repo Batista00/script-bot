@@ -28,3 +28,5 @@ export interface UsersRepository {
   findByEmail(email: string, executor?: DatabaseExecutor): Promise<UserWithPasswordHash | null>;
   hasAnyUsers(executor?: DatabaseExecutor): Promise<boolean>;
 }
+
+export class UserEmailConflictError extends Error {}

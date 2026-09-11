@@ -4,20 +4,27 @@ on:
   push:
     paths:
       - "backend/**"
+      - "flows/**"
       - ".github/workflows/backend-ci.yml"
   pull_request:
     paths:
       - "backend/**"
+      - "flows/**"
       - ".github/workflows/backend-ci.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
     name: Backend with PostgreSQL
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       CI: "true"
       NODE_ENV: test
@@ -45,13 +52,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      # Corepack must run before setup-node: setup-node resolves `cache: pnpm`
+      # by invoking pnpm, so the pnpm shim has to exist on PATH first.
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Set up Node.js 24
         uses: actions/setup-node@v6
         with:
           node-version: "24"
-
-      - name: Enable Corepack
-        run: corepack enable
+          cache: pnpm
+          cache-dependency-path: backend/pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -73,3 +84,7 @@ jobs:
 
       - name: Run complete test suite
         run: pnpm test
+
+      - name: Validate importable workflow artifacts without external calls
+        working-directory: .
+        run: node --test flows/tests/importables.test.mjs flows/tests/transport.test.mjs flows/tests/conversational-contract.test.mjs

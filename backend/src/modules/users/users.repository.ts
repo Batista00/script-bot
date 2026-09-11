@@ -1,6 +1,7 @@
 import type { QueryResultRow } from "pg";
 
 import type { DatabaseExecutor } from "../../core/database/database.js";
+import { UserEmailConflictError } from "./users.types.js";
 import type {
   CreateUserInput,
   User,
@@ -44,20 +45,33 @@ function mapUserWithPassword(row: UserRow): UserWithPasswordHash {
 
 const userColumns = "id, email, name, password_hash, status, created_at, updated_at";
 
+interface PostgreSqlError {
+  code?: string;
+  constraint?: string;
+}
+
 export class PostgresUsersRepository implements UsersRepository {
   constructor(private readonly db: DatabaseExecutor) {}
 
   async create(input: CreateUserInput, executor = this.db): Promise<User> {
-    const result = await executor.query<UserRow>(
-      `INSERT INTO users (email, name, password_hash)
-       VALUES ($1, $2, $3)
-       RETURNING ${userColumns}`,
-      [input.email, input.name, input.passwordHash],
-    );
-    const row = result.rows[0];
+    try {
+      const result = await executor.query<UserRow>(
+        `INSERT INTO users (email, name, password_hash)
+         VALUES ($1, $2, $3)
+         RETURNING ${userColumns}`,
+        [input.email, input.name, input.passwordHash],
+      );
+      const row = result.rows[0];
 
-    if (!row) throw new Error("PostgreSQL did not return the created user");
-    return mapUser(row);
+      if (!row) throw new Error("PostgreSQL did not return the created user");
+      return mapUser(row);
+    } catch (error) {
+      const pgError = error as PostgreSqlError;
+      if (pgError.code === "23505" && pgError.constraint === "users_email_unique_ci") {
+        throw new UserEmailConflictError();
+      }
+      throw error;
+    }
   }
 
   async findByEmail(email: string, executor = this.db): Promise<UserWithPasswordHash | null> {

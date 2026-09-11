@@ -219,6 +219,16 @@ function currency(value: unknown): string | null {
 export class SmmRajaFulfillmentAdapter implements ProviderFulfillmentAdapter {
   readonly key = "smm_raja";
 
+  validateOrder(input: CreateProviderOrderInput): void {
+    createParameters(input);
+    if (serviceType(input.serviceType) === "custom_comments") {
+      const comments = String(input.fulfillmentInput.comments).replace(/\r\n/g, "\n").trim().split("\n");
+      if (comments.some((line) => !line.trim()) || comments.length !== input.quantity) {
+        throw new ProviderFulfillmentInputError();
+      }
+    }
+  }
+
   constructor(
     private readonly integrations: Pick<IntegrationsService, "getActiveIntegrationById">,
     private readonly client: SmmRajaFulfillmentHttpClient,

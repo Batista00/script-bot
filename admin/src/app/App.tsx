@@ -15,6 +15,7 @@ import { CustomersPage } from "../features/customers/CustomersPage";
 import { DashboardPage } from "../features/dashboard/DashboardPage";
 import { FulfillmentsPage } from "../features/fulfillments/FulfillmentsPage";
 import { IntegrationsPage } from "../features/integrations/IntegrationsPage";
+import { JobsPage } from "../features/jobs/JobsPage";
 import { OrdersPage } from "../features/orders/OrdersPage";
 import { PaymentsPage } from "../features/payments/PaymentsPage";
 import { PaymentMethodsPage } from "../features/payments/PaymentMethodsPage";
@@ -22,9 +23,11 @@ import { PricingPage } from "../features/pricing/PricingPage";
 import { MappingsPage } from "../features/providers/MappingsPage";
 import { ProviderServicesPage } from "../features/providers/ProviderServicesPage";
 import { QuotesPage } from "../features/quotes/QuotesPage";
+import { TeamPage } from "../features/team/TeamPage";
 import { HomeRedirect, RequireAuth, RequireBusiness } from "../routes/guards";
 import { NotFoundPage } from "../routes/NotFoundPage";
 import { queryClient } from "./query-client";
+import { SalesAutomationPage } from "../features/automation/SalesAutomationPage";
 
 export function App() {
   return <ErrorBoundary><QueryClientProvider client={queryClient}><ToastProvider><BrowserRouter><AuthProvider><Routes>
@@ -44,11 +47,14 @@ export function App() {
           <Route path="payments" element={<PaymentsPage />} />
           <Route path="payment-methods" element={<PaymentMethodsPage />} />
           <Route path="fulfillments" element={<FulfillmentsPage />} />
+          <Route path="jobs" element={<JobsPage />} />
           <Route path="provider-services" element={<ProviderServicesPage />} />
           <Route path="mappings" element={<MappingsPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />
           <Route path="api-credentials" element={<ApiCredentialsPage />} />
+          <Route path="team" element={<TeamPage />} />
           <Route path="settings" element={<BusinessSettingsPage />} />
+          <Route path="sales-automation" element={<SalesAutomationPage />} />
           <Route index element={<HomeRedirect />} />
         </Route>
       </Route>

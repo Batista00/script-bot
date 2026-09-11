@@ -23,6 +23,7 @@ async function buildRoleApp(role: BusinessRole) {
     createdAt: now, updatedAt: now,
   });
   app.membershipsRepository.findByBusinessAndUser = async () => ({
+    status: "active", businessStatus: "active",
     id: membershipId, businessId: businessA, userId, role, createdAt: now, updatedAt: now,
   });
   app.db.query = (async () => ({ rows: [] })) as unknown as typeof app.db.query;

@@ -62,7 +62,8 @@ export function defaultCommercialInputs(
     type: providerField.type,
     required: true,
     position,
-    validation: providerField.type === "integer" ? { minimum: 0 } : { maxLength: 10_000 },
+    validation: providerField.type === "integer" ? { minimum: 0 }
+      : { maxLength: providerField.type === "url" ? 2048 : 10_000 },
   }));
 }
 
@@ -128,6 +129,9 @@ export class ProviderProductImportService {
       }
       if (providerService.providerStatus !== "active") {
         throw new AppError("Provider service is inactive", 409, "PROVIDER_SERVICE_INACTIVE");
+      }
+      if (input.status === "active" && providerService.orderCapabilities?.supported !== true) {
+        throw new AppError("Importa este servicio como inactivo: su envío no está soportado", 409, "PROVIDER_SERVICE_NOT_SUPPORTED");
       }
       const productValues = {
         ...baseProductValues,

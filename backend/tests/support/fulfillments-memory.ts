@@ -61,6 +61,12 @@ export class MemoryFulfillmentsRepository implements FulfillmentsRepository {
     return value ? clone(value) : null;
   }
 
+  async listOrderItems(businessId: string, orderId: string): Promise<DispatchOrderItem[]> {
+    return [...this.items.entries()]
+      .filter(([key]) => key.startsWith(`${businessId}:${orderId}:`))
+      .map(([, value]) => clone(value));
+  }
+
   async findActiveProviderContext(
     businessId: string,
     productId: string,

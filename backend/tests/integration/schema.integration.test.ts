@@ -9,23 +9,38 @@ const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
 const expectedTables = [
   "auth_sessions",
+  "automation_notifications",
   "business_integrations",
   "business_payment_methods",
   "business_api_credentials",
   "business_memberships",
   "businesses",
+  "job_queue",
   "categories",
+  "conversation_messages",
+  "conversations",
   "customers",
+  "digital_order_deliveries",
   "fulfillments",
   "order_items",
   "orders",
   "payments",
+  "payment_reviewers",
+  "payment_reviews",
   "product_prices",
+  "product_digital_assets",
   "provider_catalog_states",
   "product_provider_mappings",
   "products",
   "provider_services",
   "quotes",
+  "sales_checkouts",
+  "sales_inbox",
+  "sales_manual_deliveries",
+  "sales_messages",
+  "sales_session_tokens",
+  "sales_sessions",
+  "sales_settings",
   "users",
 ] as const;
 
@@ -45,7 +60,10 @@ const expectedConstraints = new Map([
   ["order_items_order_business_fk", "f"],
   ["orders_quote_business_fk", "f"],
   ["orders_quote_id_unique", "u"],
-  ["orders_totals_equal", "c"],
+  ["orders_totals_include_delivery", "c"],
+  ["quotes_items_valid", "c"],
+  ["orders_delivery_valid", "c"],
+  ["quotes_delivery_valid", "c"],
   ["payments_order_business_fk", "f"],
   ["payments_payment_method_business_fk", "f"],
   ["payments_approved_at_valid", "c"],
@@ -60,6 +78,20 @@ const expectedConstraints = new Map([
   ["provider_catalog_states_integration_business_fk", "f"],
   ["products_required_inputs_array", "c"],
   ["quotes_business_id_id_unique", "u"],
+  ["conversations_business_id_id_unique", "u"],
+  ["conversations_business_channel_thread_unique", "u"],
+  ["conversations_customer_business_fk", "f"],
+  ["conversations_channel_valid", "c"],
+  ["conversations_external_thread_id_valid", "c"],
+  ["conversations_unread_count_valid", "c"],
+  ["conversation_messages_conversation_business_fk", "f"],
+  ["conversation_messages_direction_valid", "c"],
+  ["conversation_messages_status_valid", "c"],
+  ["conversation_messages_external_message_id_valid", "c"],
+  ["conversation_messages_body_valid", "c"],
+  ["conversation_messages_media_type_valid", "c"],
+  ["conversation_messages_media_url_valid", "c"],
+  ["conversation_messages_provider_error_valid", "c"],
 ]);
 
 test(
@@ -67,12 +99,18 @@ test(
   { skip: testDatabaseUrl ? false : "TEST_DATABASE_URL is not configured" },
   async (t) => {
     if (!testDatabaseUrl) return;
+    // `singleTransaction: true` mirrors the deployment runner exactly:
+    // `backend` starts with `node-pg-migrate up`, which wraps the whole batch
+    // in one transaction. PostgreSQL then rejects using an enum value added
+    // earlier in that same batch (`55P04`), so the schema test has to fail the
+    // same way the container would instead of only passing per-migration.
     await runner({
       databaseUrl: testDatabaseUrl,
       direction: "up",
       dir: "migrations",
       migrationsTable: "pgmigrations",
       count: Infinity,
+      singleTransaction: true,
       log: () => undefined,
     });
     const db = createDatabasePool(testDatabaseUrl);
@@ -81,7 +119,7 @@ test(
     const migrationResult = await db.query<{ count: number }>(
       "SELECT count(*)::integer AS count FROM pgmigrations",
     );
-    assert.equal(migrationResult.rows[0]?.count, 14);
+    assert.equal(migrationResult.rows[0]?.count, 26);
 
     const tableResult = await db.query<{ table_name: string }>(
       `SELECT table_name
@@ -160,6 +198,70 @@ test(
     );
     assert.deepEqual(credentialStatuses.rows.map((row) => row.enumlabel), ["active", "inactive"]);
 
+    const membershipStatuses = await db.query<{ enumlabel: string }>(
+      `SELECT enumlabel FROM pg_enum
+       JOIN pg_type ON pg_type.oid = pg_enum.enumtypid
+       WHERE pg_type.typname = 'membership_status'
+       ORDER BY enumsortorder`,
+    );
+    assert.deepEqual(membershipStatuses.rows.map((row) => row.enumlabel), ["active", "inactive"]);
+
+    const membershipStatusColumn = await db.query<{ column_name: string; is_nullable: string }>(
+      `SELECT column_name, is_nullable
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'business_memberships'
+         AND column_name = 'status'`,
+    );
+    assert.deepEqual(membershipStatusColumn.rows[0], {
+      column_name: "status",
+      is_nullable: "NO",
+    });
+
+    const membershipIndexes = await db.query<{ indexname: string }>(
+      `SELECT indexname FROM pg_indexes
+       WHERE schemaname = 'public' AND indexname = ANY($1::text[])`,
+      [[
+        "business_memberships_business_status_idx",
+        "business_memberships_business_user_unique",
+      ]],
+    );
+    assert.equal(membershipIndexes.rows.length, 2);
+
+    const paymentStatuses = await db.query<{ enumlabel: string }>(
+      `SELECT enumlabel FROM pg_enum
+       JOIN pg_type ON pg_type.oid = pg_enum.enumtypid
+       WHERE pg_type.typname = 'payment_status'
+       ORDER BY enumsortorder`,
+    );
+    assert.deepEqual(paymentStatuses.rows.map((row) => row.enumlabel), [
+      "pending", "approved", "rejected", "cancelled", "expired", "failed", "refunded", "chargeback",
+    ]);
+
+    const fulfillmentInputColumn = await db.query<{ column_name: string; is_nullable: string }>(
+      `SELECT column_name, is_nullable
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'order_items'
+         AND column_name = 'fulfillment_input'`,
+    );
+    assert.deepEqual(fulfillmentInputColumn.rows[0], {
+      column_name: "fulfillment_input",
+      is_nullable: "NO",
+    });
+
+    const jobQueue = await db.query<{ indexname: string }>(
+      `SELECT indexname FROM pg_indexes
+       WHERE schemaname = 'public' AND indexname = ANY($1::text[])`,
+      [[
+        "job_queue_claim_idx",
+        "job_queue_running_idx",
+        "job_queue_type_status_idx",
+        "job_queue_identity_unique",
+      ]],
+    );
+    assert.equal(jobQueue.rows.length, 4);
+
     const providerReferenceColumn = await db.query<{ column_name: string }>(
       `SELECT column_name
        FROM information_schema.columns
@@ -186,6 +288,18 @@ test(
     );
     assert.equal(moneyResult.rows.length, 7);
 
+    const capabilityColumns = await db.query<{ column_name: string }>(
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'provider_services'
+         AND column_name = ANY($1::text[])
+       ORDER BY column_name`,
+      [["supports_cancel", "supports_refill"]],
+    );
+    assert.deepEqual(capabilityColumns.rows.map((row) => row.column_name), [
+      "supports_cancel", "supports_refill",
+    ]);
+
     const providerRate = await db.query<{ data_type: string; numeric_precision: number }>(
       `SELECT data_type, numeric_precision
        FROM information_schema.columns
@@ -207,5 +321,55 @@ test(
     assert.deepEqual(providerCharge.rows[0], {
       data_type: "numeric", numeric_precision: 30, numeric_scale: 12,
     });
+
+    const conversationStatuses = await db.query<{ enumlabel: string }>(
+      `SELECT enumlabel FROM pg_enum
+       JOIN pg_type ON pg_type.oid = pg_enum.enumtypid
+       WHERE pg_type.typname = 'conversation_status'
+       ORDER BY enumsortorder`,
+    );
+    assert.deepEqual(conversationStatuses.rows.map((row) => row.enumlabel), [
+      "open", "pending", "human", "closed",
+    ]);
+
+    const conversationIndexes = await db.query<{ indexname: string }>(
+      `SELECT indexname FROM pg_indexes
+       WHERE schemaname = 'public' AND indexname = ANY($1::text[])`,
+      [[
+        "conversations_business_id_id_unique",
+        "conversations_business_channel_thread_unique",
+        "conversations_business_status_idx",
+        "conversation_messages_external_message_unique",
+        "conversation_messages_business_conversation_idx",
+      ]],
+    );
+    assert.equal(conversationIndexes.rows.length, 5);
+
+    const dedupeIndex = await db.query<{ indexdef: string }>(
+      `SELECT indexdef FROM pg_indexes
+       WHERE schemaname = 'public'
+         AND indexname = 'conversation_messages_external_message_unique'`,
+    );
+    assert.match(dedupeIndex.rows[0]?.indexdef ?? "", /^CREATE UNIQUE INDEX/);
+    assert.match(dedupeIndex.rows[0]?.indexdef ?? "", /WHERE \(external_message_id IS NOT NULL\)/);
+
+    const conversationShape = await db.query<{
+      table_name: string; column_name: string; is_nullable: string;
+    }>(
+      `SELECT table_name, column_name, is_nullable
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND (
+           (table_name = 'conversations' AND column_name IN (
+             'business_id', 'customer_id', 'channel', 'status', 'unread_count'
+           ))
+           OR (table_name = 'conversation_messages' AND column_name IN (
+             'business_id', 'conversation_id', 'direction', 'status', 'created_at'
+           ))
+         )
+       ORDER BY table_name, column_name`,
+    );
+    assert.equal(conversationShape.rows.length, 10);
+    assert.ok(conversationShape.rows.every((row) => row.is_nullable === "NO"));
   },
 );

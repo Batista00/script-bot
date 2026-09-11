@@ -62,6 +62,8 @@ export interface DispatchOrderItem {
   orderItemId: string;
   productId: string;
   quantity: number;
+  /** Commercial input captured with the order, used for automatic dispatch. */
+  fulfillmentInput?: JsonObject;
 }
 
 export interface DispatchProviderContext {
@@ -107,6 +109,11 @@ export interface FulfillmentsRepository {
     orderItemId: string,
     executor: DatabaseExecutor,
   ): Promise<DispatchOrderItem | null>;
+  listOrderItems(
+    businessId: string,
+    orderId: string,
+    executor: DatabaseExecutor,
+  ): Promise<DispatchOrderItem[]>;
   findActiveProviderContext(
     businessId: string,
     productId: string,
@@ -126,7 +133,7 @@ export interface FulfillmentsRepository {
     fulfillmentId: string,
     executor: DatabaseExecutor,
   ): Promise<Fulfillment | null>;
-  listByOrder(businessId: string, orderId: string): Promise<Fulfillment[]>;
+  listByOrder(businessId: string, orderId: string, executor?:DatabaseExecutor): Promise<Fulfillment[]>;
   list(businessId: string, options: FulfillmentListOptions): Promise<Fulfillment[]>;
   markSubmitting(
     businessId: string,

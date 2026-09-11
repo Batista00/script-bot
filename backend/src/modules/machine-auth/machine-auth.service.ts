@@ -16,6 +16,7 @@ export class MachineAuthService {
       credentialId: credential.id,
       businessId: credential.businessId,
       credentialName: credential.name,
+      businessStatus: credential.businessStatus,
     };
   }
 }

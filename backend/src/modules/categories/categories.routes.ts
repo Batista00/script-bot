@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 
+import { requireActiveBusiness } from "../businesses/businesses.active.middleware.js";
 import {
   requireAuthenticatedUser,
   requireBusinessMembership,
@@ -34,10 +35,11 @@ export const categoriesRoutes: FastifyPluginAsync = async (app) => {
   const allowWrite = requireBusinessRole(["owner", "admin"]);
   const readAuthorization = [requireUser, requireMembership, allowRead];
   const writeAuthorization = [requireUser, requireMembership, allowWrite];
+  const commercialWrite = [...writeAuthorization, requireActiveBusiness()];
 
   app.post<{ Params: CategoryBusinessParams; Body: CreateCategoryInput }>(
     "/businesses/:businessId/categories",
-    { schema: createCategorySchema, preHandler: writeAuthorization },
+    { schema: createCategorySchema, preHandler: commercialWrite },
     controller.create,
   );
   app.get<{ Params: CategoryBusinessParams; Querystring: CategoryListQuery }>(
@@ -52,7 +54,7 @@ export const categoriesRoutes: FastifyPluginAsync = async (app) => {
   );
   app.patch<{ Params: CategoryIdParams; Body: UpdateCategoryInput }>(
     "/businesses/:businessId/categories/:categoryId",
-    { schema: updateCategorySchema, preHandler: writeAuthorization },
+    { schema: updateCategorySchema, preHandler: commercialWrite },
     controller.update,
   );
 };

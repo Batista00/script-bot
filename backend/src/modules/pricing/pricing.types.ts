@@ -109,6 +109,7 @@ export interface PricingRepository {
 }
 
 export interface PriceCalculation {
+  deliveryConfig?: import("../products/product-delivery.js").ProductDelivery;
   productId: string;
   productName: string;
   pricingType: PricingType;

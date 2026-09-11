@@ -69,6 +69,7 @@ export const loginSchema = {
     200: authViewSchema,
     400: errorResponseSchema,
     401: errorResponseSchema,
+    429: errorResponseSchema,
   },
 } satisfies FastifySchema;
 

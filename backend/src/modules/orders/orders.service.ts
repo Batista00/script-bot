@@ -75,28 +75,40 @@ export class OrdersService {
             quoteId: quote.id,
             status: "pending_payment",
             currency: quote.currency,
-            subtotal: quote.totalPrice,
+            subtotal: quote.totalPrice-(quote.delivery?.fee??0),
+            ...(quote.delivery?{delivery:quote.delivery}:{}),
             total: quote.totalPrice,
           },
           client,
         );
-        const item = await this.repository.createItem(
-          businessId,
-          order.id,
-          {
+        const snapshots = quote.items ?? [{
             productId: quote.productId,
             productName: quote.productName,
             quantity: quote.quantity,
             pricingType: quote.pricingType,
             unitPrice: quote.unitPrice,
-            totalPrice: quote.totalPrice,
-          },
-          client,
-        );
+            totalPrice: quote.totalPrice - (quote.delivery?.fee ?? 0),
+            ...(input.fulfillmentInput === undefined
+              ? {}
+              : { fulfillmentInput: input.fulfillmentInput }),
+        }];
+        if (
+          snapshots.reduce((sum, item) => sum + item.totalPrice, 0) !== order.subtotal
+        ) {
+          throw new AppError(
+            "El detalle de la cotización no coincide con su total",
+            409,
+            "QUOTE_TOTAL_MISMATCH",
+          );
+        }
+        const items = [];
+        for (const snapshot of snapshots) {
+          items.push(await this.repository.createItem(businessId, order.id, snapshot, client));
+        }
         if (!(await this.repository.markQuoteConverted(businessId, quote.id, client))) {
           throw new AppError("Quote not available", 409, "QUOTE_NOT_AVAILABLE");
         }
-        return { ...order, items: [item] };
+        return { ...order, items };
       } catch (error) {
         if (error instanceof QuoteConversionConflictError) throw alreadyConvertedError();
         throw error;

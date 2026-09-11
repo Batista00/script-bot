@@ -121,6 +121,8 @@ Payment approved + Order paid
 
 El webhook identifica la integración por UUID, exige que siga activa y que su provider sea exactamente `mercado_pago`. La notificación recibida solo aporta el identificador a consultar: estado y datos financieros provienen de la consulta server-to-server. Estados externos no soportados se registran como advertencia y no inventan transiciones locales.
 
+La configuración inicial de Mercado Pago se conserva `inactive` con Public Key y Access Token cifrados mientras el panel expone la URL de webhook derivada del UUID. Solo después de registrar esa URL, guardar la firma secreta emitida por Mercado Pago y activar explícitamente la integración puede Payments resolverla. Las URL de retorno son opcionales como conjunto y no participan en la aprobación.
+
 Integrations Core separa `config` no secreta de credenciales cifradas con AES-256-GCM. La clave maestra proviene exclusivamente del entorno y el ciphertext se autentica con el contexto Business/provider. Las APIs públicas nunca descifran ni serializan credenciales; el acceso descifrado existe solo como contrato interno para adapters.
 
 ## Catálogo de proveedores
@@ -201,8 +203,53 @@ MachineAuthContext { credentialId, businessId, credentialName }
 
 El token machine contiene al menos 256 bits aleatorios y solo se devuelve al crearlo; PostgreSQL guarda hash y prefijo. La administración de estas credenciales continúa bajo sesión humana `owner/admin`. Una cookie no autentica el Gateway y un Bearer machine no autoriza rutas administrativas.
 
-Bot Gateway no tiene repositories ni SQL: orquesta Customers, Categories, Products, Pricing, Quotes, Orders, Payments y Fulfillments. Todas las llamadas reciben el `businessId` del `MachineAuthContext`, nunca del cliente. Sus DTOs excluyen provider rates, referencias externas, credenciales, hashes, idempotency keys e inputs sensibles de fulfillment. Las reglas críticas —pago confirmado por provider y dispatch exclusivo desde Order `paid`— permanecen en sus respectivos servicios Core.
+Bot Gateway no tiene repositories ni SQL: orquesta Customers, Categories, Products, Pricing, Quotes, Orders, Payments y Fulfillments. Todas las llamadas reciben el `businessId` del `MachineAuthContext`, nunca del cliente. Sus DTOs excluyen provider rates, IDs de servicio externos, credenciales, hashes, idempotency keys e inputs sensibles de fulfillment. El DTO de entrega expone únicamente `providerOrderReference`, la referencia segura que puede comunicarse al comprador después del despacho; no permite elegirla ni reutilizarla para ejecutar una compra. Las reglas críticas —pago confirmado por provider y dispatch exclusivo desde Order `paid`— permanecen en sus respectivos servicios Core.
+
+## Ventas multicanal y automatizaciones opcionales
+
+`modules/sales` conserva conversación, selección comercial, traspasos humanos y datos de entrega previos al pago; reutiliza el intérprete estructurado de `ai-orchestrator` para convertir lenguaje natural en términos de búsqueda, pero consulta catálogo, precios y estado exclusivamente en PostgreSQL mediante los servicios existentes. Una atención humana pausa la sesión, genera una alerta durable de Telegram y permite registrar su resultado antes de reanudar el bot; el historial queda aislado por Business. `modules/payment-reviews` gestiona comprobantes cifrados y decisiones humanas; `modules/automation` reconcilia Orders y distribuye trabajos durables. Telegram vive en su adapter. Evolution, Typebot, n8n y OpenAI nunca son autoridades financieras. Detalle en [sales-automation.md](sales-automation.md).
+
+## Equipo, membresías y estado del negocio
+
+`business_memberships` une usuarios y negocios con rol `owner|admin|operator` y estado `active|inactive`. El estado permite retirar el acceso sin borrar historial, y `requireBusinessMembership` solo entrega membresías activas: una membresía inactiva se comporta como ausencia de pertenencia (404), y `/auth/me` deja de listar ese negocio.
+
+```text
+PATCH  role/status   →  admin no gestiona owners ni concede owner
+DELETE membership    →  nunca deja el negocio sin owner activo
+POST   membership    →  crea la cuenta si el correo no existe; si existe, la asocia
+```
+
+El estado del negocio viaja **denormalizado** dentro de la membership (`businessStatus`) y de la credencial de máquina (`MachineAuthContext.businessStatus`), leídos con un JOIN en la misma consulta que ya hacía cada guard. `requireActiveBusiness()` decide entonces sin I/O y sin aceptar `businessId` del request: un negocio `inactive` responde `409 BUSINESS_INACTIVE` en todo el Bot Gateway y en las mutaciones comerciales, mientras las lecturas, la reconciliación de fulfillments y la administración (negocio, equipo, integraciones, credenciales) siguen disponibles para poder reactivarlo.
+
+
+## Cola de trabajo y worker
+
+```text
+Order paid ──(misma transacción)──> job_queue: order.fulfill
+                                          ↓ claim FOR UPDATE SKIP LOCKED
+                        Worker ──> ProviderFulfillmentAdapter.createOrder
+                                          ↓
+                        Fulfillment submitted + Order processing
+                                          ↓ job fulfillment.sync (se reprograma)
+                        Adapter.getOrderStatus ──> completed | partial | cancelled
+                                          ↓
+                        Order completed | failed
+```
+
+La cola vive en PostgreSQL: un reinicio no pierde trabajo y dos réplicas nunca reclaman la misma fila. Cada job tiene `job_key` única por tipo (idempotencia), `attempts`/`max_attempts`, `run_at` (backoff exponencial), `locked_at`/`locked_by` (lease con recuperación de workers caídos) y `last_error` para diagnóstico. Los sweeps de mantenimiento reabren jobs fallidos **solo** si el trabajo sigue pendiente (pedido pagado sin fulfillment, fulfillment no terminal, pago pendiente con id externo, sesiones vencidas).
+
+El enlace pago → fulfillment es determinístico: la aprobación marca el pedido `paid`, encola el despacho y todo ocurre en una transacción; la llamada externa al proveedor sucede después, en el worker, nunca dentro de una transacción. Un error ambiguo tras enviar el pedido al proveedor deja `submission_unknown` y bloquea el reintento automático.
+
+## Canal WhatsApp
+
+`webhooks/evolution/:integrationId` es la frontera del canal: valida un secreto compartido, normaliza el teléfono y el contenido, resuelve el customer y persiste conversación y mensaje con deduplicación por identificador externo. El backend no conduce la conversación: devuelve contexto al orquestador y ofrece endpoints de lectura y de handoff. Las credenciales de Evolution se resuelven igual que las de cualquier proveedor (integración cifrada + adapter), de modo que añadir otro canal no toca el dominio comercial.
 
 ## Propiedad de datos por negocio
 
 `businesses` es la entidad raíz para separar negocios. Las futuras entidades que pertenezcan a un negocio deberán incluir una referencia `business_id → businesses.id` cuando corresponda. Esta regla no aplica a la propia tabla `businesses`.
+
+## Manejo de errores y observabilidad
+
+Todo error de dominio es un `AppError` con `code` estable y status explícito; el handler global responde siempre `{error:{code,message}}` y no filtra detalles internos. Los errores de cliente de Fastify (cuerpo demasiado grande, media type no soportado, validación) conservan su status y se registran como advertencia, no como error interno. Las rutas desconocidas usan el mismo envelope mediante `setNotFoundHandler`.
+
+`GET /health` es liveness y `GET /health/ready` verifica PostgreSQL devolviendo 503 sin exponer la cadena de conexión. Las sesiones vencidas se podan por lotes acotados durante el login, y el login verifica un hash señuelo cuando la cuenta no existe para no revelar por tiempo qué correos están registrados.

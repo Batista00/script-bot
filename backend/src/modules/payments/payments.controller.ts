@@ -6,6 +6,7 @@ import type { CreatePaymentInput, PaymentListQuery } from "./payments.types.js";
 export interface PaymentBusinessParams { businessId: string }
 export interface PaymentOrderParams extends PaymentBusinessParams { orderId: string }
 export interface PaymentIdParams extends PaymentBusinessParams { paymentId: string }
+export interface PaymentIntegrationParams extends PaymentBusinessParams { integrationId: string }
 export interface IdempotencyHeaders { "idempotency-key"?: string }
 export interface ConfirmBankTransferInput { reference: string }
 
@@ -35,6 +36,14 @@ export class PaymentsController {
     );
     return reply.status(result.created ? 201 : 200).send(result.payment);
   };
+
+  testConnection = async (
+    request: FastifyRequest<{ Params: PaymentIntegrationParams }>,
+    reply: FastifyReply,
+  ) => reply.status(200).send(await this.service.testConnection(
+    request.params.businessId,
+    request.params.integrationId,
+  ));
 
   list = async (
     request: FastifyRequest<{ Params: PaymentBusinessParams; Querystring: PaymentListQuery }>,

@@ -34,10 +34,12 @@ export class ProductsController {
       limit: request.query.limit === undefined ? 50 : Number(request.query.limit),
       offset: request.query.offset === undefined ? 0 : Number(request.query.offset),
       ...(request.query.status === undefined ? {} : { status: request.query.status }),
+      ...(request.query.search === undefined ? {} : {search:request.query.search}),
       ...(request.query.type === undefined ? {} : { type: request.query.type }),
       ...(request.query.categoryId === undefined
         ? {}
         : { categoryId: request.query.categoryId }),
+      ...(request.query.search === undefined ? {} : { search: request.query.search }),
     });
     return reply.status(200).send(products);
   };

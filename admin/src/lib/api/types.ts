@@ -11,10 +11,12 @@ export interface Customer {
   email: string | null; status: Status; createdAt: string; updatedAt: string;
 }
 export interface Category {
+  parentId?: string | null;
   id: string; businessId: string; name: string; status: Status;
   createdAt: string; updatedAt: string;
 }
 export interface Product {
+  deliveryConfig?: ProductDelivery | null;
   id: string; businessId: string; categoryId: string | null; name: string;
   description: string | null; type: "service" | "product"; sku: string | null;
   minQuantity: number | null; maxQuantity: number | null; status: Status;
@@ -22,6 +24,16 @@ export interface Product {
   createdAt: string; updatedAt: string;
 }
 export type ProductInputType = "url" | "text" | "textarea" | "integer" | "date";
+export interface ProductDelivery {
+  digitalContents?: "downloads" | "licenses" | "both";
+  kind: "service" | "digital" | "physical";
+  methods: Array<"service" | "digital" | "shipping" | "pickup">;
+  processing: "manual" | "automatic";
+  instructions: string;
+  shipping?: {mode:"fixed";fee:number} | {mode:"zones";zones:Array<{name:string;fee:number}>} | {mode:"quote"};
+  pickupAddress?: string;
+}
+export interface PhysicalDelivery {method:"shipping"|"pickup";address:string;zone:string|null;fee:number;instructions:string}
 export interface ProductInputField {
   key: string; label: string; helpText: string | null; type: ProductInputType;
   required: boolean; position: number;
@@ -39,6 +51,8 @@ export interface Price {
   createdAt: string; updatedAt: string;
 }
 export interface Quote {
+  items?:Array<Omit<OrderItem,"id">>;
+  delivery?: PhysicalDelivery | null;
   id: string; businessId: string; customerId: string | null; productId: string;
   quantity: number; productName: string; currency: string; pricingType: "fixed" | "unit";
   unitPrice: number | null; totalPrice: number; status: string;
@@ -49,6 +63,7 @@ export interface OrderItem {
   pricingType: string; unitPrice: number | null; totalPrice: number;
 }
 export interface Order {
+  delivery?: PhysicalDelivery | null;
   id: string; businessId: string; customerId: string; quoteId: string; status: string;
   currency: string; subtotal: number; total: number; createdAt: string; updatedAt: string;
   items: OrderItem[];
@@ -87,13 +102,22 @@ export interface ProviderService {
   providerDescription: string | null; orderCapabilities: ProviderOrderCapabilities;
   mappingCount: number;
   metadata: Record<string, unknown>;
+  supportsRefill: boolean | null; supportsCancel: boolean | null;
   providerStatus: Status; lastSyncedAt: string; createdAt: string; updatedAt: string;
+}
+export interface ProviderConnectionTestResult {
+  integrationId: string; providerKey: string; connectionStatus: "ok";
+  balance: string | null; currency: string | null; checkedAt: string;
+}
+export interface PaymentProviderConnectionTestResult {
+  integrationId: string; providerKey: string; connectionStatus: "ok"; checkedAt: string;
 }
 export interface ProductMapping {
   id: string; businessId: string; productId: string; providerServiceId: string;
   status: Status; createdAt: string; updatedAt: string;
 }
 export interface ImportProviderProductInput {
+  deliveryConfig?: ProductDelivery | null;
   providerServiceId: string; name: string; description: string | null;
   categoryId: string | null; sku: string | null; type: "service" | "product";
   minQuantity: number | null; maxQuantity: number | null; currency: string;
@@ -120,5 +144,24 @@ export interface ApiCredential {
   createdAt: string; updatedAt: string;
 }
 export interface ApiCredentialCreated { credential: ApiCredential; token: string }
+
+export interface MembershipUser { id: string; email: string; name: string; status: Status }
+export interface Membership {
+  id: string; businessId: string; userId: string; role: Role; status: Status;
+  createdAt: string; updatedAt: string; user: MembershipUser;
+}
+export interface CreateMembershipInput {
+  email: string; role: Role; name?: string | null; password?: string | null;
+}
+export interface UpdateMembershipInput { role?: Role; status?: Status }
+export interface CreateOrderInput { quoteId: string; customerId?: string | null }
+
+export const JOB_STATUSES = ["pending", "running", "completed", "failed", "cancelled"] as const;
+export type JobStatus = (typeof JOB_STATUSES)[number];
+export interface Job {
+  jobId: string; jobType: string; status: JobStatus; attempts: number;
+  maxAttempts: number; runAt: string; lastError: string | null;
+  createdAt: string; updatedAt: string;
+}
 
 export type QueryValue = string | number | null | undefined;

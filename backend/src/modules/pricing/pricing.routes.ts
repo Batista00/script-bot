@@ -5,6 +5,7 @@ import {
   requireBusinessMembership,
   requireBusinessRole,
 } from "../auth/auth.middleware.js";
+import { requireActiveBusiness } from "../businesses/businesses.active.middleware.js";
 import { PostgresProductsRepository } from "../products/products.repository.js";
 import { PostgresBusinessesRepository } from "../businesses/businesses.repository.js";
 import {
@@ -41,10 +42,11 @@ export const pricingRoutes: FastifyPluginAsync = async (app) => {
   const allowWrite = requireBusinessRole(["owner", "admin"]);
   const readAuthorization = [requireUser, requireMembership, allowRead];
   const writeAuthorization = [requireUser, requireMembership, allowWrite];
+  const commercialWrite = [...writeAuthorization, requireActiveBusiness()];
 
   app.post<{ Params: PricingProductParams; Body: CreateProductPriceInput }>(
     "/businesses/:businessId/products/:productId/prices",
-    { schema: createPriceSchema, preHandler: writeAuthorization },
+    { schema: createPriceSchema, preHandler: commercialWrite },
     controller.create,
   );
   app.get<{ Params: PricingProductParams; Querystring: ProductPriceListQuery }>(
@@ -59,12 +61,12 @@ export const pricingRoutes: FastifyPluginAsync = async (app) => {
   );
   app.patch<{ Params: PriceIdParams; Body: UpdateProductPriceInput }>(
     "/businesses/:businessId/products/:productId/prices/:priceId",
-    { schema: updatePriceSchema, preHandler: writeAuthorization },
+    { schema: updatePriceSchema, preHandler: commercialWrite },
     controller.update,
   );
   app.delete<{ Params: PriceIdParams }>(
     "/businesses/:businessId/products/:productId/prices/:priceId",
-    { schema: deletePriceSchema, preHandler: writeAuthorization },
+    { schema: deletePriceSchema, preHandler: commercialWrite },
     controller.delete,
   );
 };

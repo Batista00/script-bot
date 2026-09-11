@@ -31,8 +31,20 @@ class FakeIntegrationsLookup {
       pendingUrl: "https://shop.example/pending",
       failureUrl: "https://shop.example/failure",
     },
-    credentials: { accessToken: "test-access-token", webhookSecret: "test-webhook-secret" },
+    credentials: {
+      publicKey: "test-public-key",
+      accessToken: "Bearer test-access-token",
+      webhookSecret: "test-webhook-secret",
+    },
   };
+
+  async getActiveIntegrationById(
+    requestedIntegrationId: string,
+    providerKey: string,
+  ): Promise<ActiveIntegration | null> {
+    if (providerKey !== "mercado_pago") return null;
+    return this.integration?.id === requestedIntegrationId ? this.integration : null;
+  }
 
   async getActiveIntegration(businessId: string): Promise<ActiveIntegration | null> {
     this.businessIds.push(businessId);
@@ -156,6 +168,29 @@ test("inactive integration and unsupported currency fail with controlled errors"
     );
     assert.equal(repository.payments[0]?.status, "failed");
   }
+});
+
+test("incomplete Mercado Pago credentials cannot create a payment", async () => {
+  const integrations = new FakeIntegrationsLookup();
+  const client = new FakeMercadoPagoClient();
+  if (integrations.integration) {
+    integrations.integration.credentials = {
+      publicKey: "test-public-key",
+      accessToken: "test-access-token",
+    };
+  }
+  const provider = new MercadoPagoPaymentProvider(
+    integrations, client, "http://localhost:3000", "test",
+  );
+  const { repository, service } = createPaymentsService([provider]);
+  const order = repository.addOrder();
+  await assert.rejects(
+    service.create(paymentBusinessA, order.id, provider.key),
+    (error: unknown) => error instanceof AppError &&
+      error.code === "PAYMENT_PROVIDER_NOT_AVAILABLE",
+  );
+  assert.equal(client.preferences.length, 0);
+  assert.equal(repository.payments[0]?.status, "failed");
 });
 
 test("Mercado Pago HTTP failure leaves the local Payment failed", async () => {

@@ -81,6 +81,14 @@ export class ProviderCatalogController {
     return reply.status(200).send(result);
   };
 
+  testConnection = async (
+    request: FastifyRequest<{ Params: ProviderCatalogSyncParams }>,
+    reply: FastifyReply,
+  ) => reply.status(200).send(await this.service.testConnection(
+    request.params.businessId,
+    request.params.integrationId,
+  ));
+
   createMapping = async (
     request: FastifyRequest<{
       Params: ProductProviderMappingParams;

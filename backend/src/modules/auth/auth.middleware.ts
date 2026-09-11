@@ -1,6 +1,7 @@
 import type { preHandlerHookHandler } from "fastify";
 
 import { AppError } from "../../core/errors/app-error.js";
+import type { BusinessMembership } from "../memberships/memberships.types.js";
 import type { MembershipsRepository } from "../memberships/memberships.types.js";
 import type { BusinessRole } from "../memberships/memberships.types.js";
 import { sessionCookieName } from "./auth.cookie.js";
@@ -43,4 +44,17 @@ export function requireBusinessRole(allowedRoles: readonly BusinessRole[]): preH
       throw new AppError("Insufficient business role", 403, "INSUFFICIENT_BUSINESS_ROLE");
     }
   };
+}
+
+/**
+ * Returns the membership already resolved by `requireBusinessMembership`.
+ * Controllers use it instead of re-reading the request decoration.
+ */
+export function requireMembershipContext(
+  membership: BusinessMembership | null,
+): BusinessMembership {
+  if (!membership) {
+    throw new AppError("Authentication required", 401, "AUTHENTICATION_REQUIRED");
+  }
+  return membership;
 }

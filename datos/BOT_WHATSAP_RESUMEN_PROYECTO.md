@@ -1,5 +1,14 @@
 # BOT WHATSAP — Resumen técnico del proyecto
 
+> **Documento histórico (2026-08-17). No describe el estado actual del repositorio.**
+> Es la bitácora de los laboratorios previos con Evolution API, Typebot y OpenAI. Varias de sus
+> premisas quedaron superadas: este repositorio **no** usa OpenAI ni Telegram, **no** integra
+> Evolution en código, y PostgreSQL comercial ya no son tres tablas sino 15 migraciones con
+> catálogo, pricing, quotes, orders, payments, integrations, provider catalog y fulfillments.
+> Estado vigente: `README.md` raíz, `backend/README.md` y `backend/docs/architecture.md`.
+> El otro documento de este directorio (`deep-research-report.md`) propone una arquitectura
+> distinta y contradice a este resumen.
+
 **Fecha:** 2026-08-17  
 **Proyecto:** BOT WHATSAP  
 **Objetivo:** construir un sistema comercial automatizado por WhatsApp usando **Evolution API + Typebot 6.1 + OpenAI**, con integración futura a **SMM Raja, Mercado Pago, PostgreSQL y Telegram**.

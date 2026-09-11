@@ -13,6 +13,8 @@ import type {
   CategoryPersistenceInput,
 } from "../src/modules/categories/categories.types.js";
 import { ProductsService } from "../src/modules/products/products.service.js";
+import { normalizeProductDelivery } from "../src/modules/products/product-delivery.js";
+import { SalesDeliveryService } from "../src/modules/sales/sales-delivery.service.js";
 import { ProductHistoryConflictError } from "../src/modules/products/products.types.js";
 import type {
   Product,
@@ -27,6 +29,39 @@ const missingProductId = "60878fd4-9a90-4f74-8905-d736c8b6ea11";
 const userId = "46f5476a-c7e9-403f-9fff-fc3bb234c8b6";
 const membershipId = "273676c0-da1f-47d4-a0a7-15624760233b";
 const now = "2026-08-18T12:00:00.000Z";
+
+test("delivery configuration preserves legacy products and validates physical/digital combinations", () => {
+  assert.equal(normalizeProductDelivery(undefined, "service"), null);
+  assert.deepEqual(normalizeProductDelivery({kind:"physical",methods:["shipping","pickup"],processing:"manual"}, "product"),
+    {kind:"physical",methods:["shipping","pickup"],processing:"manual",instructions:""});
+  for (const value of [
+    {kind:"digital",methods:["pickup"],processing:"manual"},
+    {kind:"physical",methods:["shipping"],processing:"automatic"},
+    {kind:"digital",methods:["digital","digital"],processing:"manual"},
+    {kind:"digital",methods:["digital"],processing:"manual",secret:"forbidden"},
+  ]) assert.throws(() => normalizeProductDelivery(value,"product"), {code:"INVALID_PRODUCT_DELIVERY"});
+  assert.throws(() => normalizeProductDelivery({kind:"physical",methods:["pickup"],processing:"manual"}, "service"), {code:"INVALID_PRODUCT_DELIVERY"});
+});
+
+test("product delivery settings persist, remain business scoped, and survive unrelated edits", async () => {
+  const {service} = createService();
+  const product = await service.create(businessA, {name:"Libro",type:"product",deliveryConfig:{kind:"physical",methods:["shipping","pickup"],processing:"manual",instructions:"Coordinar con ventas"}});
+  const updated = await service.update(businessA,product.id,{name:"Libro actualizado"});
+  assert.deepEqual(updated.deliveryConfig,product.deliveryConfig);
+  await assert.rejects(() => service.getById(businessB,product.id),{code:"PRODUCT_NOT_FOUND"});
+  await assert.rejects(() => service.update(businessA,product.id,{type:"service"}),{code:"INVALID_PRODUCT_DELIVERY"});
+});
+
+test("delivery will not charge unconfigured physical or automatic digital fulfillment", async () => {
+  const product={requiredInputs:[],deliveryConfig:{kind:"physical",methods:["pickup"],processing:"manual"}};
+  const service = new SalesDeliveryService({getProduct:async()=>product} as never,
+    {findCurrentMapping:async()=>null} as never,{} as never,{} as never);
+  await assert.rejects(()=>service.validate(businessA,"p",1,{}),{code:"DELIVERY_SELECTION_REQUIRED"});
+  product.deliveryConfig={kind:"digital",methods:["digital"],processing:"automatic"};
+  await assert.rejects(()=>service.validate(businessA,"p",1,{}),{code:"DELIVERY_NOT_CONFIGURED"});
+  product.deliveryConfig.processing="manual";
+  assert.equal((await service.validate(businessA,"p",1,{})).mode,"manual");
+});
 
 const testConfig: Env = {
   NODE_ENV: "test",
@@ -184,6 +219,7 @@ async function buildRoleApp(role: "owner" | "admin" | "operator") {
     updatedAt: now,
   });
   app.membershipsRepository.findByBusinessAndUser = async () => ({
+    status: "active", businessStatus: "active",
     id: membershipId,
     businessId: businessA,
     userId,

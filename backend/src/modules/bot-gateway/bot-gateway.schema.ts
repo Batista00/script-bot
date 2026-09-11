@@ -1,4 +1,7 @@
 import type { FastifySchema } from "fastify";
+import { additionalItemsHttpSchema,quoteItemsHttpSchema } from "../quotes/quote-cart.js";
+import { deliverySelectionHttpSchema, physicalDeliveryHttpSchema } from "../products/physical-delivery.js";
+import { productDeliveryHttpSchema } from "../products/product-delivery.js";
 
 const uuid = { type: "string", format: "uuid" } as const;
 const nullableUuid = { type: ["string", "null"], format: "uuid" } as const;
@@ -63,6 +66,7 @@ const product = {
     productId: uuid, categoryId: nullableUuid, name: { type: "string" },
     description: nullableString, type: { type: "string", enum: ["service", "product"] },
     sku: nullableString, minQuantity: nullableInteger, maxQuantity: nullableInteger,
+    deliveryConfig: productDeliveryHttpSchema,
     requiredInputs: {
       type: "array", maxItems: 20,
       items: {
@@ -99,6 +103,8 @@ const quote = {
   ],
   properties: {
     quoteId: uuid, customerId: nullableUuid, productId: uuid,
+    delivery:physicalDeliveryHttpSchema,
+    items:quoteItemsHttpSchema,
     productName: { type: "string" }, quantity: { type: "integer" },
     currency: { type: "string" }, unitPrice: nullableInteger,
     totalPrice: { type: "integer" },
@@ -108,10 +114,14 @@ const quote = {
 } as const;
 const orderItem = {
   type: "object", additionalProperties: false,
-  required: ["orderItemId", "productId", "productName", "quantity", "unitPrice", "totalPrice"],
+  required: [
+    "orderItemId", "productId", "productName", "quantity", "unitPrice", "totalPrice",
+    "fulfillmentInput",
+  ],
   properties: {
     orderItemId: uuid, productId: uuid, productName: { type: "string" },
     quantity: { type: "integer" }, unitPrice: nullableInteger, totalPrice: { type: "integer" },
+    fulfillmentInput: { type: "object" },
   },
 } as const;
 const order = {
@@ -119,6 +129,7 @@ const order = {
   required: ["orderId", "customerId", "quoteId", "status", "currency", "subtotal", "total", "items"],
   properties: {
     orderId: uuid, customerId: uuid, quoteId: uuid,
+    delivery:physicalDeliveryHttpSchema,
     status: { type: "string", enum: ["pending_payment", "paid", "processing", "completed", "cancelled", "failed"] },
     currency: { type: "string" }, subtotal: { type: "integer" }, total: { type: "integer" },
     items: { type: "array", items: orderItem },
@@ -136,11 +147,12 @@ const payment = {
 const fulfillment = {
   type: "object", additionalProperties: false,
   required: [
-    "fulfillmentId", "orderId", "orderItemId", "productId", "status",
+    "fulfillmentId", "orderId", "orderItemId", "productId", "providerOrderReference", "status",
     "submittedAt", "lastStatusSyncedAt", "completedAt",
   ],
   properties: {
     fulfillmentId: uuid, orderId: uuid, orderItemId: uuid, productId: uuid,
+    providerOrderReference: nullableString,
     status: { type: "string", enum: [
       "pending", "submitting", "submitted", "in_progress", "completed",
       "partial", "cancelled", "failed", "submission_unknown",
@@ -175,6 +187,43 @@ export const listBotProductsSchema = {
   response: { 200: { type: "array", items: product }, ...errors },
 } satisfies FastifySchema;
 
+const catalogPackage = {
+  type: "object",
+  additionalProperties: false,
+  required: ["productId", "name", "quantity", "currency", "price"],
+  properties: {
+    productId: uuid,
+    name: { type: "string" },
+    quantity: { type: "integer", minimum: 1 },
+    currency: { type: "string" },
+    price: { type: "integer", minimum: 1 },
+  },
+} as const;
+
+export const listBotCatalogPackagesSchema = {
+  querystring: {
+    type: "object",
+    additionalProperties: false,
+    required: ["categoryId"],
+    properties: { categoryId: uuid },
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["categoryId", "packages"],
+      properties: {
+        categoryId: uuid,
+        packages: {
+          type: "array",
+          items: catalogPackage,
+        },
+      },
+    },
+    ...errors,
+  },
+} satisfies FastifySchema;
+
 export const getBotProductSchema = {
   params: productParams, response: { 200: product, ...errors },
 } satisfies FastifySchema;
@@ -191,6 +240,8 @@ export const createBotQuoteSchema = {
       productId: uuid, quantity: { type: "integer", minimum: 1, maximum: 2_147_483_647 },
       currency: { type: "string", minLength: 3, maxLength: 3 },
       customerId: nullableUuid, expiresAt: nullableDate,
+      delivery:deliverySelectionHttpSchema,
+      additionalItems:additionalItemsHttpSchema,
     },
   }, response: { 201: quote, ...errors },
 } satisfies FastifySchema;
@@ -198,7 +249,17 @@ export const createBotQuoteSchema = {
 export const createBotOrderSchema = {
   body: {
     type: "object", additionalProperties: false, required: ["quoteId"],
-    properties: { quoteId: uuid, customerId: nullableUuid },
+    properties: {
+      quoteId: uuid,
+      customerId: nullableUuid,
+      // Provider input captured with the sale; the backend validates it against
+      // the product required inputs before submitting anything to a provider.
+      fulfillmentInput: {
+        type: "object",
+        maxProperties: 20,
+        additionalProperties: { type: ["string", "number", "boolean", "null"] },
+      },
+    },
   }, response: { 201: order, ...errors },
 } satisfies FastifySchema;
 export const getBotOrderSchema = {
@@ -249,4 +310,68 @@ export const getBotFulfillmentSchema = {
 } satisfies FastifySchema;
 export const syncBotFulfillmentSchema = {
   params: fulfillmentParams, response: { 200: fulfillment, ...errors },
+} satisfies FastifySchema;
+
+const job = {
+  type: "object", additionalProperties: false,
+  required: ["jobId", "jobType", "status", "attempts", "maxAttempts", "runAt", "lastError", "createdAt", "updatedAt"],
+  properties: {
+    jobId: uuid, jobType: { type: "string" },
+    status: { type: "string", enum: ["pending", "running", "completed", "failed", "cancelled"] },
+    attempts: { type: "integer" }, maxAttempts: { type: "integer" },
+    runAt: { type: "string", format: "date-time" },
+    lastError: nullableString,
+    createdAt: { type: "string", format: "date-time" },
+    updatedAt: { type: "string", format: "date-time" },
+  },
+} as const;
+const orderStatus = {
+  type: "string",
+  enum: ["pending_payment", "paid", "processing", "completed", "cancelled", "failed"],
+} as const;
+const paymentStatus = {
+  type: "string",
+  enum: ["pending", "approved", "rejected", "cancelled", "expired", "failed", "refunded", "chargeback"],
+} as const;
+const fulfillmentStatus = {
+  type: "string",
+  enum: ["pending", "submitting", "submitted", "in_progress", "completed", "partial", "cancelled", "failed", "submission_unknown"],
+} as const;
+const operationsQuery = {
+  type: "object", additionalProperties: false,
+  properties: {
+    limit: pagination.properties.limit,
+    offset: pagination.properties.offset,
+  },
+} as const;
+
+export const listBotOrdersSchema = {
+  querystring: { ...operationsQuery, properties: { ...operationsQuery.properties, status: orderStatus } },
+  response: { 200: { type: "array", items: order }, ...errors },
+} satisfies FastifySchema;
+export const listBotPaymentsSchema = {
+  querystring: { ...operationsQuery, properties: { ...operationsQuery.properties, status: paymentStatus } },
+  response: { 200: { type: "array", items: payment }, ...errors },
+} satisfies FastifySchema;
+export const listBotOperationFulfillmentsSchema = {
+  querystring: { ...operationsQuery, properties: { ...operationsQuery.properties, status: fulfillmentStatus } },
+  response: { 200: { type: "array", items: fulfillment }, ...errors },
+} satisfies FastifySchema;
+export const listBotJobsSchema = {
+  querystring: {
+    ...operationsQuery,
+    properties: {
+      ...operationsQuery.properties,
+      status: { type: "string", enum: ["pending", "running", "completed", "failed", "cancelled"] },
+      jobType: { type: "string", minLength: 1, maxLength: 64 },
+    },
+  },
+  response: { 200: { type: "array", items: job }, ...errors },
+} satisfies FastifySchema;
+export const retryBotJobSchema = {
+  params: {
+    type: "object", additionalProperties: false, required: ["jobId"],
+    properties: { jobId: uuid },
+  },
+  response: { 200: job, ...errors },
 } satisfies FastifySchema;

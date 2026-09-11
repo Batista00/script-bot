@@ -1,4 +1,6 @@
 import type { FastifySchema } from "fastify";
+import { additionalItemsHttpSchema,quoteItemsHttpSchema } from "./quote-cart.js";
+import { deliverySelectionHttpSchema, physicalDeliveryHttpSchema } from "../products/physical-delivery.js";
 
 const errorResponseSchema = {
   type: "object",
@@ -44,6 +46,8 @@ const quoteResponseSchema = {
     productId: { type: "string", format: "uuid" },
     quantity: { type: "integer", minimum: 1, maximum: 2_147_483_647 },
     productName: { type: "string", minLength: 1, maxLength: 160 },
+    delivery:physicalDeliveryHttpSchema,
+    items:quoteItemsHttpSchema,
     currency: { type: "string", pattern: "^[A-Z]{3}$" },
     pricingType: { type: "string", enum: ["fixed", "unit"] },
     unitPrice: nullableMoneySchema,
@@ -82,6 +86,8 @@ export const createQuoteSchema = {
       quantity: { type: "integer", minimum: 1, maximum: 2_147_483_647 },
       currency: { type: "string", minLength: 3, maxLength: 3, pattern: "^[A-Za-z]{3}$" },
       customerId: nullableUuidSchema,
+      delivery:deliverySelectionHttpSchema,
+      additionalItems:additionalItemsHttpSchema,
       expiresAt: nullableDateSchema,
     },
   },
