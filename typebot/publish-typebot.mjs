@@ -77,7 +77,13 @@ export function withRuntimeVariables(flow, { backendToken, backendBaseUrl = BACK
 }
 
 /** Artefacto JSON del flujo, tal como se versiona en el repositorio. */
-export function loadFlow(path = process.env.TYPEBOT_FLOW_PATH ?? resolve(here, "bot-whatsap-thin-v1.json")) {
+/**
+ * Flujo a publicar. Por defecto el ESTABLE: el flujo delgado nuevo todavía no
+ * sostiene el bucle de turnos dentro de Typebot (la sesión se cierra tras la
+ * primera respuesta), así que no puede reemplazar al productivo sin degradar
+ * la atención. Se selecciona con TYPEBOT_FLOW_PATH.
+ */
+export function loadFlow(path = process.env.TYPEBOT_FLOW_PATH ?? resolve(here, "bot-whatsap-commerce-v1.legacy.json")) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 

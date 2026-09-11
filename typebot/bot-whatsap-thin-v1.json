@@ -148,7 +148,7 @@
     "blockId": "blkshow"
    },
    "to": {
-    "blockId": "blkturninput"
+    "groupId": "grpturn"
    }
   }
  ]
