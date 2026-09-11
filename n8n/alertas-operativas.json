@@ -21,7 +21,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{$env.BACKEND_BASE_URL}}/businesses/{{$env.BUSINESS_ID}}/jobs",
+        "url": "={{$env.BACKEND_BASE_URL}}/bot/v1/operations/jobs",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [

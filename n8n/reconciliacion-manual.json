@@ -51,7 +51,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{$env.BACKEND_BASE_URL}}/businesses/{{$env.BUSINESS_ID}}/orders/{{ $json.orderId }}",
+        "url": "={{$env.BACKEND_BASE_URL}}/bot/v1/orders/{{ $json.orderId }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -84,7 +84,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{$env.BACKEND_BASE_URL}}/businesses/{{$env.BUSINESS_ID}}/payments/{{ $('Formulario de reconciliacion manual').first().json.paymentId }}",
+        "url": "={{$env.BACKEND_BASE_URL}}/bot/v1/payments/{{ $('Formulario de reconciliacion manual').first().json.paymentId }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -159,7 +159,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{$env.BACKEND_BASE_URL}}/businesses/{{$env.BUSINESS_ID}}/jobs/{{ $json.solicitud.jobId || $env.JOB_ID }}/retry",
+        "url": "={{$env.BACKEND_BASE_URL}}/bot/v1/operations/jobs/{{ $json.solicitud.jobId || $env.JOB_ID }}/retry",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

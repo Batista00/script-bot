@@ -33,7 +33,7 @@ contiene secretos, tokens, IDs ni URLs de ningun entorno. n8n debe poder leerlas
 | Variable | Uso | Secreta |
 | --- | --- | --- |
 | `BACKEND_BASE_URL` | URL publica base del backend, sin barra final | No |
-| `BUSINESS_ID` | UUID del negocio (multi-negocio) | No |
+| `BUSINESS_ID` (opcional, ya no se usa en las URLs) | UUID del negocio (multi-negocio) | No |
 | `BACKEND_BOT_TOKEN` | Credencial machine-to-machine del backend | **Si** |
 | `ALERT_WEBHOOK_URL` | Webhook generico de alertas | **Si** |
 | `JOB_ID` | Solo fallback opcional del retry manual; normalmente el job se toma del formulario | No |
@@ -51,12 +51,16 @@ workflow versionado.
 
 ## Endpoints y permisos
 
+Todos los workflows usan la **API operativa del Bot Gateway** con la credencial machine-to-machine
+(`Authorization: Bearer {{$env.BACKEND_BOT_TOKEN}}`). El negocio se deriva de la credencial, así que
+las URLs no llevan `businessId`. Son endpoints de lectura, salvo el retry manual.
+
 | Workflow | Llamada |
 | --- | --- |
-| `alertas-operativas` | `GET {{$env.BACKEND_BASE_URL}}/businesses/{{$env.BUSINESS_ID}}/jobs?status=failed&limit=20` |
-| `reporte-diario` | `GET .../orders?limit=50` y `GET .../payments?limit=50` |
-| `reconciliacion-manual` | `GET .../orders/:orderId`, `GET .../payments/:paymentId`, `POST .../jobs/:jobId/retry` |
-| `alertas-fulfillment` | `GET .../fulfillments?status=submission_unknown&limit=20` |
+| `alertas-operativas` | `GET {{$env.BACKEND_BASE_URL}}/bot/v1/operations/jobs?status=failed&limit=20` |
+| `reporte-diario` | `GET .../bot/v1/operations/orders?limit=50` y `GET .../bot/v1/operations/payments?limit=50` |
+| `reconciliacion-manual` | `GET .../bot/v1/orders/:orderId`, `GET .../bot/v1/payments/:paymentId`, `POST .../bot/v1/operations/jobs/:jobId/retry` |
+| `alertas-fulfillment` | `GET .../bot/v1/operations/fulfillments?status=submission_unknown&limit=20` |
 
 Todas las llamadas usan `Authorization: Bearer {{$env.BACKEND_BOT_TOKEN}}` (Machine Auth) y
 `Accept: application/json`. El backend sigue siendo la autoridad: el token debe corresponder a una
@@ -90,7 +94,7 @@ workflow reinicia ese estado.
 1. Importar el workflow y **dejarlo inactivo**.
 2. Definir `ALERT_WEBHOOK_URL` apuntando a un receptor de prueba (por ejemplo un webhook temporal
    propio o `https://webhook.site/...`), nunca al canal real de operaciones.
-3. Usar un `BUSINESS_ID` y, si aplica, un `BACKEND_BOT_TOKEN` de un negocio/entorno de prueba.
+3. Usar un `BACKEND_BOT_TOKEN` de un negocio/entorno de prueba (el negocio se deriva de la credencial).
 4. Para los schedules: **Execute Workflow** manual y revisar la pestana de ejecuciones; recien
    despues activar. El disparo programado no cambia hasta activar el workflow.
 5. Para `reconciliacion-manual`: ejecutar el formulario con una orden/pago de prueba y dejar

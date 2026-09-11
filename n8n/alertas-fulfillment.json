@@ -21,7 +21,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{$env.BACKEND_BASE_URL}}/businesses/{{$env.BUSINESS_ID}}/fulfillments",
+        "url": "={{$env.BACKEND_BASE_URL}}/bot/v1/operations/fulfillments",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [

@@ -21,7 +21,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{$env.BACKEND_BASE_URL}}/businesses/{{$env.BUSINESS_ID}}/orders",
+        "url": "={{$env.BACKEND_BASE_URL}}/bot/v1/operations/orders",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -63,7 +63,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{$env.BACKEND_BASE_URL}}/businesses/{{$env.BUSINESS_ID}}/payments",
+        "url": "={{$env.BACKEND_BASE_URL}}/bot/v1/operations/payments",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
