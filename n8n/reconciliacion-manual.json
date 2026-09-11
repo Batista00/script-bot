@@ -1,0 +1,369 @@
+{
+  "name": "BOT WHATSAP - Reconciliacion manual (solo lectura + retry opcional)",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Reconciliacion manual BOT WHATSAP",
+        "formDescription": "Consulta el estado real que devuelve el backend. n8n no aprueba pagos ni cambia estados: solo informa y, si se pide, dispara el retry de un job como owner/admin.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "orderId",
+              "fieldType": "text",
+              "placeholder": "UUID de la orden",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "paymentId",
+              "fieldType": "text",
+              "placeholder": "UUID del pago (opcional)"
+            },
+            {
+              "fieldLabel": "jobId",
+              "fieldType": "text",
+              "placeholder": "UUID del job a reintentar (opcional)"
+            },
+            {
+              "fieldLabel": "dispararRetry",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "no"
+                  },
+                  {
+                    "option": "si"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0a1b2c3d-0003-4000-8000-000000000001",
+      "name": "Formulario de reconciliacion manual",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [-440, 0],
+      "webhookId": "9d2f4b30-0003-4d30-8b30-000000000001"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.BACKEND_BASE_URL}}/businesses/{{$env.BUSINESS_ID}}/orders/{{ $json.orderId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.BACKEND_BOT_TOKEN}}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "0a1b2c3d-0003-4000-8000-000000000002",
+      "name": "Consultar pedido",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-220, 0]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.BACKEND_BASE_URL}}/businesses/{{$env.BUSINESS_ID}}/payments/{{ $('Formulario de reconciliacion manual').first().json.paymentId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.BACKEND_BOT_TOKEN}}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "0a1b2c3d-0003-4000-8000-000000000003",
+      "name": "Consultar pago",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Presenta el estado actual que devuelve el backend. n8n no recalcula nada.\nconst formulario = $('Formulario de reconciliacion manual').first().json;\nconst pedido = $('Consultar pedido').first().json;\nconst pago = $('Consultar pago').first().json;\n\nreturn [\n  {\n    json: {\n      tipo: 'reconciliacion_manual',\n      businessId: $env.BUSINESS_ID || null,\n      generadoEn: new Date().toISOString(),\n      solicitud: {\n        orderId: formulario.orderId || null,\n        paymentId: formulario.paymentId || null,\n        jobId: formulario.jobId || null,\n        dispararRetry: formulario.dispararRetry === 'si',\n      },\n      estadoPedido: pedido,\n      estadoPago: pago,\n      nota: 'n8n solo informa. No aprueba pagos ni cambia el estado de la orden; el retry lo ejecuta el backend con autorizacion owner/admin.',\n    },\n  },\n];"
+      },
+      "id": "0a1b2c3d-0003-4000-8000-000000000004",
+      "name": "Resumir estado actual",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0a1b2c3d-0003-4000-8000-000000000011",
+              "leftValue": "={{ $json.solicitud.dispararRetry && Boolean($json.solicitud.jobId) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0a1b2c3d-0003-4000-8000-000000000005",
+      "name": "Retry solicitado y jobId presente",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.BACKEND_BASE_URL}}/businesses/{{$env.BUSINESS_ID}}/jobs/{{ $json.solicitud.jobId || $env.JOB_ID }}/retry",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.BACKEND_BOT_TOKEN}}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "0a1b2c3d-0003-4000-8000-000000000006",
+      "name": "Disparar retry del job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, -110]
+    },
+    {
+      "parameters": {},
+      "id": "0a1b2c3d-0003-4000-8000-000000000007",
+      "name": "Sin retry solicitado (no-op documentado)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [680, 110]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0a1b2c3d-0003-4000-8000-000000000012",
+              "leftValue": "={{ $env.ALERT_WEBHOOK_URL }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0a1b2c3d-0003-4000-8000-000000000008",
+      "name": "ALERT_WEBHOOK_URL configurado",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [440, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.ALERT_WEBHOOK_URL}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "0a1b2c3d-0003-4000-8000-000000000009",
+      "name": "Enviar resumen por webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 220]
+    },
+    {
+      "parameters": {},
+      "id": "0a1b2c3d-0003-4000-8000-000000000010",
+      "name": "Sin webhook configurado (no-op documentado)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [680, 440]
+    }
+  ],
+  "connections": {
+    "Formulario de reconciliacion manual": {
+      "main": [
+        [
+          {
+            "node": "Consultar pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar pedido": {
+      "main": [
+        [
+          {
+            "node": "Consultar pago",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar pago": {
+      "main": [
+        [
+          {
+            "node": "Resumir estado actual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resumir estado actual": {
+      "main": [
+        [
+          {
+            "node": "Retry solicitado y jobId presente",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "ALERT_WEBHOOK_URL configurado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry solicitado y jobId presente": {
+      "main": [
+        [
+          {
+            "node": "Disparar retry del job",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sin retry solicitado (no-op documentado)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ALERT_WEBHOOK_URL configurado": {
+      "main": [
+        [
+          {
+            "node": "Enviar resumen por webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sin webhook configurado (no-op documentado)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "pinData": {},
+  "versionId": "7f3c1a10-0003-4c10-9a10-000000000003",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}
