@@ -105,7 +105,7 @@ export class PostgresJobsRepository implements JobsRepository {
            updated_at = now()
        WHERE id IN (
          SELECT id FROM job_queue
-         WHERE status = 'pending' AND run_at <= now()
+         WHERE status = 'pending' AND run_at <= now() AND attempts < max_attempts
          ORDER BY priority DESC, run_at ASC, created_at ASC
          LIMIT $2
          FOR UPDATE SKIP LOCKED

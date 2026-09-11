@@ -5,7 +5,11 @@ import type { Category } from "../categories/categories.types.js";
 import type { CustomersService } from "../customers/customers.service.js";
 import type { Customer } from "../customers/customers.types.js";
 import type { FulfillmentsService } from "../fulfillments/fulfillments.service.js";
-import type { Fulfillment } from "../fulfillments/fulfillments.types.js";
+import type { Fulfillment, FulfillmentListItem, FulfillmentStatus } from "../fulfillments/fulfillments.types.js";
+import type { JobsService } from "../jobs/jobs.service.js";
+import type { Job, JobStatus } from "../jobs/jobs.types.js";
+import type { OrderStatus } from "../orders/orders.types.js";
+import type { PaymentStatus } from "../payments/payments.types.js";
 import type { OrdersService } from "../orders/orders.service.js";
 import type { Order } from "../orders/orders.types.js";
 import type { PaymentsService } from "../payments/payments.service.js";
@@ -52,6 +56,7 @@ export class BotGatewayService {
     private readonly fulfillments: FulfillmentsService,
     private readonly paymentMethods?: PaymentMethodsService,
     private readonly businesses?: BusinessesRepository,
+    private readonly jobs?: JobsService,
   ) {}
 
   async resolveCustomer(businessId: string, input: BotResolveCustomerInput) {
@@ -157,6 +162,77 @@ export class BotGatewayService {
     return this.fulfillmentDto(await this.fulfillments.syncStatus(businessId, fulfillmentId));
   }
 
+  /**
+   * Read-only operational views for automation (n8n) and dashboards. They are
+   * always scoped to the credential's business and never expose provider
+   * internals.
+   */
+  async listOrders(
+    businessId: string,
+    query: { limit?: string; offset?: string; status?: OrderStatus },
+  ) {
+    const orders = await this.orders.list(businessId, {
+      ...pagination(query),
+      ...(query.status === undefined ? {} : { status: query.status }),
+    });
+    return orders.map((order) => this.orderDto(order));
+  }
+
+  async listPayments(
+    businessId: string,
+    query: { limit?: string; offset?: string; status?: PaymentStatus },
+  ) {
+    const payments = await this.payments.list(businessId, {
+      ...pagination(query),
+      ...(query.status === undefined ? {} : { status: query.status }),
+    });
+    return payments.map((payment) => this.paymentDto(payment));
+  }
+
+  async listFulfillmentsByStatus(
+    businessId: string,
+    query: { limit?: string; offset?: string; status?: FulfillmentStatus },
+  ) {
+    const fulfillments = await this.fulfillments.list(businessId, {
+      ...pagination(query),
+      ...(query.status === undefined ? {} : { status: query.status }),
+    });
+    return fulfillments.map((fulfillment) => this.fulfillmentDto(fulfillment));
+  }
+
+  async listJobs(
+    businessId: string,
+    query: { limit?: string; offset?: string; status?: JobStatus; jobType?: string },
+  ) {
+    if (!this.jobs) return [];
+    const jobs = await this.jobs.list({
+      ...pagination(query),
+      businessId,
+      ...(query.status === undefined ? {} : { status: query.status }),
+      ...(query.jobType === undefined ? {} : { jobType: query.jobType }),
+    });
+    return jobs.map((job) => this.jobDto(job));
+  }
+
+  async retryJob(businessId: string, jobId: string) {
+    if (!this.jobs) throw new AppError("Job not found", 404, "JOB_NOT_FOUND");
+    return this.jobDto(await this.jobs.retryForBusiness(businessId, jobId));
+  }
+
+  private jobDto(value: Job) {
+    return {
+      jobId: value.id,
+      jobType: value.jobType,
+      status: value.status,
+      attempts: value.attempts,
+      maxAttempts: value.maxAttempts,
+      runAt: value.runAt,
+      lastError: value.lastError,
+      createdAt: value.createdAt,
+      updatedAt: value.updatedAt,
+    };
+  }
+
   private customerDto(value: Customer): BotCustomerDto {
     return { customerId: value.id, name: value.name, phone: value.phone,
       email: value.email, status: value.status };
@@ -206,7 +282,7 @@ export class BotGatewayService {
       expiresAt: value.expiresAt,
     };
   }
-  private fulfillmentDto(value: Fulfillment): BotFulfillmentDto {
+  private fulfillmentDto(value: Fulfillment | FulfillmentListItem): BotFulfillmentDto {
     return {
       fulfillmentId: value.id, orderId: value.orderId, orderItemId: value.orderItemId,
       productId: value.productId, status: value.status, submittedAt: value.submittedAt,

@@ -16,6 +16,8 @@ const expectedTables = [
   "businesses",
   "job_queue",
   "categories",
+  "conversation_messages",
+  "conversations",
   "customers",
   "fulfillments",
   "order_items",
@@ -61,6 +63,20 @@ const expectedConstraints = new Map([
   ["provider_catalog_states_integration_business_fk", "f"],
   ["products_required_inputs_array", "c"],
   ["quotes_business_id_id_unique", "u"],
+  ["conversations_business_id_id_unique", "u"],
+  ["conversations_business_channel_thread_unique", "u"],
+  ["conversations_customer_business_fk", "f"],
+  ["conversations_channel_valid", "c"],
+  ["conversations_external_thread_id_valid", "c"],
+  ["conversations_unread_count_valid", "c"],
+  ["conversation_messages_conversation_business_fk", "f"],
+  ["conversation_messages_direction_valid", "c"],
+  ["conversation_messages_status_valid", "c"],
+  ["conversation_messages_external_message_id_valid", "c"],
+  ["conversation_messages_body_valid", "c"],
+  ["conversation_messages_media_type_valid", "c"],
+  ["conversation_messages_media_url_valid", "c"],
+  ["conversation_messages_provider_error_valid", "c"],
 ]);
 
 test(
@@ -82,7 +98,7 @@ test(
     const migrationResult = await db.query<{ count: number }>(
       "SELECT count(*)::integer AS count FROM pgmigrations",
     );
-    assert.equal(migrationResult.rows[0]?.count, 19);
+    assert.equal(migrationResult.rows[0]?.count, 20);
 
     const tableResult = await db.query<{ table_name: string }>(
       `SELECT table_name
@@ -284,5 +300,55 @@ test(
     assert.deepEqual(providerCharge.rows[0], {
       data_type: "numeric", numeric_precision: 30, numeric_scale: 12,
     });
+
+    const conversationStatuses = await db.query<{ enumlabel: string }>(
+      `SELECT enumlabel FROM pg_enum
+       JOIN pg_type ON pg_type.oid = pg_enum.enumtypid
+       WHERE pg_type.typname = 'conversation_status'
+       ORDER BY enumsortorder`,
+    );
+    assert.deepEqual(conversationStatuses.rows.map((row) => row.enumlabel), [
+      "open", "pending", "human", "closed",
+    ]);
+
+    const conversationIndexes = await db.query<{ indexname: string }>(
+      `SELECT indexname FROM pg_indexes
+       WHERE schemaname = 'public' AND indexname = ANY($1::text[])`,
+      [[
+        "conversations_business_id_id_unique",
+        "conversations_business_channel_thread_unique",
+        "conversations_business_status_idx",
+        "conversation_messages_external_message_unique",
+        "conversation_messages_business_conversation_idx",
+      ]],
+    );
+    assert.equal(conversationIndexes.rows.length, 5);
+
+    const dedupeIndex = await db.query<{ indexdef: string }>(
+      `SELECT indexdef FROM pg_indexes
+       WHERE schemaname = 'public'
+         AND indexname = 'conversation_messages_external_message_unique'`,
+    );
+    assert.match(dedupeIndex.rows[0]?.indexdef ?? "", /^CREATE UNIQUE INDEX/);
+    assert.match(dedupeIndex.rows[0]?.indexdef ?? "", /WHERE \(external_message_id IS NOT NULL\)/);
+
+    const conversationShape = await db.query<{
+      table_name: string; column_name: string; is_nullable: string;
+    }>(
+      `SELECT table_name, column_name, is_nullable
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND (
+           (table_name = 'conversations' AND column_name IN (
+             'business_id', 'customer_id', 'channel', 'status', 'unread_count'
+           ))
+           OR (table_name = 'conversation_messages' AND column_name IN (
+             'business_id', 'conversation_id', 'direction', 'status', 'created_at'
+           ))
+         )
+       ORDER BY table_name, column_name`,
+    );
+    assert.equal(conversationShape.rows.length, 10);
+    assert.ok(conversationShape.rows.every((row) => row.is_nullable === "NO"));
   },
 );

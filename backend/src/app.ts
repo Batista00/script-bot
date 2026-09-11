@@ -4,6 +4,8 @@ import { type Env, resolveTrustProxy } from "./config/env.js";
 import { databasePlugin } from "./core/database/database.plugin.js";
 import { registerErrorHandler } from "./core/errors/error-handler.js";
 import { createLoggerOptions } from "./core/logger/logger.js";
+import { EvolutionAdapter } from "./integrations/evolution/evolution.adapter.js";
+import { NativeEvolutionClient } from "./integrations/evolution/evolution.client.js";
 import { NativeMercadoPagoClient } from "./integrations/mercado-pago/mercado-pago.client.js";
 import { MercadoPagoPaymentProvider } from "./integrations/mercado-pago/mercado-pago.provider.js";
 import { mercadoPagoWebhookRoutes } from "./integrations/mercado-pago/mercado-pago.webhook.routes.js";
@@ -78,6 +80,10 @@ import { PostgresQuotesRepository } from "./modules/quotes/quotes.repository.js"
 import { quotesRoutes } from "./modules/quotes/quotes.routes.js";
 import { QuotesService } from "./modules/quotes/quotes.service.js";
 import { PostgresUsersRepository } from "./modules/users/users.repository.js";
+import { PostgresWhatsappRepository } from "./modules/whatsapp/whatsapp.repository.js";
+import { whatsappRoutes } from "./modules/whatsapp/whatsapp.routes.js";
+import { WhatsappService } from "./modules/whatsapp/whatsapp.service.js";
+import { WhatsappWebhookService } from "./modules/whatsapp/whatsapp.webhook.service.js";
 
 export async function buildApp(config: Env): Promise<FastifyInstance> {
   const app = Fastify({
@@ -196,6 +202,19 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
     fulfillmentService,
     paymentMethodsService,
     new PostgresBusinessesRepository(app.db),
+    jobsService,
+  );
+  const whatsappRepository = new PostgresWhatsappRepository(app.db);
+  const whatsappService = new WhatsappService(
+    whatsappRepository,
+    integrationsService,
+    new CustomersService(customersRepository),
+    new EvolutionAdapter(integrationsService, new NativeEvolutionClient(), config.NODE_ENV),
+  );
+  const whatsappWebhookService = new WhatsappWebhookService(
+    integrationsService,
+    new CustomersService(customersRepository),
+    whatsappRepository,
   );
   await app.register(healthRoutes);
   await app.register(mercadoPagoWebhookRoutes, {
@@ -229,6 +248,11 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
     rateLimit: botRateLimit,
   });
   await app.register(customersRoutes);
+  await app.register(whatsappRoutes, {
+    service: whatsappService,
+    webhookService: whatsappWebhookService,
+    rateLimit: webhookRateLimit,
+  });
   await app.register(categoriesRoutes);
   await app.register(productsRoutes);
   await app.register(providerCatalogRoutes, {

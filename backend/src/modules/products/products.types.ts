@@ -52,6 +52,8 @@ export interface ProductListOptions {
   status?: ProductStatus;
   type?: ProductType;
   categoryId?: string;
+  /** Case-insensitive partial match on the commercial name. */
+  search?: string;
 }
 
 export interface ProductListQuery {
@@ -60,6 +62,7 @@ export interface ProductListQuery {
   status?: ProductStatus;
   type?: ProductType;
   categoryId?: string;
+  search?: string;
 }
 
 export interface ProductPersistenceInput {

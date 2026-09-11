@@ -264,3 +264,67 @@ export const getBotFulfillmentSchema = {
 export const syncBotFulfillmentSchema = {
   params: fulfillmentParams, response: { 200: fulfillment, ...errors },
 } satisfies FastifySchema;
+
+const job = {
+  type: "object", additionalProperties: false,
+  required: ["jobId", "jobType", "status", "attempts", "maxAttempts", "runAt", "lastError", "createdAt", "updatedAt"],
+  properties: {
+    jobId: uuid, jobType: { type: "string" },
+    status: { type: "string", enum: ["pending", "running", "completed", "failed", "cancelled"] },
+    attempts: { type: "integer" }, maxAttempts: { type: "integer" },
+    runAt: { type: "string", format: "date-time" },
+    lastError: nullableString,
+    createdAt: { type: "string", format: "date-time" },
+    updatedAt: { type: "string", format: "date-time" },
+  },
+} as const;
+const orderStatus = {
+  type: "string",
+  enum: ["pending_payment", "paid", "processing", "completed", "cancelled", "failed"],
+} as const;
+const paymentStatus = {
+  type: "string",
+  enum: ["pending", "approved", "rejected", "cancelled", "expired", "failed", "refunded", "chargeback"],
+} as const;
+const fulfillmentStatus = {
+  type: "string",
+  enum: ["pending", "submitting", "submitted", "in_progress", "completed", "partial", "cancelled", "failed", "submission_unknown"],
+} as const;
+const operationsQuery = {
+  type: "object", additionalProperties: false,
+  properties: {
+    limit: pagination.properties.limit,
+    offset: pagination.properties.offset,
+  },
+} as const;
+
+export const listBotOrdersSchema = {
+  querystring: { ...operationsQuery, properties: { ...operationsQuery.properties, status: orderStatus } },
+  response: { 200: { type: "array", items: order }, ...errors },
+} satisfies FastifySchema;
+export const listBotPaymentsSchema = {
+  querystring: { ...operationsQuery, properties: { ...operationsQuery.properties, status: paymentStatus } },
+  response: { 200: { type: "array", items: payment }, ...errors },
+} satisfies FastifySchema;
+export const listBotOperationFulfillmentsSchema = {
+  querystring: { ...operationsQuery, properties: { ...operationsQuery.properties, status: fulfillmentStatus } },
+  response: { 200: { type: "array", items: fulfillment }, ...errors },
+} satisfies FastifySchema;
+export const listBotJobsSchema = {
+  querystring: {
+    ...operationsQuery,
+    properties: {
+      ...operationsQuery.properties,
+      status: { type: "string", enum: ["pending", "running", "completed", "failed", "cancelled"] },
+      jobType: { type: "string", minLength: 1, maxLength: 64 },
+    },
+  },
+  response: { 200: { type: "array", items: job }, ...errors },
+} satisfies FastifySchema;
+export const retryBotJobSchema = {
+  params: {
+    type: "object", additionalProperties: false, required: ["jobId"],
+    properties: { jobId: uuid },
+  },
+  response: { 200: job, ...errors },
+} satisfies FastifySchema;

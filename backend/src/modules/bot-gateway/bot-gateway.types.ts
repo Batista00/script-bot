@@ -2,6 +2,7 @@ import type { JsonObject } from "../integrations/integrations.types.js";
 import type { CreateCustomerInput } from "../customers/customers.types.js";
 import type { DispatchFulfillmentInput, FulfillmentStatus } from "../fulfillments/fulfillments.types.js";
 import type { CreateOrderInput, OrderStatus } from "../orders/orders.types.js";
+import type { JobStatus } from "../jobs/jobs.types.js";
 import type { PaymentStatus } from "../payments/payments.types.js";
 import type { ProductType } from "../products/products.types.js";
 import type { ProductInputField } from "../products/product-inputs.js";
@@ -85,6 +86,38 @@ export interface BotOrderDto {
   subtotal: number;
   total: number;
   items: BotOrderItemDto[];
+}
+export interface BotOrderListQuery {
+  limit?: string;
+  offset?: string;
+  status?: OrderStatus;
+}
+export interface BotPaymentListQuery {
+  limit?: string;
+  offset?: string;
+  status?: PaymentStatus;
+}
+export interface BotFulfillmentListQuery {
+  limit?: string;
+  offset?: string;
+  status?: FulfillmentStatus;
+}
+export interface BotJobListQuery {
+  limit?: string;
+  offset?: string;
+  status?: JobStatus;
+  jobType?: string;
+}
+export interface BotJobDto {
+  jobId: string;
+  jobType: string;
+  status: string;
+  attempts: number;
+  maxAttempts: number;
+  runAt: string;
+  lastError: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 export interface BotPaymentDto {
   paymentId: string;

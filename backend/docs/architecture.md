@@ -215,6 +215,29 @@ POST   membership    →  crea la cuenta si el correo no existe; si existe, la a
 
 El estado del negocio viaja **denormalizado** dentro de la membership (`businessStatus`) y de la credencial de máquina (`MachineAuthContext.businessStatus`), leídos con un JOIN en la misma consulta que ya hacía cada guard. `requireActiveBusiness()` decide entonces sin I/O y sin aceptar `businessId` del request: un negocio `inactive` responde `409 BUSINESS_INACTIVE` en todo el Bot Gateway y en las mutaciones comerciales, mientras las lecturas, la reconciliación de fulfillments y la administración (negocio, equipo, integraciones, credenciales) siguen disponibles para poder reactivarlo.
 
+
+## Cola de trabajo y worker
+
+```text
+Order paid ──(misma transacción)──> job_queue: order.fulfill
+                                          ↓ claim FOR UPDATE SKIP LOCKED
+                        Worker ──> ProviderFulfillmentAdapter.createOrder
+                                          ↓
+                        Fulfillment submitted + Order processing
+                                          ↓ job fulfillment.sync (se reprograma)
+                        Adapter.getOrderStatus ──> completed | partial | cancelled
+                                          ↓
+                        Order completed | failed
+```
+
+La cola vive en PostgreSQL: un reinicio no pierde trabajo y dos réplicas nunca reclaman la misma fila. Cada job tiene `job_key` única por tipo (idempotencia), `attempts`/`max_attempts`, `run_at` (backoff exponencial), `locked_at`/`locked_by` (lease con recuperación de workers caídos) y `last_error` para diagnóstico. Los sweeps de mantenimiento reabren jobs fallidos **solo** si el trabajo sigue pendiente (pedido pagado sin fulfillment, fulfillment no terminal, pago pendiente con id externo, sesiones vencidas).
+
+El enlace pago → fulfillment es determinístico: la aprobación marca el pedido `paid`, encola el despacho y todo ocurre en una transacción; la llamada externa al proveedor sucede después, en el worker, nunca dentro de una transacción. Un error ambiguo tras enviar el pedido al proveedor deja `submission_unknown` y bloquea el reintento automático.
+
+## Canal WhatsApp
+
+`webhooks/evolution/:integrationId` es la frontera del canal: valida un secreto compartido, normaliza el teléfono y el contenido, resuelve el customer y persiste conversación y mensaje con deduplicación por identificador externo. El backend no conduce la conversación: devuelve contexto al orquestador y ofrece endpoints de lectura y de handoff. Las credenciales de Evolution se resuelven igual que las de cualquier proveedor (integración cifrada + adapter), de modo que añadir otro canal no toca el dominio comercial.
+
 ## Propiedad de datos por negocio
 
 `businesses` es la entidad raíz para separar negocios. Las futuras entidades que pertenezcan a un negocio deberán incluir una referencia `business_id → businesses.id` cuando corresponda. Esta regla no aplica a la propia tabla `businesses`.

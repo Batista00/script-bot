@@ -6,12 +6,18 @@ import { MachineAuthService } from "../machine-auth/machine-auth.service.js";
 import {
   type BotFulfillmentParams,
   BotGatewayController,
+  type BotJobParams,
   type BotOrderParams,
   type BotPaymentParams,
   type BotProductParams,
 } from "./bot-gateway.controller.js";
 import {
   createBotOrderSchema,
+  listBotJobsSchema,
+  listBotOperationFulfillmentsSchema,
+  listBotOrdersSchema,
+  listBotPaymentsSchema,
+  retryBotJobSchema,
   createBotPaymentSchema,
   createBotQuoteSchema,
   dispatchBotFulfillmentSchema,
@@ -30,6 +36,10 @@ import {
 import { BotGatewayService } from "./bot-gateway.service.js";
 import type {
   BotCreateOrderInput,
+  BotFulfillmentListQuery,
+  BotJobListQuery,
+  BotOrderListQuery,
+  BotPaymentListQuery,
   BotCreatePaymentInput,
   BotCreateQuoteInput,
   BotDispatchFulfillmentInput,
@@ -118,6 +128,31 @@ export const botGatewayRoutes: FastifyPluginAsync<BotGatewayRoutesOptions> = asy
     "/fulfillments/:fulfillmentId/sync-status",
     { schema: syncBotFulfillmentSchema, preHandler: commercialAuthorization },
     controller.syncFulfillment,
+  );
+
+  // Operational views for automation (n8n) and dashboards. Machine
+  // authenticated and scoped to the credential's business; they stay available
+  // while the business is suspended so operators can react.
+  const operations = [machineAuth, ...(options.rateLimit ? [options.rateLimit] : [])];
+  app.get<{ Querystring: BotOrderListQuery }>(
+    "/operations/orders", { schema: listBotOrdersSchema, preHandler: operations },
+    controller.listOrders,
+  );
+  app.get<{ Querystring: BotPaymentListQuery }>(
+    "/operations/payments", { schema: listBotPaymentsSchema, preHandler: operations },
+    controller.listPayments,
+  );
+  app.get<{ Querystring: BotFulfillmentListQuery }>(
+    "/operations/fulfillments", { schema: listBotOperationFulfillmentsSchema, preHandler: operations },
+    controller.listFulfillmentsByStatus,
+  );
+  app.get<{ Querystring: BotJobListQuery }>(
+    "/operations/jobs", { schema: listBotJobsSchema, preHandler: operations },
+    controller.listJobs,
+  );
+  app.post<{ Params: BotJobParams }>(
+    "/operations/jobs/:jobId/retry", { schema: retryBotJobSchema, preHandler: operations },
+    controller.retryJob,
   );
   app.get<{ Params: BotFulfillmentParams }>(
     "/fulfillments/:fulfillmentId",

@@ -148,6 +148,33 @@ test("inactive credential receives the same 401 as an invalid token", async (t) 
   assert.equal(response.json().error.code, "MACHINE_AUTHENTICATION_REQUIRED");
 });
 
+test("the machine credential reads the operational views of its business", async (t) => {
+  const app = await appWithRole("owner");
+  t.after(async () => app.close());
+
+  for (const url of [
+    "/bot/v1/operations/jobs?status=failed&limit=10",
+    "/bot/v1/operations/orders?limit=10",
+    "/bot/v1/operations/payments?limit=10",
+    "/bot/v1/operations/fulfillments?limit=10",
+  ]) {
+    const response = await app.inject({
+      method: "GET", url, headers: { authorization: `Bearer ${token}` },
+    });
+    assert.equal(response.statusCode, 200, url);
+  }
+
+  const anonymous = await app.inject({ method: "GET", url: "/bot/v1/operations/jobs" });
+  assert.equal(anonymous.statusCode, 401);
+  assert.equal(anonymous.json().error.code, "MACHINE_AUTHENTICATION_REQUIRED");
+
+  const humanRoute = await app.inject({
+    method: "GET", url: `/businesses/${businessA}/jobs`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(humanRoute.statusCode, 401);
+});
+
 test("an inactive business blocks the bot channel and commercial writes but keeps administration", async (t) => {
   const app = await appWithRole("owner", true, "inactive");
   t.after(async () => app.close());

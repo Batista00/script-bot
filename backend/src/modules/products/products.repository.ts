@@ -106,6 +106,7 @@ export class PostgresProductsRepository implements ProductsRepository {
   }
 
   async list(businessId: string, options: ProductListOptions): Promise<Product[]> {
+    const search = options.search?.replace(/[\\%_]/g, "\\$&");
     const result = await this.db.query<ProductRow>(
       `SELECT ${productColumns}
        FROM products
@@ -113,13 +114,15 @@ export class PostgresProductsRepository implements ProductsRepository {
          AND ($2::catalog_status IS NULL OR status = $2)
          AND ($3::product_type IS NULL OR type = $3)
          AND ($4::uuid IS NULL OR category_id = $4)
+         AND ($5::text IS NULL OR name ILIKE $5)
        ORDER BY created_at DESC, id DESC
-       LIMIT $5 OFFSET $6`,
+       LIMIT $6 OFFSET $7`,
       [
         businessId,
         options.status ?? null,
         options.type ?? null,
         options.categoryId ?? null,
+        search === undefined ? null : `%${search}%`,
         options.limit,
         options.offset,
       ],

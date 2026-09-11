@@ -158,6 +158,7 @@ export const listProductsSchema = {
       status: { type: "string", enum: ["active", "inactive"] },
       type: { type: "string", enum: ["service", "product"] },
       categoryId: { type: "string", format: "uuid" },
+      search: { type: "string", minLength: 1, maxLength: 160 },
     },
   },
   response: {

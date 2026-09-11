@@ -38,6 +38,7 @@ export class ProductsController {
       ...(request.query.categoryId === undefined
         ? {}
         : { categoryId: request.query.categoryId }),
+      ...(request.query.search === undefined ? {} : { search: request.query.search }),
     });
     return reply.status(200).send(products);
   };

@@ -4,6 +4,10 @@ import { requireMachineContext } from "../machine-auth/machine-auth.fastify.js";
 import { BotGatewayService } from "./bot-gateway.service.js";
 import type {
   BotCreateOrderInput,
+  BotFulfillmentListQuery,
+  BotJobListQuery,
+  BotOrderListQuery,
+  BotPaymentListQuery,
   BotCreatePaymentInput,
   BotCreateQuoteInput,
   BotDispatchFulfillmentInput,
@@ -17,6 +21,7 @@ export interface BotProductParams { productId: string }
 export interface BotOrderParams { orderId: string }
 export interface BotPaymentParams { paymentId: string }
 export interface BotFulfillmentParams { fulfillmentId: string }
+export interface BotJobParams { jobId: string }
 
 export class BotGatewayController {
   constructor(private readonly service: BotGatewayService) {}
@@ -119,5 +124,35 @@ export class BotGatewayController {
     request: FastifyRequest<{ Params: BotFulfillmentParams }>, reply: FastifyReply,
   ) => reply.status(200).send(await this.service.syncFulfillment(
     this.business(request), request.params.fulfillmentId,
+  ));
+
+  listOrders = async (
+    request: FastifyRequest<{ Querystring: BotOrderListQuery }>, reply: FastifyReply,
+  ) => reply.status(200).send(await this.service.listOrders(
+    this.business(request), request.query,
+  ));
+
+  listPayments = async (
+    request: FastifyRequest<{ Querystring: BotPaymentListQuery }>, reply: FastifyReply,
+  ) => reply.status(200).send(await this.service.listPayments(
+    this.business(request), request.query,
+  ));
+
+  listFulfillmentsByStatus = async (
+    request: FastifyRequest<{ Querystring: BotFulfillmentListQuery }>, reply: FastifyReply,
+  ) => reply.status(200).send(await this.service.listFulfillmentsByStatus(
+    this.business(request), request.query,
+  ));
+
+  listJobs = async (
+    request: FastifyRequest<{ Querystring: BotJobListQuery }>, reply: FastifyReply,
+  ) => reply.status(200).send(await this.service.listJobs(
+    this.business(request), request.query,
+  ));
+
+  retryJob = async (
+    request: FastifyRequest<{ Params: BotJobParams }>, reply: FastifyReply,
+  ) => reply.status(200).send(await this.service.retryJob(
+    this.business(request), request.params.jobId,
   ));
 }

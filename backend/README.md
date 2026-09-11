@@ -307,7 +307,28 @@ GET   /businesses/:businessId/integrations/:integrationId
 PATCH /businesses/:businessId/integrations/:integrationId
 ```
 
-Solo `owner` y `admin` pueden administrar integraciones. Los accesos internos por Business/provider y por ID exacto entregan configuración y credenciales descifradas únicamente a adapters; no están publicados como endpoints. Mercado Pago y el catálogo SMM Raja usan este contrato. Evolution todavía no está implementado.
+Solo `owner` y `admin` pueden administrar integraciones. Los accesos internos por Business/provider y por ID exacto entregan configuración y credenciales descifradas únicamente a adapters; no están publicados como endpoints. Mercado Pago, el catálogo SMM Raja y el canal WhatsApp/Evolution usan este contrato. La integración de Evolution valida el webhook público con `x-webhook-secret` y expone las conversaciones por HTTP (ver `docs/operations.md`).
+
+## Worker, jobs y operación
+
+El proceso `node dist/src/worker.js` consume la cola persistida `job_queue` (PostgreSQL, `FOR UPDATE SKIP LOCKED`). Se encarga de:
+
+- **despacho automático** de fulfillments cuando un pago aprobado deja el pedido en `paid` (el enqueue ocurre en la misma transacción que la aprobación, sin llamadas externas);
+- **sincronización de estado** de los fulfillments no terminales;
+- **reconciliación** de pagos pendientes contra el proveedor;
+- **mantenimiento**: reencolar pedidos pagados sin fulfillment, podar sesiones vencidas y reabrir trabajo fallido cuando la causa sigue pendiente.
+
+Garantías: idempotencia por `(job_type, job_key)`, lease con recuperación de workers caídos, backoff exponencial (base 30 s, tope 1 h) y `max_attempts`; los errores 4xx de dominio no se reintentan. Un despacho ambiguo queda en `submission_unknown` y **nunca** se reintenta automáticamente.
+
+Variables opcionales: `WORKER_POLL_INTERVAL_MS`, `WORKER_BATCH_SIZE`, `WORKER_LEASE_SECONDS`, `WORKER_RECONCILE_ORDERS_SECONDS`, `WORKER_RECONCILE_FULFILLMENTS_SECONDS`, `WORKER_RECONCILE_PAYMENTS_SECONDS`, `WORKER_PRUNE_SESSIONS_SECONDS` (`0` desactiva un sweep).
+
+Superficie humana: `GET /businesses/:businessId/jobs` y `POST /businesses/:businessId/jobs/:jobId/retry` (owner/admin para reintentar). Superficie para automatizaciones con Machine Auth: `GET /bot/v1/operations/{jobs,orders,payments,fulfillments}` y `POST /bot/v1/operations/jobs/:jobId/retry`, siempre acotada al negocio de la credencial.
+
+## WhatsApp / Evolution
+
+`POST /webhooks/evolution/:integrationId` (público, header `x-webhook-secret`) normaliza el mensaje entrante (`remoteJid`, texto o media), resuelve o crea el customer y guarda la conversación y el mensaje de forma idempotente por id de mensaje. Devuelve el contexto normalizado para que el orquestador continúe en Typebot.
+
+Salida y operación: `POST /businesses/:businessId/conversations/:conversationId/messages` (envía vía Evolution y persiste el resultado, incluso si falla), `GET /businesses/:businessId/conversations`, `GET .../conversations/:conversationId/messages` y `PATCH .../conversations/:conversationId` para derivación humana. Los DTO omiten el identificador de hilo y nunca exponen credenciales. La integración usa `providerKey: evolution` con `config { baseUrl, instance }` y `credentials { apiKey, webhookSecret }`.
 
 ## Docker Compose
 
