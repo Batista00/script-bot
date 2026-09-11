@@ -1,0 +1,70 @@
+name: Deploy CI
+
+on:
+  push:
+    paths:
+      - "deploy/**"
+      - "backend/Dockerfile"
+      - "backend/docker-compose.yml"
+      - "deploy/docker-compose.backend.yml"
+      - ".github/workflows/deploy-ci.yml"
+  pull_request:
+    paths:
+      - "deploy/**"
+      - "backend/Dockerfile"
+      - "backend/docker-compose.yml"
+      - "deploy/docker-compose.backend.yml"
+      - ".github/workflows/deploy-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-artifacts:
+    name: Validate deployment artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Validate deployment env example
+        run: node deploy/scripts/preflight.mjs --example
+
+      - name: Check shell script syntax
+        run: |
+          bash -n deploy/scripts/deploy.sh
+          bash -n deploy/scripts/backup-postgres.sh
+
+      # `docker compose config` is used instead of a bare YAML load because it
+      # validates the artifact the way the deployment actually consumes it:
+      # YAML syntax, variable interpolation and the Compose schema. The
+      # `ubuntu-latest` runner ships Docker Compose v2 and `config` is resolved
+      # client-side, so this does not need the Docker daemon. The dummy values
+      # in `env:` only satisfy the `${VAR:?...}` placeholders — nothing is
+      # built, pulled or started.
+      - name: Validate Compose file
+        env:
+          POSTGRES_DB: bot_whatsapp_ci
+          POSTGRES_USER: bot_ci
+          POSTGRES_PASSWORD: ci_only_dummy_password
+          NODE_ENV: production
+          PORT: "3000"
+          DATABASE_URL: postgresql://bot_ci:ci_only_dummy_password@backend-postgres:5432/bot_whatsapp_ci
+          LOG_LEVEL: info
+          AUTH_SESSION_TTL_HOURS: "24"
+          INTEGRATIONS_ENCRYPTION_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+          PUBLIC_API_BASE_URL: https://api.pablete.xyz
+          BACKEND_BIND_ADDRESS: 127.0.0.1
+          BACKEND_HOST_PORT: "3000"
+        run: docker compose -f deploy/docker-compose.backend.yml config --quiet

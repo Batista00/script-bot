@@ -1,0 +1,41 @@
+name: Typebot CI
+
+on:
+  push:
+    paths:
+      - "typebot/**"
+      - ".github/workflows/typebot-ci.yml"
+  pull_request:
+    paths:
+      - "typebot/**"
+      - ".github/workflows/typebot-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typebot:
+    name: Typebot template
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      # The validator only uses the Node.js standard library, so there is no
+      # `pnpm install` and both commands run from the repository root.
+      - name: Validate Typebot template
+        run: node typebot/validate-typebot.mjs
+
+      - name: Run validator tests
+        run: node --test typebot/validate-typebot.test.mjs
