@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { AppError } from "../src/core/errors/app-error.js";
+import { normalizeFulfillmentInput } from "../src/modules/bot-gateway/bot-gateway.controller.js";
 import { BotGatewayService } from "../src/modules/bot-gateway/bot-gateway.service.js";
 import type { CategoriesService } from "../src/modules/categories/categories.service.js";
 import type { CustomersService } from "../src/modules/customers/customers.service.js";
@@ -256,4 +257,37 @@ test("Gateway propagates business-scoped not-found results for foreign resource 
     await assert.rejects(promise,
       (error: unknown) => error instanceof AppError && error.code === code);
   }
+});
+
+test("normalizeFulfillmentInput accepts the object form and the JSON string a chat orchestrator sends", () => {
+  const object = { targetUrl: "https://www.tiktok.com/@x/video/1" };
+  assert.deepEqual(normalizeFulfillmentInput(object), object);
+  assert.deepEqual(
+    normalizeFulfillmentInput('{"targetUrl":"https://www.tiktok.com/@x/video/1"}'),
+    object,
+  );
+  assert.deepEqual(normalizeFulfillmentInput('  {"quantity": 100, "flag": true} '),
+    { quantity: 100, flag: true });
+  assert.equal(normalizeFulfillmentInput(undefined), undefined);
+  assert.equal(normalizeFulfillmentInput("   "), undefined);
+});
+
+test("normalizeFulfillmentInput rejects malformed or non-object payloads", () => {
+  for (const invalid of ['{"targetUrl":', "not json", "[1,2]", '"text"', "12", "null"]) {
+    assert.throws(() => normalizeFulfillmentInput(invalid), (error: unknown) =>
+      error instanceof AppError && error.code === "INVALID_FULFILLMENT_INPUT"
+      && error.statusCode === 400);
+  }
+});
+
+test("Gateway forwards a normalized fulfillmentInput object to the orders service", async () => {
+  const { gateway } = fixture();
+  const quote = await gateway.createQuote(businessA, {
+    productId: productA, quantity: 100, currency: "CLP",
+  });
+  const order = await gateway.createOrder(businessA, {
+    quoteId: quote.quoteId,
+    fulfillmentInput: { targetUrl: "https://www.tiktok.com/@x/video/1" },
+  });
+  assert.equal(order.orderId, orderA);
 });

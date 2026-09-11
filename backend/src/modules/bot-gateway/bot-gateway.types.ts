@@ -11,7 +11,9 @@ import type { CreateQuoteInput, QuoteStatus } from "../quotes/quotes.types.js";
 
 export type BotResolveCustomerInput = CreateCustomerInput;
 export type BotCreateQuoteInput = Omit<CreateQuoteInput, "currency"> & { currency?: string };
-export type BotCreateOrderInput = CreateOrderInput;
+export type BotCreateOrderInput =
+  Omit<CreateOrderInput, "fulfillmentInput"> &
+  { fulfillmentInput?: Record<string, unknown> | string };
 export type BotDispatchFulfillmentInput = DispatchFulfillmentInput;
 export interface BotCreatePaymentInput { providerKey?: string; paymentMethodId?: string }
 export interface BotPaymentMethodDto {

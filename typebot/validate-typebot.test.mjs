@@ -230,7 +230,13 @@ test("fulfillmentInput is built generically from backend-provided keys", () => {
   const builder = findBlock(template, "blkbuildfulfillmentinput");
   assert.equal(builder.options.isCode, true);
   assert.match(builder.options.expressionToEvaluate, /selectedInput1Key/);
-  assert.match(builder.options.expressionToEvaluate, /JSON\.stringify/);
+  assert.match(builder.options.expressionToEvaluate, /selectedInput2Key/);
+  assert.match(builder.options.expressionToEvaluate, /selectedInput3Key/);
+  // Debe devolver un OBJETO. El cuerpo del pedido inserta {{fulfillmentInput}}
+  // sin comillas; una cadena JSON haría que el backend responda 400 porque
+  // `fulfillmentInput` tiene que ser un objeto (comprobado contra producción).
+  assert.match(builder.options.expressionToEvaluate, /Object\.assign/);
+  assert.doesNotMatch(builder.options.expressionToEvaluate, /JSON\.stringify/);
   assert.doesNotMatch(builder.options.expressionToEvaluate, /targetUrl|instagram|telegram/i);
 });
 
@@ -257,4 +263,42 @@ test("post-sale status and transfer handoff are present", () => {
   assert.ok(findBlock(template, "blkbanksummarytext"));
   assert.ok(findBlock(template, "blkmainmenuchoices"));
   assert.ok(findBlock(template, "blkhumanchoices"));
+});
+
+test("validator rejects statement expressions that the Typebot sandbox cannot evaluate", () => {
+  const mutated = structuredClone(template);
+  const block = mutated.groups.flatMap((group) => group.blocks ?? [])
+    .find((candidate) => candidate.options?.expressionToEvaluate);
+  block.options.expressionToEvaluate = "(function(){var x=1;return String(x);})()";
+  assert.throws(() => validateTypebotDocument(mutated),
+    /uses a statement expression/);
+});
+
+test("validator rejects response mappings outside the data envelope", () => {
+  const mutated = structuredClone(template);
+  const webhook = mutated.groups.flatMap((group) => group.blocks ?? [])
+    .find((block) =>
+      block.options?.responseVariableMapping?.some((mapping) => mapping.bodyPath.startsWith("data.")));
+  webhook.options.responseVariableMapping[0].bodyPath = "error.code";
+  assert.throws(() => validateTypebotDocument(mutated),
+    /outside the data envelope/);
+});
+
+test("commerce template keeps every backend error mapping inside the data envelope", () => {
+  const paths = blocks().flatMap((block) => block.options?.responseVariableMapping ?? [])
+    .map((mapping) => mapping.bodyPath);
+  const errorPaths = paths.filter((path) => path.includes("error"));
+  assert.ok(errorPaths.length > 0, "template must map backend errors");
+  for (const path of errorPaths) assert.match(path, /^data\.error\./);
+});
+
+test("commerce template only uses plain expressions in Set variable blocks", () => {
+  const expressions = blocks()
+    .filter((block) => block.type === "Set variable")
+    .map((block) => block.options?.expressionToEvaluate)
+    .filter((expression) => typeof expression === "string");
+  assert.ok(expressions.length > 0);
+  for (const expression of expressions) {
+    assert.doesNotMatch(expression, /(^|[^A-Za-z0-9_$])(var|let|const|function|return|for|while)\b/);
+  }
 });

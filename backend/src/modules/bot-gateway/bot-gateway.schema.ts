@@ -254,10 +254,19 @@ export const createBotOrderSchema = {
       customerId: nullableUuid,
       // Provider input captured with the sale; the backend validates it against
       // the product required inputs before submitting anything to a provider.
+      // El orquestador conversacional (Typebot) no puede inyectar objetos
+      // anidados en un cuerpo JSON: sus variables se serializan como texto. Se
+      // acepta el objeto o su representación JSON en cadena y el controller la
+      // normaliza antes de llegar al dominio.
       fulfillmentInput: {
-        type: "object",
-        maxProperties: 20,
-        additionalProperties: { type: ["string", "number", "boolean", "null"] },
+        anyOf: [
+          {
+            type: "object",
+            maxProperties: 20,
+            additionalProperties: { type: ["string", "number", "boolean", "null"] },
+          },
+          { type: "string", maxLength: 32768 },
+        ],
       },
     },
   }, response: { 201: order, ...errors },

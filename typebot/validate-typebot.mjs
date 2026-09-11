@@ -193,6 +193,32 @@ export function validateTypebotDocument(template) {
     if (!allowedBlockTypes.has(block.type)) fail(`unsupported block type ${block.type}`);
   }
 
+  // Las expresiones de "Set variable" se evalúan en el sandbox del motor de
+  // Typebot, que no admite sentencias (`var`, `function`, `return`) ni IIFEs:
+  // el bloque termina sin asignar valor y la condición siguiente se evalúa con
+  // la variable vacía. Producción lo demostró: un ternario simple se asignó y
+  // un IIFE equivalente quedó en null. Solo se permiten expresiones.
+  const statementPattern = /(^|[^A-Za-z0-9_$])(var|let|const|function|return|for|while)\b/;
+  for (const block of blocks) {
+    const expression = block?.options?.expressionToEvaluate;
+    if (typeof expression !== "string") continue;
+    if (statementPattern.test(expression)) {
+      fail(`block ${block.id} uses a statement expression; use a plain expression`);
+    }
+  }
+
+  // Typebot expone el cuerpo de la respuesta HTTP bajo `data`. Un mapeo que
+  // apunte a `error.code` (sin el prefijo) nunca resuelve y deja el error del
+  // backend vacío en el mensaje al cliente.
+  for (const block of blocks) {
+    for (const mapping of block?.options?.responseVariableMapping ?? []) {
+      const path = mapping?.bodyPath;
+      if (typeof path !== "string" || path.length === 0) continue;
+      if (path === "data" || path.startsWith("data.") || path.startsWith("data[")) continue;
+      fail(`block ${block.id} maps ${path} outside the data envelope`);
+    }
+  }
+
   validateTypebotSemantics(blocks);
 
   const webhooks = blocks.filter(({ type }) => type === "Webhook");

@@ -1,5 +1,8 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 
+import { AppError } from "../../core/errors/app-error.js";
+import type { JsonObject } from "../integrations/integrations.types.js";
+
 import { requireMachineContext } from "../machine-auth/machine-auth.fastify.js";
 import { BotGatewayService } from "./bot-gateway.service.js";
 import type {
@@ -23,6 +26,35 @@ export interface BotOrderParams { orderId: string }
 export interface BotPaymentParams { paymentId: string }
 export interface BotFulfillmentParams { fulfillmentId: string }
 export interface BotJobParams { jobId: string }
+
+/**
+ * El canal conversacional envía `fulfillmentInput` como cadena JSON porque sus
+ * variables se serializan como texto. Se acepta también el objeto ya tipado y
+ * cualquier otra forma se rechaza con un error de dominio explícito.
+ */
+export function normalizeFulfillmentInput(
+  value: Record<string, unknown> | string | undefined,
+): JsonObject | undefined {
+  if (value === undefined) return undefined;
+  // El schema ya limita el objeto a valores JSON escalares.
+  if (typeof value !== "string") return value as JsonObject;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    throw new AppError(
+      "fulfillmentInput must be a JSON object", 400, "INVALID_FULFILLMENT_INPUT",
+    );
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new AppError(
+      "fulfillmentInput must be a JSON object", 400, "INVALID_FULFILLMENT_INPUT",
+    );
+  }
+  return parsed as JsonObject;
+}
 
 export class BotGatewayController {
   constructor(private readonly service: BotGatewayService) {}
@@ -78,9 +110,14 @@ export class BotGatewayController {
 
   createOrder = async (
     request: FastifyRequest<{ Body: BotCreateOrderInput }>, reply: FastifyReply,
-  ) => reply.status(201).send(await this.service.createOrder(
-    this.business(request), request.body,
-  ));
+  ) => {
+    const { fulfillmentInput, ...rest } = request.body;
+    const normalized = normalizeFulfillmentInput(fulfillmentInput);
+    return reply.status(201).send(await this.service.createOrder(
+      this.business(request),
+      normalized === undefined ? rest : { ...rest, fulfillmentInput: normalized },
+    ));
+  };
 
   getOrder = async (
     request: FastifyRequest<{ Params: BotOrderParams }>, reply: FastifyReply,

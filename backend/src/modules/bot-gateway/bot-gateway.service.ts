@@ -11,7 +11,7 @@ import type { Job, JobStatus } from "../jobs/jobs.types.js";
 import type { OrderStatus } from "../orders/orders.types.js";
 import type { PaymentStatus } from "../payments/payments.types.js";
 import type { OrdersService } from "../orders/orders.service.js";
-import type { Order } from "../orders/orders.types.js";
+import type { CreateOrderInput, Order } from "../orders/orders.types.js";
 import type { PaymentsService } from "../payments/payments.service.js";
 import type { Payment } from "../payments/payments.types.js";
 import type { PaymentMethodsService } from "../payment-methods/payment-methods.service.js";
@@ -184,7 +184,7 @@ export class BotGatewayService {
     return this.quoteDto(await this.quotes.create(businessId, { ...input, currency },manualShipping));
   }
 
-  async createOrder(businessId: string, input: BotCreateOrderInput) {
+  async createOrder(businessId: string, input: CreateOrderInput) {
     return this.orderDto(await this.orders.create(businessId, input));
   }
 
