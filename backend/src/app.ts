@@ -40,6 +40,9 @@ import { integrationsRoutes } from "./modules/integrations/integrations.routes.j
 import { IntegrationCredentialsCrypto } from "./modules/integrations/integrations.crypto.js";
 import { PostgresIntegrationsRepository } from "./modules/integrations/integrations.repository.js";
 import { IntegrationsService } from "./modules/integrations/integrations.service.js";
+import { PostgresJobsRepository } from "./modules/jobs/jobs.repository.js";
+import { jobsRoutes } from "./modules/jobs/jobs.routes.js";
+import { JobsService } from "./modules/jobs/jobs.service.js";
 import { MachineAuthService } from "./modules/machine-auth/machine-auth.service.js";
 import { PostgresMembershipsRepository } from "./modules/memberships/memberships.repository.js";
 import { businessMembershipsRoutes } from "./modules/memberships/memberships.routes.js";
@@ -102,12 +105,14 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   );
   const paymentMethodsRepository = new PostgresPaymentMethodsRepository(app.db);
   const paymentMethodsService = new PaymentMethodsService(paymentMethodsRepository);
+  const jobsService = new JobsService(new PostgresJobsRepository(app.db));
   const paymentsService = new PaymentsService(
     new PostgresPaymentsRepository(app.db),
     app.db,
     new PaymentProviderRegistry([mercadoPagoProvider, new BankTransferPaymentProvider()]),
     undefined,
     paymentMethodsRepository,
+    jobsService,
   );
   const mercadoPagoWebhookService = new MercadoPagoWebhookService(
     integrationsService,
@@ -206,6 +211,7 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   await app.register(ordersRoutes);
   await app.register(paymentsRoutes, { service: paymentsService });
   await app.register(paymentMethodsRoutes, { service: paymentMethodsService });
+  await app.register(jobsRoutes, { service: jobsService });
 
   return app;
 }

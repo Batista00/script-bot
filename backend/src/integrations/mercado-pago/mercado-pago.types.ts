@@ -37,6 +37,11 @@ export interface MercadoPagoHttpClient {
     input: MercadoPagoPreferenceRequest,
   ): Promise<MercadoPagoPreference>;
   getPayment(accessToken: string, paymentId: string): Promise<MercadoPagoPaymentResource>;
+  /** Looks up the payment created for a preference; used to reconcile pending payments. */
+  searchPayments?(
+    accessToken: string,
+    externalReference: string,
+  ): Promise<MercadoPagoPaymentResource | null>;
 }
 
 export class MercadoPagoApiError extends Error {

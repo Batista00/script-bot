@@ -43,6 +43,30 @@ function notDispatchable(): AppError {
   return new AppError("Fulfillment is not dispatchable", 409, "FULFILLMENT_NOT_DISPATCHABLE");
 }
 
+/** An order is fulfillable once it is paid; `processing` means another item is already running. */
+const dispatchableOrderStatuses = new Set(["paid", "processing"]);
+
+/**
+ * Provider/transport problems worth retrying automatically. Anything else
+ * (missing mapping, invalid input, rejected order) needs a human decision.
+ */
+const retryableDispatchCodes = new Set([
+  "PROVIDER_TEMPORARILY_UNAVAILABLE",
+  "PROVIDER_RESPONSE_INVALID",
+  "ORDER_NOT_READY_FOR_FULFILLMENT",
+]);
+
+const skippedDispatchCodes = new Set([
+  "FULFILLMENT_ALREADY_EXISTS",
+  "FULFILLMENT_SUBMISSION_UNKNOWN",
+]);
+
+export interface DispatchOrderResult {
+  dispatched: Array<{ orderItemId: string; fulfillmentId: string }>;
+  skipped: number;
+  failures: Array<{ orderItemId: string; code: string; message: string; retryable: boolean }>;
+}
+
 export class FulfillmentsService {
   constructor(
     private readonly repository: FulfillmentsRepository,
@@ -65,7 +89,7 @@ export class FulfillmentsService {
         if (orderStatus === null) {
           throw new AppError("Order not found", 404, "ORDER_NOT_FOUND");
         }
-        if (orderStatus !== "paid") {
+        if (!dispatchableOrderStatuses.has(orderStatus)) {
           throw new AppError(
             "Order is not ready for fulfillment",
             409,
@@ -126,6 +150,48 @@ export class FulfillmentsService {
       fulfillment = existing;
     }
     return this.submit(businessId, fulfillment, "dispatch");
+  }
+
+  /**
+   * Automatic dispatch for a paid order: submits every item that carries the
+   * commercial input captured with the order. Items without input, or already
+   * submitted, are skipped instead of failing the whole order.
+   */
+  async dispatchOrder(businessId: string, orderId: string): Promise<DispatchOrderResult> {
+    const items = await this.repository.listOrderItems(businessId, orderId, this.db);
+    const result: DispatchOrderResult = { dispatched: [], skipped: 0, failures: [] };
+
+    for (const item of items) {
+      const inputData = item.fulfillmentInput ?? {};
+      if (Object.keys(inputData).length === 0) {
+        result.skipped += 1;
+        continue;
+      }
+      try {
+        const fulfillment = await this.dispatch(businessId, orderId, {
+          orderItemId: item.orderItemId,
+          input: inputData,
+        });
+        result.dispatched.push({
+          orderItemId: item.orderItemId,
+          fulfillmentId: fulfillment.id,
+        });
+      } catch (error) {
+        if (error instanceof AppError && skippedDispatchCodes.has(error.code)) {
+          result.skipped += 1;
+          continue;
+        }
+        const code = error instanceof AppError ? error.code : "UNEXPECTED_ERROR";
+        const message = error instanceof Error ? error.message : String(error);
+        result.failures.push({
+          orderItemId: item.orderItemId,
+          code,
+          message,
+          retryable: retryableDispatchCodes.has(code),
+        });
+      }
+    }
+    return result;
   }
 
   async retry(businessId: string, fulfillmentId: string): Promise<Fulfillment> {
@@ -283,7 +349,7 @@ export class FulfillmentsService {
         locked.orderId,
         client,
       );
-      if (orderStatus !== "paid") {
+      if (orderStatus === null || !dispatchableOrderStatuses.has(orderStatus)) {
         throw new AppError(
           "Order is not ready for fulfillment",
           409,
@@ -349,7 +415,9 @@ export class FulfillmentsService {
           locked.orderId,
           client,
         );
-        if (orderStatus !== "paid") throw notDispatchable();
+        if (orderStatus === null || !dispatchableOrderStatuses.has(orderStatus)) {
+          throw notDispatchable();
+        }
         const submittedAt = this.now().toISOString();
         const updated = await this.repository.markSubmitted(
           businessId,
@@ -359,13 +427,17 @@ export class FulfillmentsService {
           client,
         );
         if (!updated) throw notDispatchable();
-        const orderUpdated = await this.repository.transitionOrder(
-          businessId,
-          locked.orderId,
-          "paid",
-          "processing",
-          client,
-        );
+        // Only the first submitted item moves the order to `processing`; later
+        // items of the same multi-item order keep it there.
+        const orderUpdated = orderStatus === "paid"
+          ? await this.repository.transitionOrder(
+              businessId,
+              locked.orderId,
+              "paid",
+              "processing",
+              client,
+            )
+          : true;
         if (!orderUpdated) throw notDispatchable();
         return updated;
       });

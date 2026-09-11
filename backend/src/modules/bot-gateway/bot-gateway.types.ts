@@ -1,3 +1,4 @@
+import type { JsonObject } from "../integrations/integrations.types.js";
 import type { CreateCustomerInput } from "../customers/customers.types.js";
 import type { DispatchFulfillmentInput, FulfillmentStatus } from "../fulfillments/fulfillments.types.js";
 import type { CreateOrderInput, OrderStatus } from "../orders/orders.types.js";
@@ -73,6 +74,7 @@ export interface BotOrderItemDto {
   quantity: number;
   unitPrice: number | null;
   totalPrice: number;
+  fulfillmentInput?: JsonObject;
 }
 export interface BotOrderDto {
   orderId: string;

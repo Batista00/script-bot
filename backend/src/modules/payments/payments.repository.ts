@@ -264,6 +264,43 @@ export class PostgresPaymentsRepository implements PaymentsRepository {
     }
   }
 
+  async transitionFromApproved(
+    businessId: string,
+    paymentId: string,
+    input: { status: PaymentStatus; providerPaymentId: string | null },
+    executor: DatabaseExecutor,
+  ): Promise<Payment | null> {
+    try {
+      const result = await executor.query<PaymentRow>(
+        `UPDATE payments
+         SET status = $3,
+             provider_payment_id = COALESCE($4, provider_payment_id),
+             updated_at = now()
+         WHERE business_id = $1 AND id = $2 AND status = 'approved'
+         RETURNING ${paymentColumns}`,
+        [businessId, paymentId, input.status, input.providerPaymentId],
+      );
+      const row = result.rows[0];
+      return row ? mapPayment(row) : null;
+    } catch (error) {
+      return mapUniqueError(error);
+    }
+  }
+
+  async markOrderFailed(
+    businessId: string,
+    orderId: string,
+    executor: DatabaseExecutor,
+  ): Promise<boolean> {
+    const result = await executor.query<{ id: string }>(
+      `UPDATE orders SET status = 'failed', updated_at = now()
+       WHERE business_id = $1 AND id = $2 AND status IN ('paid', 'processing')
+       RETURNING id`,
+      [businessId, orderId],
+    );
+    return result.rows[0] !== undefined;
+  }
+
   async markOrderPaid(
     businessId: string,
     orderId: string,

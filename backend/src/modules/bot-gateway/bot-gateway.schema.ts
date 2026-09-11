@@ -108,10 +108,14 @@ const quote = {
 } as const;
 const orderItem = {
   type: "object", additionalProperties: false,
-  required: ["orderItemId", "productId", "productName", "quantity", "unitPrice", "totalPrice"],
+  required: [
+    "orderItemId", "productId", "productName", "quantity", "unitPrice", "totalPrice",
+    "fulfillmentInput",
+  ],
   properties: {
     orderItemId: uuid, productId: uuid, productName: { type: "string" },
     quantity: { type: "integer" }, unitPrice: nullableInteger, totalPrice: { type: "integer" },
+    fulfillmentInput: { type: "object" },
   },
 } as const;
 const order = {
@@ -198,7 +202,17 @@ export const createBotQuoteSchema = {
 export const createBotOrderSchema = {
   body: {
     type: "object", additionalProperties: false, required: ["quoteId"],
-    properties: { quoteId: uuid, customerId: nullableUuid },
+    properties: {
+      quoteId: uuid,
+      customerId: nullableUuid,
+      // Provider input captured with the sale; the backend validates it against
+      // the product required inputs before submitting anything to a provider.
+      fulfillmentInput: {
+        type: "object",
+        maxProperties: 20,
+        additionalProperties: { type: ["string", "number", "boolean", "null"] },
+      },
+    },
   }, response: { 201: order, ...errors },
 } satisfies FastifySchema;
 export const getBotOrderSchema = {

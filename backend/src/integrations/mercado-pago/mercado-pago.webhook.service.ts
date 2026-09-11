@@ -3,6 +3,7 @@ import type { IntegrationsService } from "../../modules/integrations/integration
 import type { PaymentsService } from "../../modules/payments/payments.service.js";
 import type { PaymentStatus } from "../../modules/payments/payments.types.js";
 import { mercadoPagoCredentials } from "./mercado-pago.settings.js";
+import { mapMercadoPagoStatus } from "./mercado-pago.status.js";
 import { verifyMercadoPagoSignature } from "./mercado-pago.signature.js";
 import {
   type MercadoPagoHttpClient,
@@ -30,18 +31,6 @@ type SafeWarning = (details: {
   providerStatus: string;
   statusDetail: string | null;
 }) => void;
-
-function mapStatus(status: string): PaymentStatus | null {
-  switch (status) {
-    case "approved": return "approved";
-    case "pending":
-    case "in_process":
-    case "authorized": return "pending";
-    case "rejected": return "rejected";
-    case "cancelled": return "cancelled";
-    default: return null;
-  }
-}
 
 function validateFinancialResource(resource: MercadoPagoPaymentResource): void {
   if (!Number.isSafeInteger(resource.transactionAmount) || resource.transactionAmount <= 0) {
@@ -99,7 +88,7 @@ export class MercadoPagoWebhookService {
     if (resource.id !== input.dataId) {
       throw new AppError("Provider payment does not match", 409, "PAYMENT_PROVIDER_MISMATCH");
     }
-    const status = mapStatus(resource.status);
+    const status = mapMercadoPagoStatus(resource.status);
     if (status === null) {
       this.warnUnsupportedStatus({
         providerPaymentId: resource.id,

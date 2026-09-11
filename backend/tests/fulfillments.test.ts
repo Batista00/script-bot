@@ -74,8 +74,8 @@ async function rejectsCode(promise: Promise<unknown>, code: string) {
     error instanceof AppError && error.code === code);
 }
 
-test("only a paid Order with its own business-scoped OrderItem can dispatch", async () => {
-  for (const status of ["pending_payment", "processing", "cancelled", "failed", "completed"] as const) {
+test("only a paid or processing Order with its own business-scoped OrderItem can dispatch", async () => {
+  for (const status of ["pending_payment", "cancelled", "failed", "completed"] as const) {
     const { repository, adapter, service } = setup();
     repository.orders.set(`${businessA}:${orderA}`, status);
     await rejectsCode(service.dispatch(businessA, orderA, {
@@ -94,6 +94,23 @@ test("only a paid Order with its own business-scoped OrderItem can dispatch", as
     }), expected);
     assert.equal(adapter.createInputs.length, 0);
   }
+});
+
+test("a processing order still accepts the remaining items of a multi-item sale", async () => {
+  const { repository, adapter, service } = setup();
+  repository.orders.set(`${businessA}:${orderA}`, "processing");
+  const secondItem = "0d5a6a53-8a53-4dd5-a0ef-6f9bf8a4e2a1";
+  repository.items.set(`${businessA}:${orderA}:${secondItem}`, {
+    orderItemId: secondItem, productId: productA, quantity: 100,
+  });
+
+  const fulfillment = await service.dispatch(businessA, orderA, {
+    orderItemId: secondItem, input: { link: "https://instagram.com/second" },
+  });
+
+  assert.equal(fulfillment.status, "submitted");
+  assert.equal(adapter.createInputs.length, 1);
+  assert.equal(repository.orders.get(`${businessA}:${orderA}`), "processing");
 });
 
 test("dispatch validates mapping, provider/integration state, and quantity bounds", async () => {
@@ -191,9 +208,11 @@ test("concurrent dispatch and later redispatch never create a second provider or
   release();
   const submitted = await first;
   assert.equal(adapter.createInputs.length, 1);
+  // The order is processing after the first item, so the duplicate is rejected
+  // by the one-fulfillment-per-item invariant instead of the order status.
   await rejectsCode(service.dispatch(businessA, orderA, {
     orderItemId: itemA, input: { link: "https://instagram.com/example" },
-  }), "ORDER_NOT_READY_FOR_FULFILLMENT");
+  }), "FULFILLMENT_ALREADY_EXISTS");
   assert.equal(adapter.createInputs.length, 1);
   repository.fulfillments[0]!.status = "completed" as FulfillmentStatus;
   repository.orders.set(`${businessA}:${orderA}`, "completed");

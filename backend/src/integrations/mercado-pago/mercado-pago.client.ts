@@ -60,11 +60,30 @@ export class NativeMercadoPagoClient implements MercadoPagoHttpClient {
     accessToken: string,
     requestedPaymentId: string,
   ): Promise<MercadoPagoPaymentResource> {
-    const body = objectValue(await this.request(
+    return this.paymentResource(await this.request(
       `/v1/payments/${encodeURIComponent(requestedPaymentId)}`,
       accessToken,
       { method: "GET" },
     ));
+  }
+
+  async searchPayments(
+    accessToken: string,
+    externalReference: string,
+  ): Promise<MercadoPagoPaymentResource | null> {
+    const body = objectValue(await this.request(
+      `/v1/payments/search?external_reference=${encodeURIComponent(externalReference)}` +
+        "&sort=date_created&criteria=desc&limit=1",
+      accessToken,
+      { method: "GET" },
+    ));
+    const results = body.results;
+    if (!Array.isArray(results) || results.length === 0) return null;
+    return this.paymentResource(results[0]);
+  }
+
+  private paymentResource(raw: unknown): MercadoPagoPaymentResource {
+    const body = objectValue(raw);
     const amount = body.transaction_amount;
     if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) {
       throw new MercadoPagoApiError();

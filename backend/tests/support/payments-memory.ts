@@ -210,6 +210,29 @@ export class MemoryPaymentsRepository implements PaymentsRepository {
     return clone(payment);
   }
 
+  async transitionFromApproved(
+    businessId: string,
+    paymentId: string,
+    input: { status: PaymentStatus; providerPaymentId: string | null },
+  ): Promise<Payment | null> {
+    const payment = this.payments.find((item) =>
+      item.businessId === businessId && item.id === paymentId && item.status === "approved");
+    if (!payment) return null;
+    payment.status = input.status;
+    if (input.providerPaymentId !== null) payment.providerPaymentId = input.providerPaymentId;
+    payment.updatedAt = paymentNow;
+    return clone(payment);
+  }
+
+  async markOrderFailed(businessId: string, orderId: string): Promise<boolean> {
+    const order = this.orders.find((item) =>
+      item.businessId === businessId && item.id === orderId &&
+      (item.status === "paid" || item.status === "processing"));
+    if (!order) return false;
+    order.status = "failed";
+    return true;
+  }
+
   async markOrderPaid(businessId: string, orderId: string): Promise<boolean> {
     if (this.failMarkOrderPaid) throw new Error("forced order update failure");
     const order = this.orders.find((item) =>

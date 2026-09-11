@@ -38,6 +38,34 @@ const envSchema = z.object({
     (value) => value === "" ? undefined : value,
     z.coerce.number().int().min(1).max(86_400).optional(),
   ),
+  WORKER_POLL_INTERVAL_MS: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.coerce.number().int().min(250).max(60_000).optional(),
+  ),
+  WORKER_BATCH_SIZE: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.coerce.number().int().min(1).max(200).optional(),
+  ),
+  WORKER_LEASE_SECONDS: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.coerce.number().int().min(30).max(3_600).optional(),
+  ),
+  WORKER_RECONCILE_ORDERS_SECONDS: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.coerce.number().int().min(0).max(86_400).optional(),
+  ),
+  WORKER_RECONCILE_FULFILLMENTS_SECONDS: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.coerce.number().int().min(0).max(86_400).optional(),
+  ),
+  WORKER_RECONCILE_PAYMENTS_SECONDS: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.coerce.number().int().min(0).max(86_400).optional(),
+  ),
+  WORKER_PRUNE_SESSIONS_SECONDS: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.coerce.number().int().min(0).max(604_800).optional(),
+  ),
 });
 
 export type Env = z.infer<typeof envSchema>;

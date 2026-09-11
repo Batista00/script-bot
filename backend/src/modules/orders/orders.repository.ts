@@ -1,6 +1,7 @@
 import type { QueryResultRow } from "pg";
 
 import type { DatabaseExecutor } from "../../core/database/database.js";
+import type { JsonObject } from "../integrations/integrations.types.js";
 import type { PricingType } from "../pricing/pricing.types.js";
 import type { QuoteStatus } from "../quotes/quotes.types.js";
 import {
@@ -39,6 +40,7 @@ interface OrderItemRow extends QueryResultRow {
   pricing_type: PricingType;
   unit_price: string | number | null;
   total_price: string | number;
+  fulfillment_input: JsonObject;
   created_at: Date | string;
 }
 
@@ -67,6 +69,7 @@ interface PostgreSqlError { code?: string; constraint?: string }
 const orderColumns = `id, business_id, customer_id, quote_id, status, currency,
   subtotal, total, created_at, updated_at`;
 const itemColumns = `id, business_id, order_id, product_id, product_name, quantity,
+  fulfillment_input,
   pricing_type, unit_price, total_price, created_at`;
 
 function toIsoString(value: Date | string): string {
@@ -98,6 +101,7 @@ function mapItem(row: OrderItemRow): OrderItem {
     pricingType: row.pricing_type,
     unitPrice: row.unit_price === null ? null : mapMoney(row.unit_price),
     totalPrice: mapMoney(row.total_price),
+    fulfillmentInput: row.fulfillment_input,
     createdAt: toIsoString(row.created_at),
   };
 }
@@ -199,11 +203,12 @@ export class PostgresOrdersRepository implements OrdersRepository {
     const result = await executor.query<OrderItemRow>(
       `INSERT INTO order_items (
          business_id, order_id, product_id, product_name, quantity,
-         pricing_type, unit_price, total_price
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         pricing_type, unit_price, total_price, fulfillment_input
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
        RETURNING ${itemColumns}`,
       [businessId, orderId, input.productId, input.productName, input.quantity,
-        input.pricingType, input.unitPrice, input.totalPrice],
+        input.pricingType, input.unitPrice, input.totalPrice,
+        JSON.stringify(input.fulfillmentInput ?? {})],
     );
     const row = result.rows[0];
     if (!row) throw new Error("PostgreSQL did not return the created order item");

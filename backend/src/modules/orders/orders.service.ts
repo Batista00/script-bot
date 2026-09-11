@@ -90,6 +90,9 @@ export class OrdersService {
             pricingType: quote.pricingType,
             unitPrice: quote.unitPrice,
             totalPrice: quote.totalPrice,
+            ...(input.fulfillmentInput === undefined
+              ? {}
+              : { fulfillmentInput: input.fulfillmentInput }),
           },
           client,
         );

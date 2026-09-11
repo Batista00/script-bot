@@ -1,12 +1,25 @@
 import type { Pool } from "pg";
 
 import { withTransaction } from "../../core/database/database.js";
+import type { DatabaseExecutor } from "../../core/database/database.js";
 import { AppError } from "../../core/errors/app-error.js";
+import type { EnqueueJobInput } from "../jobs/jobs.types.js";
+import { jobTypes } from "../jobs/jobs.types.js";
 import type { PaymentMethodsRepository } from "../payment-methods/payment-methods.types.js";
+
+/**
+ * Minimal jobs port so Payments stays decoupled from the queue implementation
+ * and remains easy to unit test.
+ */
+export interface JobEnqueuer {
+  enqueue(input: EnqueueJobInput, executor?: DatabaseExecutor): Promise<unknown>;
+}
+
 import {
   type CreateProviderPaymentResult,
   PaymentProviderCurrencyNotSupportedError,
   PaymentProviderUnavailableError,
+  type ProviderPaymentStatus,
 } from "./payments.provider.js";
 import { normalizeProviderKey, PaymentProviderRegistry } from "./payments.registry.js";
 import {
@@ -109,6 +122,7 @@ export class PaymentsService {
     private readonly providers: PaymentProviderRegistry,
     private readonly now: () => Date = () => new Date(),
     private readonly paymentMethods?: PaymentMethodsRepository,
+    private readonly jobs?: JobEnqueuer,
   ) {}
 
   async create(
@@ -285,6 +299,41 @@ export class PaymentsService {
    * production webhooks MUST use `applyVerifiedProviderUpdate`, which validates
    * the financial snapshot before touching Payment and Order.
    */
+  /**
+   * Server-to-server reconciliation for a pending payment. Used by the worker
+   * when a webhook never arrived: the provider is queried, the financial
+   * snapshot is verified and the standard verified transition is applied.
+   */
+  async reconcilePending(
+    businessId: string,
+    paymentId: string,
+  ): Promise<"ignored" | "pending" | "terminal"> {
+    const payment = await this.repository.findById(businessId, paymentId);
+    if (!payment || payment.status !== "pending") return "ignored";
+    if (payment.providerKey === "bank_transfer") return "ignored";
+    const provider = this.providers.resolve(payment.providerKey);
+    if (!provider?.fetchStatus) return "ignored";
+
+    const status: ProviderPaymentStatus | null = await provider.fetchStatus({
+      businessId,
+      paymentId: payment.id,
+      providerReferenceId: payment.providerReferenceId,
+      providerPaymentId: payment.providerPaymentId,
+    });
+    if (status === null) return "ignored";
+
+    const updated = await this.applyVerifiedProviderUpdate({
+      businessId,
+      paymentId: payment.id,
+      providerKey: payment.providerKey,
+      providerPaymentId: status.providerPaymentId,
+      status: status.status,
+      amount: status.amount,
+      currency: status.currency,
+    });
+    return updated.status === "pending" ? "pending" : "terminal";
+  }
+
   async applyProviderUpdate(
     businessId: string,
     providerKeyInput: string,
@@ -489,6 +538,25 @@ export class PaymentsService {
         throw invalidTransitionError();
       }
       if (payment.status === targetStatus) return payment;
+
+      // Refunds and chargebacks arrive after the sale was approved. They keep
+      // the approval trail and flag the order for operator attention.
+      if (targetStatus === "refunded" || targetStatus === "chargeback") {
+        if (payment.status !== "approved") throw invalidTransitionError();
+        const reversed = await this.repository.transitionFromApproved(
+          businessId,
+          payment.id,
+          { status: targetStatus, providerPaymentId },
+          client,
+        );
+        if (!reversed) throw invalidTransitionError();
+        const order = await this.repository.findOrderForPayment(businessId, payment.orderId, client);
+        if (order && (order.status === "paid" || order.status === "processing")) {
+          await this.repository.markOrderFailed(businessId, order.id, client);
+        }
+        return reversed;
+      }
+
       if (payment.status !== "pending" || targetStatus === "pending") {
         throw invalidTransitionError();
       }
@@ -536,6 +604,14 @@ export class PaymentsService {
           if (!(await this.repository.markOrderPaid(businessId, order.id, client))) {
             throw new AppError("Order is not payable", 409, "ORDER_NOT_PAYABLE");
           }
+          // Enqueue the fulfillment work inside the same transaction: the order
+          // is paid and the job is durable together, with no external call here.
+          // A worker picks it up and submits the provider order.
+          await this.jobs?.enqueue({
+            jobType: jobTypes.orderFulfill,
+            jobKey: order.id,
+            payload: { businessId, orderId: order.id },
+          }, client);
           return updated;
         }
 

@@ -17,9 +17,32 @@ export interface CreateProviderPaymentResult {
   expiresAt?: string;
 }
 
+export interface FetchProviderPaymentStatusInput {
+  businessId: string;
+  /** Local payment id, also used as the provider `external_reference`. */
+  paymentId: string;
+  providerReferenceId: string | null;
+  providerPaymentId: string | null;
+}
+
+export interface ProviderPaymentStatus {
+  providerPaymentId: string;
+  status: PaymentStatus;
+  amount: number;
+  currency: string;
+}
+
 export interface PaymentProvider {
   readonly key: string;
   createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentResult>;
+  /**
+   * Optional server-to-server status lookup used to reconcile pending payments
+   * (for example when a webhook never arrived). Returning `null` means there is
+   * nothing to reconcile yet.
+   */
+  fetchStatus?(
+    input: FetchProviderPaymentStatusInput,
+  ): Promise<ProviderPaymentStatus | null>;
 }
 
 export class PaymentProviderUnavailableError extends Error {}

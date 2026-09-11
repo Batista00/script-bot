@@ -195,6 +195,7 @@ export class BotGatewayService {
       items: value.items.map((item) => ({
         orderItemId: item.id, productId: item.productId, productName: item.productName,
         quantity: item.quantity, unitPrice: item.unitPrice, totalPrice: item.totalPrice,
+        fulfillmentInput: item.fulfillmentInput ?? {},
       })),
     };
   }

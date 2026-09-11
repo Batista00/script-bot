@@ -2,16 +2,23 @@ import type { IntegrationsService } from "../../modules/integrations/integration
 import {
   type CreateProviderPaymentInput,
   type CreateProviderPaymentResult,
+  type FetchProviderPaymentStatusInput,
   type PaymentProvider,
   PaymentProviderCurrencyNotSupportedError,
   PaymentProviderUnavailableError,
+  type ProviderPaymentStatus,
 } from "../../modules/payments/payments.provider.js";
 import {
   mercadoPagoConfig,
   mercadoPagoCredentials,
   mercadoPagoNotificationUrl,
 } from "./mercado-pago.settings.js";
-import type { MercadoPagoHttpClient, MercadoPagoPreferenceRequest } from "./mercado-pago.types.js";
+import { mapMercadoPagoStatus } from "./mercado-pago.status.js";
+import type {
+  MercadoPagoHttpClient,
+  MercadoPagoPaymentResource,
+  MercadoPagoPreferenceRequest,
+} from "./mercado-pago.types.js";
 
 export class MercadoPagoPaymentProvider implements PaymentProvider {
   readonly key = "mercado_pago";
@@ -61,6 +68,29 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
       providerReferenceId: created.id,
       status: "pending",
       checkoutUrl: created.initPoint,
+    };
+  }
+
+  async fetchStatus(input: FetchProviderPaymentStatusInput): Promise<ProviderPaymentStatus | null> {
+    const integration = await this.integrations.getActiveIntegration(input.businessId, this.key);
+    if (!integration) throw new PaymentProviderUnavailableError();
+    const credentials = mercadoPagoCredentials(integration);
+
+    let resource: MercadoPagoPaymentResource | null = null;
+    if (input.providerPaymentId !== null) {
+      resource = await this.client.getPayment(credentials.accessToken, input.providerPaymentId);
+    } else if (this.client.searchPayments) {
+      resource = await this.client.searchPayments(credentials.accessToken, input.paymentId);
+    }
+    if (resource === null) return null;
+
+    const status = mapMercadoPagoStatus(resource.status);
+    if (status === null) return null;
+    return {
+      providerPaymentId: resource.id,
+      status,
+      amount: resource.transactionAmount,
+      currency: resource.currencyId,
     };
   }
 }

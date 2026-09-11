@@ -14,6 +14,7 @@ const expectedTables = [
   "business_api_credentials",
   "business_memberships",
   "businesses",
+  "job_queue",
   "categories",
   "customers",
   "fulfillments",
@@ -81,7 +82,7 @@ test(
     const migrationResult = await db.query<{ count: number }>(
       "SELECT count(*)::integer AS count FROM pgmigrations",
     );
-    assert.equal(migrationResult.rows[0]?.count, 15);
+    assert.equal(migrationResult.rows[0]?.count, 18);
 
     const tableResult = await db.query<{ table_name: string }>(
       `SELECT table_name
@@ -189,6 +190,40 @@ test(
       ]],
     );
     assert.equal(membershipIndexes.rows.length, 2);
+
+    const paymentStatuses = await db.query<{ enumlabel: string }>(
+      `SELECT enumlabel FROM pg_enum
+       JOIN pg_type ON pg_type.oid = pg_enum.enumtypid
+       WHERE pg_type.typname = 'payment_status'
+       ORDER BY enumsortorder`,
+    );
+    assert.deepEqual(paymentStatuses.rows.map((row) => row.enumlabel), [
+      "pending", "approved", "rejected", "cancelled", "expired", "failed", "refunded", "chargeback",
+    ]);
+
+    const fulfillmentInputColumn = await db.query<{ column_name: string; is_nullable: string }>(
+      `SELECT column_name, is_nullable
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'order_items'
+         AND column_name = 'fulfillment_input'`,
+    );
+    assert.deepEqual(fulfillmentInputColumn.rows[0], {
+      column_name: "fulfillment_input",
+      is_nullable: "NO",
+    });
+
+    const jobQueue = await db.query<{ indexname: string }>(
+      `SELECT indexname FROM pg_indexes
+       WHERE schemaname = 'public' AND indexname = ANY($1::text[])`,
+      [[
+        "job_queue_claim_idx",
+        "job_queue_running_idx",
+        "job_queue_type_status_idx",
+        "job_queue_identity_unique",
+      ]],
+    );
+    assert.equal(jobQueue.rows.length, 4);
 
     const providerReferenceColumn = await db.query<{ column_name: string }>(
       `SELECT column_name
