@@ -53,6 +53,12 @@ El validador usa solo Node.js estándar y revisa estructura, referencias, variab
 headers, ausencia de secretos, condiciones `Is empty`, rutas de arrays con corchetes y la
 conversión segura de cantidad en modo código.
 
+El módulo no lee archivos ni imprime nada al importarse. Exporta `validateTypebotDocument(document)`
+para un objeto ya parseado, `validateTypebotTemplate(raw)` para un string JSON y
+`validateTypebotSemantics(blocks)` para las reglas semánticas de los bloques. La lectura del
+archivo, la validación y el mensaje `Typebot template valid` solo ocurren al ejecutar el archivo
+directamente.
+
 ## Fuera de alcance
 
 - Evolution no está desplegado ni configurado en este repositorio.
