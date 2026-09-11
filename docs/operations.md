@@ -87,7 +87,17 @@ El bot no calcula precios, no aprueba pagos y no conoce identificadores ni costo
 - Reintentos: backoff exponencial (base 30 s, tope 1 h) hasta `max_attempts`. Los sweeps de mantenimiento reabren jobs fallidos cuando el trabajo sigue pendiente, así que corregir la causa (mapping, credencial) es suficiente para que el siguiente ciclo lo resuelva.
 - Un fulfillment en `submission_unknown` **no se reintenta**: el proveedor pudo haber creado el pedido. Revísalo manualmente antes de cualquier acción.
 
-## 10. Verificación y venta de prueba
+## 10. IA (opcional, auxiliar)
+
+No hay capa de IA implementada y el flujo comercial funciona sin ella. Si se agrega, debe respetar estas reglas:
+
+- Es **auxiliar**: clasifica intención, responde FAQ, extrae datos estructurados o sugiere una derivación humana.
+- **No** decide precios, no crea productos, no aprueba pagos, no cambia estados, no genera identificadores de proveedor y no crea órdenes: para eso solo existen los servicios determinísticos del backend.
+- El punto de extensión natural es un adapter propio (por ejemplo `integrations/<proveedor-ia>/`) más un endpoint del Bot Gateway que devuelva texto, nunca acciones. El orquestador (Typebot) sigue llamando a los endpoints comerciales para todo lo que tenga consecuencias.
+
+> **REQUIERE_CREDENCIAL**: cualquier proveedor de IA necesita su API key como integración cifrada. Si además se quiere el flujo conversacional con IA dentro de Typebot, requiere la clave de OpenAI en esa instalación (fuera de este repositorio).
+
+## 11. Verificación y venta de prueba
 
 1. Salud: `curl -fsS https://TU_API/health` (liveness) y `curl -fsS https://TU_API/health/ready` (PostgreSQL). El healthcheck del contenedor usa `/health` a propósito, para no reiniciar por un corte transitorio de base de datos.
 2. Venta de prueba **sin dinero real**: crea un producto con precio bajo, emite una cotización, crea el pedido, elige **transferencia bancaria** y confírmala desde el panel (**Pagos → Confirmar abono**). El pedido pasa a `paid`, el worker crea el fulfillment y lo envía al proveedor.
