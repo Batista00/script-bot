@@ -92,6 +92,8 @@
           "type": "Set variable",
           "options": { "variableId": "vcustomerid", "expressionToEvaluate": "" }
         },
+        { "id": "blkclearcustomererror", "type": "Set variable", "options": { "variableId": "vbackenderrorcode", "expressionToEvaluate": "" } },
+        { "id": "blkclearcustomererrormsg", "type": "Set variable", "options": { "variableId": "vbackenderrormessage", "expressionToEvaluate": "" } },
         {
           "id": "blkcustomerwebhook",
           "type": "Webhook",
@@ -108,7 +110,8 @@
             "isCustomBody": true,
             "responseVariableMapping": [
               { "id": "mapcustomerid", "bodyPath": "data.customerId", "variableId": "vcustomerid" },
-              { "id": "mapcustomername", "bodyPath": "data.name", "variableId": "vcustomername" }
+              { "id": "mapcustomername", "bodyPath": "data.name", "variableId": "vcustomername" },
+              { "id": "mapcustomererror", "bodyPath": "error.code", "variableId": "vbackenderrorcode" }
             ]
           }
         },
@@ -136,6 +139,8 @@
         { "id": "blkclearproduct3", "type": "Set variable", "options": { "variableId": "vproduct3id", "expressionToEvaluate": "" } },
         { "id": "blkclearproduct4", "type": "Set variable", "options": { "variableId": "vproduct4id", "expressionToEvaluate": "" } },
         { "id": "blkclearproduct5", "type": "Set variable", "options": { "variableId": "vproduct5id", "expressionToEvaluate": "" } },
+        { "id": "blkclearproductserror", "type": "Set variable", "options": { "variableId": "vbackenderrorcode", "expressionToEvaluate": "" } },
+        { "id": "blkclearproductserrormsg", "type": "Set variable", "options": { "variableId": "vbackenderrormessage", "expressionToEvaluate": "" } },
         {
           "id": "blkproductswebhook",
           "type": "Webhook",
@@ -167,7 +172,8 @@
               { "id": "mapproduct5id", "bodyPath": "data[4].productId", "variableId": "vproduct5id" },
               { "id": "mapproduct5name", "bodyPath": "data[4].name", "variableId": "vproduct5name" },
               { "id": "mapproduct5min", "bodyPath": "data[4].minQuantity", "variableId": "vproduct5min" },
-              { "id": "mapproduct5max", "bodyPath": "data[4].maxQuantity", "variableId": "vproduct5max" }
+              { "id": "mapproduct5max", "bodyPath": "data[4].maxQuantity", "variableId": "vproduct5max" },
+              { "id": "mapproducterror", "bodyPath": "error.code", "variableId": "vbackenderrorcode" }
             ]
           }
         },
@@ -320,7 +326,7 @@
         {
           "id": "blkquantityquestion",
           "type": "text",
-          "content": { "richText": [{ "id": "rtquantityquestion", "type": "p", "children": [{ "text": "¿Qué cantidad necesitas?" }] }] }
+          "content": { "richText": [{ "id": "rtquantityquestion", "type": "p", "children": [{ "text": "¿Qué cantidad necesitas para *{{selectedProductName}}*?\n\nMínimo: {{selectedProductMin}} · Máximo: {{selectedProductMax}}" }] }] }
         },
         {
           "id": "blkquantityinput",
@@ -336,6 +342,7 @@
             "expressionToEvaluate": "Number.isInteger(Number({{quantityInput}})) && Number({{quantityInput}}) > 0 ? Number({{quantityInput}}) : \"\""
           }
         },
+        {"id":"blkquantityvalid","type":"Set variable","options":{"variableId":"vquantityvalid","isCode":true,"expressionToEvaluate":"(function(){var q=Number({{quantity}});if(!isFinite(q)||q<=0){return \"false\";}var min={{selectedProductMin}};var max={{selectedProductMax}};if(min!==undefined&&min!==null&&min!==\"\"){if(q<Number(min)){return \"false\";}}if(max!==undefined&&max!==null&&max!==\"\"){if(q>Number(max)){return \"false\";}}return \"true\";})()"}},
         {
           "id": "blkquantitycondition",
           "type": "Condition",
@@ -344,6 +351,11 @@
               "id": "itmquantityinvalid",
               "outgoingEdgeId": "edgequantityinvalid",
               "content": { "comparisons": [{ "id": "cmpquantityempty", "variableId": "vquantity", "comparisonOperator": "Is empty" }] }
+            },
+            {
+              "id": "itmquantityrange",
+              "outgoingEdgeId": "edgequantityinvalid",
+              "content": { "comparisons": [{ "id": "cmpquantityrange", "variableId": "vquantityvalid", "comparisonOperator": "Equal to", "value": "false" }] }
             }
           ],
           "outgoingEdgeId": "edgequantityquote"
@@ -358,7 +370,7 @@
         {
           "id": "blkinvalidquantitytext",
           "type": "text",
-          "content": { "richText": [{ "id": "rtinvalidquantity", "type": "p", "children": [{ "text": "Ingresa una cantidad entera mayor que cero." }] }] },
+          "content": { "richText": [{ "id": "rtinvalidquantity", "type": "p", "children": [{ "text": "Ingresa una cantidad entera mayor que cero.\nMínimo: {{selectedProductMin}} · Máximo: {{selectedProductMax}}" }] }] },
           "outgoingEdgeId": "edgeinvalidquantityretry"
         }
       ]
@@ -369,6 +381,8 @@
       "graphCoordinates": { "x": 3720, "y": 160 },
       "blocks": [
         { "id": "blkclearquoteid", "type": "Set variable", "options": { "variableId": "vquoteid", "expressionToEvaluate": "" } },
+        { "id": "blkclearquoteerror", "type": "Set variable", "options": { "variableId": "vbackenderrorcode", "expressionToEvaluate": "" } },
+        { "id": "blkclearquoteerrormsg", "type": "Set variable", "options": { "variableId": "vbackenderrormessage", "expressionToEvaluate": "" } },
         {
           "id": "blkquotewebhook",
           "type": "Webhook",
@@ -389,7 +403,8 @@
               { "id": "mapquotequantity", "bodyPath": "data.quantity", "variableId": "vquotequantity" },
               { "id": "mapquotecurrency", "bodyPath": "data.currency", "variableId": "vquotecurrency" },
               { "id": "mapquotetotal", "bodyPath": "data.totalPrice", "variableId": "vquotetotal" },
-              { "id": "mapquotestatus", "bodyPath": "data.status", "variableId": "vquotestatus" }
+              { "id": "mapquotestatus", "bodyPath": "data.status", "variableId": "vquotestatus" },
+              { "id": "mapquoterrorcode", "bodyPath": "error.code", "variableId": "vbackenderrorcode" }
             ]
           }
         },
@@ -432,7 +447,14 @@
       "title": "Crear Order",
       "graphCoordinates": { "x": 4480, "y": 80 },
       "blocks": [
+        { "id": "blkbuildfulfillmentinput", "type": "Set variable", "options": { "variableId": "vfulfillmentinput", "isCode": true, "expressionToEvaluate": "(function(){var out={};var f=[[{{selectedInput1Key}},{{selectedInput1Type}},{{input1Value}}],[{{selectedInput2Key}},{{selectedInput2Type}},{{input2Value}}],[{{selectedInput3Key}},{{selectedInput3Type}},{{input3Value}}]];for(var i=0;i<f.length;i++){var key=f[i][0];if(key===undefined||key===null||key===\"\"){continue;}var type=f[i][1];var v=String(f[i][2]).trim();if(v===\"\"||v===\"undefined\"){continue;}if(type===\"integer\"){var num=Number(v);if(isFinite(num)&&Math.floor(num)===num){out[key]=num;continue;}}out[key]=v;}return JSON.stringify(out);})()" } },
         { "id": "blkclearorderid", "type": "Set variable", "options": { "variableId": "vorderid", "expressionToEvaluate": "" } },
+        { "id": "blkclearorderitemid", "type": "Set variable", "options": { "variableId": "vorderitemid", "expressionToEvaluate": "" } },
+        { "id": "blkclearordertotal", "type": "Set variable", "options": { "variableId": "vordertotal", "expressionToEvaluate": "" } },
+        { "id": "blkclearorderstatus", "type": "Set variable", "options": { "variableId": "vorderstatus", "expressionToEvaluate": "" } },
+        { "id": "blkclearordercurrency", "type": "Set variable", "options": { "variableId": "vordercurrency", "expressionToEvaluate": "" } },
+        { "id": "blkclearordererror", "type": "Set variable", "options": { "variableId": "vbackenderrorcode", "expressionToEvaluate": "" } },
+        { "id": "blkclearordererrormsg", "type": "Set variable", "options": { "variableId": "vbackenderrormessage", "expressionToEvaluate": "" } },
         {
           "id": "blkorderwebhook",
           "type": "Webhook",
@@ -444,14 +466,17 @@
                 { "id": "hdrauthorder", "key": "Authorization", "value": "Bearer {{backend_token}}" },
                 { "id": "hdrctorder", "key": "Content-Type", "value": "application/json" }
               ],
-              "body": "{\n  \"quoteId\": \"{{quoteId}}\",\n  \"customerId\": \"{{customerId}}\"\n}"
+              "body": "{\n  \"quoteId\": \"{{quoteId}}\",\n  \"customerId\": \"{{customerId}}\",\n  \"fulfillmentInput\": {{fulfillmentInput}}\n}"
             },
             "isCustomBody": true,
             "responseVariableMapping": [
               { "id": "maporderid", "bodyPath": "data.orderId", "variableId": "vorderid" },
               { "id": "maporderstatus", "bodyPath": "data.status", "variableId": "vorderstatus" },
               { "id": "maporderitemid", "bodyPath": "data.items[0].orderItemId", "variableId": "vorderitemid" },
-              { "id": "mapordertotal", "bodyPath": "data.total", "variableId": "vordertotal" }
+              { "id": "mapordertotal", "bodyPath": "data.total", "variableId": "vordertotal" },
+              { "id": "mapordercurrency", "bodyPath": "data.currency", "variableId": "vordercurrency" },
+              { "id": "mapordererrorcode", "bodyPath": "error.code", "variableId": "vbackenderrorcode" },
+              { "id": "mapordererrormsg", "bodyPath": "error.message", "variableId": "vbackenderrormessage" }
             ]
           }
         },
@@ -459,6 +484,11 @@
           "id": "blkordercheck",
           "type": "Condition",
           "items": [
+            {
+              "id": "itmorderalreadyconverted",
+              "outgoingEdgeId": "edgeorderalreadyconverted",
+              "content": { "comparisons": [{ "id": "cmporderalreadyconverted", "variableId": "vbackenderrorcode", "comparisonOperator": "Equal to", "value": "QUOTE_ALREADY_CONVERTED" }] }
+            },
             {
               "id": "itmordermissing",
               "outgoingEdgeId": "edgeordererror",
@@ -471,18 +501,20 @@
     },
     {
       "id": "grpcreatepayment",
-      "title": "Crear Payment Mercado Pago",
+      "title": "Crear Payment",
       "graphCoordinates": { "x": 4860, "y": 80 },
       "blocks": [
         {
           "id": "blksetpaymentidempotency",
           "type": "Set variable",
-          "options": { "variableId": "vpaymentidempotencykey", "expressionToEvaluate": "typebot-{{orderId}}-mercado-pago-v1" }
+          "options": { "variableId": "vpaymentidempotencykey", "expressionToEvaluate": "typebot-payment-{{orderId}}-v1" }
         },
         { "id": "blkclearpaymentid", "type": "Set variable", "options": { "variableId": "vpaymentid", "expressionToEvaluate": "" } },
         { "id": "blkclearpaymentstatus", "type": "Set variable", "options": { "variableId": "vpaymentstatus", "expressionToEvaluate": "" } },
         { "id": "blkclearcheckouturl", "type": "Set variable", "options": { "variableId": "vcheckouturl", "expressionToEvaluate": "" } },
         { "id": "blkclearpaymentexpires", "type": "Set variable", "options": { "variableId": "vpaymentexpiresat", "expressionToEvaluate": "" } },
+        { "id": "blkclearpaymenterror", "type": "Set variable", "options": { "variableId": "vbackenderrorcode", "expressionToEvaluate": "" } },
+        { "id": "blkclearpaymenterrormsg", "type": "Set variable", "options": { "variableId": "vbackenderrormessage", "expressionToEvaluate": "" } },
         {
           "id": "blkpaymentwebhook",
           "type": "Webhook",
@@ -495,14 +527,16 @@
                 { "id": "hdrctpayment", "key": "Content-Type", "value": "application/json" },
                 { "id": "hdridempotencypayment", "key": "Idempotency-Key", "value": "{{paymentIdempotencyKey}}" }
               ],
-              "body": "{\n  \"providerKey\": \"mercado_pago\"\n}"
+              "body": "{\n  \"paymentMethodId\": \"{{selectedPaymentMethodId}}\"\n}"
             },
             "isCustomBody": true,
             "responseVariableMapping": [
               { "id": "mappaymentid", "bodyPath": "data.paymentId", "variableId": "vpaymentid" },
               { "id": "mappaymentstatus", "bodyPath": "data.status", "variableId": "vpaymentstatus" },
               { "id": "mapcheckouturl", "bodyPath": "data.checkoutUrl", "variableId": "vcheckouturl" },
-              { "id": "mappaymentexpires", "bodyPath": "data.expiresAt", "variableId": "vpaymentexpiresat" }
+              { "id": "mappaymentexpires", "bodyPath": "data.expiresAt", "variableId": "vpaymentexpiresat" },
+              { "id": "mappaymenterrorcode", "bodyPath": "error.code", "variableId": "vbackenderrorcode" },
+              { "id": "mappaymenterrormsg", "bodyPath": "error.message", "variableId": "vbackenderrormessage" }
             ]
           }
         },
@@ -514,6 +548,17 @@
               "id": "itmpaymentmissing",
               "outgoingEdgeId": "edgepaymenterror",
               "content": { "comparisons": [{ "id": "cmppaymentempty", "variableId": "vpaymentid", "comparisonOperator": "Is empty" }] }
+            }
+          ]
+        },
+        {
+          "id": "blkpaymenttype",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "itmpaymentbank",
+              "outgoingEdgeId": "edgepaymentbank",
+              "content": { "comparisons": [{ "id": "cmppaymentbank", "variableId": "vselectedpaymentmethodtype", "comparisonOperator": "Equal to", "value": "bank_transfer" }] }
             }
           ],
           "outgoingEdgeId": "edgepaymentstatus"
@@ -534,7 +579,9 @@
             { "id": "itmpaymentrejected", "outgoingEdgeId": "edgestatusrejected", "content": { "comparisons": [{ "id": "cmpstatusrejected", "variableId": "vpaymentstatus", "comparisonOperator": "Equal to", "value": "rejected" }] } },
             { "id": "itmpaymentcancelled", "outgoingEdgeId": "edgestatuscancelled", "content": { "comparisons": [{ "id": "cmpstatuscancelled", "variableId": "vpaymentstatus", "comparisonOperator": "Equal to", "value": "cancelled" }] } },
             { "id": "itmpaymentexpired", "outgoingEdgeId": "edgestatusexpired", "content": { "comparisons": [{ "id": "cmpstatusexpired", "variableId": "vpaymentstatus", "comparisonOperator": "Equal to", "value": "expired" }] } },
-            { "id": "itmpaymentfailed", "outgoingEdgeId": "edgestatusfailed", "content": { "comparisons": [{ "id": "cmpstatusfailed", "variableId": "vpaymentstatus", "comparisonOperator": "Equal to", "value": "failed" }] } }
+            { "id": "itmpaymentfailed", "outgoingEdgeId": "edgestatusfailed", "content": { "comparisons": [{ "id": "cmpstatusfailed", "variableId": "vpaymentstatus", "comparisonOperator": "Equal to", "value": "failed" }] } },
+            { "id": "itmpaymentrefunded", "outgoingEdgeId": "edgestatusrefunded", "content": { "comparisons": [{ "id": "cmpstatusrefunded", "variableId": "vpaymentstatus", "comparisonOperator": "Equal to", "value": "refunded" }] } },
+            { "id": "itmpaymentchargeback", "outgoingEdgeId": "edgestatuschargeback", "content": { "comparisons": [{ "id": "cmpstatuschargeback", "variableId": "vpaymentstatus", "comparisonOperator": "Equal to", "value": "chargeback" }] } }
           ],
           "outgoingEdgeId": "edgestatuserror"
         }
@@ -674,27 +721,622 @@
         {
           "id": "blkapprovedtext",
           "type": "text",
-          "content": { "richText": [{ "id": "rtapproved", "type": "p", "children": [{ "text": "✅ Pago confirmado.\nTu pedido quedó registrado correctamente.\n\nLa preparación automática del servicio se conectará en la siguiente etapa." }] }] }
-        }
+          "content": { "richText": [{ "id": "rtapproved", "type": "p", "children": [{ "text": "✅ Pago confirmado.\nTu pedido quedó registrado correctamente.\n\nPuedes revisar el avance cuando quieras." }] }] }
+        },
+        {"id":"blkapprovedchoices","type":"choice input","items":[{"id":"itmapprovedstatus","content":"📦 Estado de mi pedido","outgoingEdgeId":"edgeapprovedstatus"},{"id":"itmapprovedhuman","content":"🙋 Hablar con una persona","outgoingEdgeId":"edgeapprovedhuman"},{"id":"itmapprovedmenu","content":"⬅️ Volver al menú","outgoingEdgeId":"edgeapprovedmenu"}]}
       ]
     },
     {
       "id": "grpgenericerror",
-      "title": "Error seguro",
+      "title": "Error del backend",
       "graphCoordinates": { "x": 4100, "y": 620 },
       "blocks": [
         {
           "id": "blkgenericerrortext",
           "type": "text",
-          "content": { "richText": [{ "id": "rtgenericerror", "type": "p", "children": [{ "text": "⚠️ No pudimos completar esta operación en este momento.\nIntenta nuevamente o solicita asistencia." }] }] }
+          "content": { "richText": [{ "id": "rtgenericerror", "type": "p", "children": [{ "text": "⚠️ No pudimos completar esta operación en este momento.\nCódigo: {{backendErrorCode}}\nDetalle: {{backendErrorMessage}}\n\nSi el problema continúa, solicita asistencia." }] }] }
         },
         {
           "id": "blkgenericerrorchoice",
           "type": "choice input",
           "items": [
-            { "id": "itmerrorrestart", "content": "Reiniciar", "outgoingEdgeId": "edgeerrorrestart" }
+            { "id": "itmerrorrestart", "content": "Reiniciar", "outgoingEdgeId": "edgeerrorrestart" },
+            { "id": "itmerrorhuman", "content": "🙋 Hablar con una persona", "outgoingEdgeId": "edgeerrorhuman" }
           ]
         }
+      ]
+    },
+    {
+      "id": "grpmainmenu",
+      "title": "Menú principal",
+      "graphCoordinates": { "x": 1180, "y": 800 },
+      "blocks": [
+        {"id":"blkmainmenutext","type":"text","content":{"richText":[{"id":"rtblkmainmenutext","type":"p","children":[{"text":"¡Hola {{customerName}}! 👋 ¿Qué necesitas?"}]}]}},
+        {"id":"blkmainmenuchoices","type":"choice input","items":[{"id":"itmmaincatalog","content":"🛍️ Ver servicios","outgoingEdgeId":"edgemaincatalog"},{"id":"itmmainfaq","content":"❓ Preguntas frecuentes","outgoingEdgeId":"edgemainfaq"},{"id":"itmmainstatus","content":"📦 Estado de mi pedido","outgoingEdgeId":"edgemainstatus"},{"id":"itmmainhuman","content":"🙋 Hablar con una persona","outgoingEdgeId":"edgemainhuman"}]}
+      ]
+    },
+    {
+      "id": "grpfaq",
+      "title": "Preguntas frecuentes",
+      "graphCoordinates": { "x": 1560, "y": 800 },
+      "blocks": [
+        {"id":"blkfaqtext","type":"text","content":{"richText":[{"id":"rtblkfaqtext","type":"p","children":[{"text":"❓ Preguntas frecuentes\n\n💳 Pago: se realiza con el enlace que genera el sistema o por transferencia bancaria. El bot no cobra ni confirma pagos: solo muestra lo que informa el sistema.\n\n⏱️ Preparación: comienza cuando el pago queda confirmado. Puedes revisar el avance en \"📦 Estado de mi pedido\"."}]}]}},
+        {"id":"blkfaqchoices","type":"choice input","items":[{"id":"itmfaqhuman","content":"🙋 Hablar con una persona","outgoingEdgeId":"edgefaqhuman"},{"id":"itmfaqmenu","content":"⬅️ Volver al menú","outgoingEdgeId":"edgefaqmenu"}]}
+      ]
+    },
+    {
+      "id": "grphumanhandoff",
+      "title": "Derivación a humano",
+      "graphCoordinates": { "x": 1940, "y": 800 },
+      "blocks": [
+        {"id":"blkhumantext","type":"text","content":{"richText":[{"id":"rtblkhumantext","type":"p","children":[{"text":"🙋 Listo. Dejamos tu conversación marcada para que una persona del equipo te responda por este mismo chat.\n\nMientras esperas puedes seguir usando el menú."}]}]}},
+        {"id":"blkhumanchoices","type":"choice input","items":[{"id":"itmhumanmenu","content":"⬅️ Volver al menú","outgoingEdgeId":"edgehumanmenu"},{"id":"itmhumanrestart","content":"🔄 Reiniciar","outgoingEdgeId":"edgehumanrestart"}]}
+      ]
+    },
+    {
+      "id": "grpproductdetail",
+      "title": "Detalle del producto",
+      "graphCoordinates": { "x": 2320, "y": 800 },
+      "blocks": [
+        {"id":"blkcleardetailerror","type":"Set variable","options":{"variableId":"vbackenderrorcode","expressionToEvaluate":""}},
+        {"id":"blkcleardetailerrormsg","type":"Set variable","options":{"variableId":"vbackenderrormessage","expressionToEvaluate":""}},
+        {"id":"blkcleardetaildescription","type":"Set variable","options":{"variableId":"vselectedproductdescription","expressionToEvaluate":""}},
+        {"id":"blkcleardetailmin","type":"Set variable","options":{"variableId":"vselectedproductmin","expressionToEvaluate":""}},
+        {"id":"blkcleardetailmax","type":"Set variable","options":{"variableId":"vselectedproductmax","expressionToEvaluate":""}},
+        {"id":"blkcleardetailinput1","type":"Set variable","options":{"variableId":"vselectedinput1key","expressionToEvaluate":""}},
+        {"id":"blkcleardetailinput2","type":"Set variable","options":{"variableId":"vselectedinput2key","expressionToEvaluate":""}},
+        {"id":"blkcleardetailinput3","type":"Set variable","options":{"variableId":"vselectedinput3key","expressionToEvaluate":""}},
+        {"id":"blkcleardetailextra","type":"Set variable","options":{"variableId":"vextrainputkey","expressionToEvaluate":""}},
+        {"id":"blkclearinput1value","type":"Set variable","options":{"variableId":"vinput1value","expressionToEvaluate":""}},
+        {"id":"blkclearinput2value","type":"Set variable","options":{"variableId":"vinput2value","expressionToEvaluate":""}},
+        {"id":"blkclearinput3value","type":"Set variable","options":{"variableId":"vinput3value","expressionToEvaluate":""}},
+        {"id":"blkclearfulfillmentinput","type":"Set variable","options":{"variableId":"vfulfillmentinput","expressionToEvaluate":""}},
+        {"id":"blkclearinputcount","type":"Set variable","options":{"variableId":"vselectedinputcount","expressionToEvaluate":""}},
+        {
+          "id": "blkproductdetailwebhook",
+          "type": "Webhook",
+          "options": {
+            "webhook": {
+              "url": "{{backend_base_url}}/bot/v1/products/{{selectedProductId}}",
+              "method": "GET",
+              "headers": [
+                {
+                  "id": "hdrauthdetail",
+                  "key": "Authorization",
+                  "value": "Bearer {{backend_token}}"
+                }
+              ]
+            },
+            "responseVariableMapping": [
+              {
+                "id": "mapdetaildesc",
+                "bodyPath": "data.description",
+                "variableId": "vselectedproductdescription"
+              },
+              {
+                "id": "mapdetailmin",
+                "bodyPath": "data.minQuantity",
+                "variableId": "vselectedproductmin"
+              },
+              {
+                "id": "mapdetailmax",
+                "bodyPath": "data.maxQuantity",
+                "variableId": "vselectedproductmax"
+              },
+              {
+                "id": "mapdetail1key",
+                "bodyPath": "data.requiredInputs[0].key",
+                "variableId": "vselectedinput1key"
+              },
+              {
+                "id": "mapdetail1label",
+                "bodyPath": "data.requiredInputs[0].label",
+                "variableId": "vselectedinput1label"
+              },
+              {
+                "id": "mapdetail1type",
+                "bodyPath": "data.requiredInputs[0].type",
+                "variableId": "vselectedinput1type"
+              },
+              {
+                "id": "mapdetail2key",
+                "bodyPath": "data.requiredInputs[1].key",
+                "variableId": "vselectedinput2key"
+              },
+              {
+                "id": "mapdetail2label",
+                "bodyPath": "data.requiredInputs[1].label",
+                "variableId": "vselectedinput2label"
+              },
+              {
+                "id": "mapdetail2type",
+                "bodyPath": "data.requiredInputs[1].type",
+                "variableId": "vselectedinput2type"
+              },
+              {
+                "id": "mapdetail3key",
+                "bodyPath": "data.requiredInputs[2].key",
+                "variableId": "vselectedinput3key"
+              },
+              {
+                "id": "mapdetail3label",
+                "bodyPath": "data.requiredInputs[2].label",
+                "variableId": "vselectedinput3label"
+              },
+              {
+                "id": "mapdetail3type",
+                "bodyPath": "data.requiredInputs[2].type",
+                "variableId": "vselectedinput3type"
+              },
+              {
+                "id": "mapdetailextra",
+                "bodyPath": "data.requiredInputs[3].key",
+                "variableId": "vextrainputkey"
+              },
+              {
+                "id": "mapdetailerror",
+                "bodyPath": "error.code",
+                "variableId": "vbackenderrorcode"
+              },
+              {
+                "id": "mapdetailerrormsg",
+                "bodyPath": "error.message",
+                "variableId": "vbackenderrormessage"
+              }
+            ]
+          }
+        },
+        {"id":"blkinputcount","type":"Set variable","options":{"variableId":"vselectedinputcount","isCode":true,"expressionToEvaluate":"(function(){var k=[{{selectedInput1Key}},{{selectedInput2Key}},{{selectedInput3Key}}];var n=0;for(var i=0;i<k.length;i++){if(k[i]!==undefined&&k[i]!==null&&k[i]!==\"\"){n=n+1;}}return String(n);})()"}},
+        {"id":"blkdetailtext","type":"text","content":{"richText":[{"id":"rtblkdetailtext","type":"p","children":[{"text":"Servicio: *{{selectedProductName}}*\n{{selectedProductDescription}}\n\nCantidad mínima: {{selectedProductMin}}\nCantidad máxima: {{selectedProductMax}}"}]}]}},
+        {"id":"blkdetailinputs","type":"Condition","items":[{"id":"itmdetailerror","outgoingEdgeId":"edgedetailerror","content":{"comparisons":[{"id":"cmpdetailerror","variableId":"vbackenderrorcode","comparisonOperator":"Is set"}]}},{"id":"itmdetailtoomany","outgoingEdgeId":"edgedetailtoomany","content":{"comparisons":[{"id":"cmpdetailtoomany","variableId":"vextrainputkey","comparisonOperator":"Is set"}]}}],"outgoingEdgeId":"edgedetailquantity"}
+      ]
+    },
+    {
+      "id": "grpinputstoomany",
+      "title": "Servicio con demasiados datos",
+      "graphCoordinates": { "x": 2700, "y": 800 },
+      "blocks": [
+        {"id":"blkinputstoomanytext","type":"text","content":{"richText":[{"id":"rtblkinputstoomanytext","type":"p","children":[{"text":"⚠️ Este servicio necesita más de 3 datos adicionales y no puedo solicitarlos todos por este canal. Te derivamos a una persona para completar el pedido."}]}]}},
+        {"id":"blkinputstoomanych","type":"choice input","items":[{"id":"itmtoomanyhuman","content":"🙋 Hablar con una persona","outgoingEdgeId":"edgeinputstoomanyhuman"},{"id":"itmtoomanycatalog","content":"🔄 Elegir otro servicio","outgoingEdgeId":"edgeinputstoomanycatalog"}]}
+      ]
+    },
+    {
+      "id": "grpinputone",
+      "title": "Dato 1 del pedido",
+      "graphCoordinates": { "x": 3080, "y": 800 },
+      "blocks": [
+        {"id":"blkinputonecount","type":"Condition","items":[{"id":"itminputonezero","outgoingEdgeId":"edgeinputonezero","content":{"comparisons":[{"id":"cmpinputonezero","variableId":"vselectedinputcount","comparisonOperator":"Equal to","value":"0"}]}}]},
+        {"id":"blkinputonequestion","type":"text","content":{"richText":[{"id":"rtblkinputonequestion","type":"p","children":[{"text":"Para preparar tu pedido necesito: *{{selectedInput1Label}}*"}]}]}},
+        {"id":"blkinputoneinput","type":"text input","options":{"labels":{"placeholder":"Escribe el dato"},"variableId":"vinput1value"}},
+        {"id":"blkinputonevalid","type":"Set variable","options":{"variableId":"vfield1valid","isCode":true,"expressionToEvaluate":"(function(){var t={{selectedInput1Type}};var v=String({{input1Value}}).trim();if(v===\"\"||v===\"undefined\"){return \"false\";}if(t===\"url\"&&v.indexOf(\"http://\")!==0&&v.indexOf(\"https://\")!==0){return \"false\";}if(t===\"integer\"){var num=Number(v);if(!(isFinite(num)&&Math.floor(num)===num)){return \"false\";}}return \"true\";})()"}},
+        {"id":"blkinputonecheck","type":"Condition","items":[{"id":"itminputoneinvalid","outgoingEdgeId":"edgeinputoneinvalid","content":{"comparisons":[{"id":"cmpinputoneinvalid","variableId":"vfield1valid","comparisonOperator":"Equal to","value":"false"}]}}],"outgoingEdgeId":"edgeinputonetwo"}
+      ]
+    },
+    {
+      "id": "grpinputtwo",
+      "title": "Dato 2 del pedido",
+      "graphCoordinates": { "x": 3460, "y": 800 },
+      "blocks": [
+        {"id":"blkinputtwocount","type":"Condition","items":[{"id":"itminputtwoone","outgoingEdgeId":"edgeinputtwoone","content":{"comparisons":[{"id":"cmpinputtwoone","variableId":"vselectedinputcount","comparisonOperator":"Equal to","value":"1"}]}}]},
+        {"id":"blkinputtwoquestion","type":"text","content":{"richText":[{"id":"rtblkinputtwoquestion","type":"p","children":[{"text":"Para preparar tu pedido necesito: *{{selectedInput2Label}}*"}]}]}},
+        {"id":"blkinputtwoinput","type":"text input","options":{"labels":{"placeholder":"Escribe el dato"},"variableId":"vinput2value"}},
+        {"id":"blkinputtwovalid","type":"Set variable","options":{"variableId":"vfield2valid","isCode":true,"expressionToEvaluate":"(function(){var t={{selectedInput2Type}};var v=String({{input2Value}}).trim();if(v===\"\"||v===\"undefined\"){return \"false\";}if(t===\"url\"&&v.indexOf(\"http://\")!==0&&v.indexOf(\"https://\")!==0){return \"false\";}if(t===\"integer\"){var num=Number(v);if(!(isFinite(num)&&Math.floor(num)===num)){return \"false\";}}return \"true\";})()"}},
+        {"id":"blkinputtwocheck","type":"Condition","items":[{"id":"itminputtwoinvalid","outgoingEdgeId":"edgeinputtwoinvalid","content":{"comparisons":[{"id":"cmpinputtwoinvalid","variableId":"vfield2valid","comparisonOperator":"Equal to","value":"false"}]}}],"outgoingEdgeId":"edgeinputtwothree"}
+      ]
+    },
+    {
+      "id": "grpinputthree",
+      "title": "Dato 3 del pedido",
+      "graphCoordinates": { "x": 3840, "y": 800 },
+      "blocks": [
+        {"id":"blkinputthreecount","type":"Condition","items":[{"id":"itminputthreetwo","outgoingEdgeId":"edgeinputthreetwo","content":{"comparisons":[{"id":"cmpinputthreetwo","variableId":"vselectedinputcount","comparisonOperator":"Equal to","value":"2"}]}}]},
+        {"id":"blkinputthreequestion","type":"text","content":{"richText":[{"id":"rtblkinputthreequestion","type":"p","children":[{"text":"Para preparar tu pedido necesito: *{{selectedInput3Label}}*"}]}]}},
+        {"id":"blkinputthreeinput","type":"text input","options":{"labels":{"placeholder":"Escribe el dato"},"variableId":"vinput3value"}},
+        {"id":"blkinputthreevalid","type":"Set variable","options":{"variableId":"vfield3valid","isCode":true,"expressionToEvaluate":"(function(){var t={{selectedInput3Type}};var v=String({{input3Value}}).trim();if(v===\"\"||v===\"undefined\"){return \"false\";}if(t===\"url\"&&v.indexOf(\"http://\")!==0&&v.indexOf(\"https://\")!==0){return \"false\";}if(t===\"integer\"){var num=Number(v);if(!(isFinite(num)&&Math.floor(num)===num)){return \"false\";}}return \"true\";})()"}},
+        {"id":"blkinputthreecheck","type":"Condition","items":[{"id":"itminputthreeinvalid","outgoingEdgeId":"edgeinputthreeinvalid","content":{"comparisons":[{"id":"cmpinputthreeinvalid","variableId":"vfield3valid","comparisonOperator":"Equal to","value":"false"}]}}],"outgoingEdgeId":"edgeinputthreeorder"}
+      ]
+    },
+    {
+      "id": "grppaymentmethods",
+      "title": "Métodos de pago",
+      "graphCoordinates": { "x": 1180, "y": 1060 },
+      "blocks": [
+        {"id":"blkclearmethodselection","type":"Set variable","options":{"variableId":"vpaymentmethodselection","expressionToEvaluate":""}},
+        {"id":"blkclearselectedmethodid","type":"Set variable","options":{"variableId":"vselectedpaymentmethodid","expressionToEvaluate":""}},
+        {"id":"blkclearselectedmethodtype","type":"Set variable","options":{"variableId":"vselectedpaymentmethodtype","expressionToEvaluate":""}},
+        {"id":"blkclearselectedmethodname","type":"Set variable","options":{"variableId":"vselectedpaymentmethodname","expressionToEvaluate":""}},
+        {"id":"blkclearmethod1id","type":"Set variable","options":{"variableId":"vpaymentmethod1id","expressionToEvaluate":""}},
+        {"id":"blkclearmethod2id","type":"Set variable","options":{"variableId":"vpaymentmethod2id","expressionToEvaluate":""}},
+        {"id":"blkclearmethod3id","type":"Set variable","options":{"variableId":"vpaymentmethod3id","expressionToEvaluate":""}},
+        {"id":"blkclearmethoderror","type":"Set variable","options":{"variableId":"vbackenderrorcode","expressionToEvaluate":""}},
+        {"id":"blkclearmethoderrormsg","type":"Set variable","options":{"variableId":"vbackenderrormessage","expressionToEvaluate":""}},
+        {
+          "id": "blkpaymentmethodswebhook",
+          "type": "Webhook",
+          "options": {
+            "webhook": {
+              "url": "{{backend_base_url}}/bot/v1/payment-methods",
+              "method": "GET",
+              "headers": [
+                {
+                  "id": "hdrauthmethods",
+                  "key": "Authorization",
+                  "value": "Bearer {{backend_token}}"
+                }
+              ]
+            },
+            "responseVariableMapping": [
+              {
+                "id": "mpm1id",
+                "bodyPath": "data[0].paymentMethodId",
+                "variableId": "vpaymentmethod1id"
+              },
+              {
+                "id": "mpm1type",
+                "bodyPath": "data[0].type",
+                "variableId": "vpaymentmethod1type"
+              },
+              {
+                "id": "mpm1name",
+                "bodyPath": "data[0].name",
+                "variableId": "vpaymentmethod1name"
+              },
+              {
+                "id": "mpm1holder",
+                "bodyPath": "data[0].config.accountHolder",
+                "variableId": "vpaymentmethod1accountholder"
+              },
+              {
+                "id": "mpm1rut",
+                "bodyPath": "data[0].config.rut",
+                "variableId": "vpaymentmethod1rut"
+              },
+              {
+                "id": "mpm1bank",
+                "bodyPath": "data[0].config.bankName",
+                "variableId": "vpaymentmethod1bankname"
+              },
+              {
+                "id": "mpm1acct",
+                "bodyPath": "data[0].config.accountType",
+                "variableId": "vpaymentmethod1accounttype"
+              },
+              {
+                "id": "mpm1num",
+                "bodyPath": "data[0].config.accountNumber",
+                "variableId": "vpaymentmethod1accountnumber"
+              },
+              {
+                "id": "mpm1email",
+                "bodyPath": "data[0].config.email",
+                "variableId": "vpaymentmethod1email"
+              },
+              {
+                "id": "mpm2id",
+                "bodyPath": "data[1].paymentMethodId",
+                "variableId": "vpaymentmethod2id"
+              },
+              {
+                "id": "mpm2type",
+                "bodyPath": "data[1].type",
+                "variableId": "vpaymentmethod2type"
+              },
+              {
+                "id": "mpm2name",
+                "bodyPath": "data[1].name",
+                "variableId": "vpaymentmethod2name"
+              },
+              {
+                "id": "mpm2holder",
+                "bodyPath": "data[1].config.accountHolder",
+                "variableId": "vpaymentmethod2accountholder"
+              },
+              {
+                "id": "mpm2rut",
+                "bodyPath": "data[1].config.rut",
+                "variableId": "vpaymentmethod2rut"
+              },
+              {
+                "id": "mpm2bank",
+                "bodyPath": "data[1].config.bankName",
+                "variableId": "vpaymentmethod2bankname"
+              },
+              {
+                "id": "mpm2acct",
+                "bodyPath": "data[1].config.accountType",
+                "variableId": "vpaymentmethod2accounttype"
+              },
+              {
+                "id": "mpm2num",
+                "bodyPath": "data[1].config.accountNumber",
+                "variableId": "vpaymentmethod2accountnumber"
+              },
+              {
+                "id": "mpm2email",
+                "bodyPath": "data[1].config.email",
+                "variableId": "vpaymentmethod2email"
+              },
+              {
+                "id": "mpm3id",
+                "bodyPath": "data[2].paymentMethodId",
+                "variableId": "vpaymentmethod3id"
+              },
+              {
+                "id": "mpm3type",
+                "bodyPath": "data[2].type",
+                "variableId": "vpaymentmethod3type"
+              },
+              {
+                "id": "mpm3name",
+                "bodyPath": "data[2].name",
+                "variableId": "vpaymentmethod3name"
+              },
+              {
+                "id": "mpm3holder",
+                "bodyPath": "data[2].config.accountHolder",
+                "variableId": "vpaymentmethod3accountholder"
+              },
+              {
+                "id": "mpm3rut",
+                "bodyPath": "data[2].config.rut",
+                "variableId": "vpaymentmethod3rut"
+              },
+              {
+                "id": "mpm3bank",
+                "bodyPath": "data[2].config.bankName",
+                "variableId": "vpaymentmethod3bankname"
+              },
+              {
+                "id": "mpm3acct",
+                "bodyPath": "data[2].config.accountType",
+                "variableId": "vpaymentmethod3accounttype"
+              },
+              {
+                "id": "mpm3num",
+                "bodyPath": "data[2].config.accountNumber",
+                "variableId": "vpaymentmethod3accountnumber"
+              },
+              {
+                "id": "mpm3email",
+                "bodyPath": "data[2].config.email",
+                "variableId": "vpaymentmethod3email"
+              },
+              {
+                "id": "mpmerrorcode",
+                "bodyPath": "error.code",
+                "variableId": "vbackenderrorcode"
+              },
+              {
+                "id": "mpmerrormsg",
+                "bodyPath": "error.message",
+                "variableId": "vbackenderrormessage"
+              }
+            ]
+          }
+        },
+        {"id":"blkmethodsexist","type":"Condition","items":[{"id":"itmmethodsnone","outgoingEdgeId":"edgemethodsnone","content":{"comparisons":[{"id":"cmpmethodsnone","variableId":"vpaymentmethod1id","comparisonOperator":"Is empty"}]}}]},
+        {"id":"blkmethodstext","type":"text","content":{"richText":[{"id":"rtblkmethodstext","type":"p","children":[{"text":"💳 Métodos de pago disponibles:\n\n1. {{paymentMethod1Name}}\n2. {{paymentMethod2Name}}\n3. {{paymentMethod3Name}}\n\nEscribe el número del método que prefieres:"}]}]}},
+        {"id":"blkmethodinput","type":"text input","options":{"labels":{"placeholder":"1, 2 o 3"},"variableId":"vpaymentmethodselection"}},
+        {"id":"blkmethodselection","type":"Condition","items":[{"id":"itmmethod1","outgoingEdgeId":"edgemethod1","content":{"comparisons":[{"id":"cmpmethod1","variableId":"vpaymentmethodselection","comparisonOperator":"Equal to","value":"1"}]}},{"id":"itmmethod2","outgoingEdgeId":"edgemethod2","content":{"comparisons":[{"id":"cmpmethod2","variableId":"vpaymentmethodselection","comparisonOperator":"Equal to","value":"2"}]}},{"id":"itmmethod3","outgoingEdgeId":"edgemethod3","content":{"comparisons":[{"id":"cmpmethod3","variableId":"vpaymentmethodselection","comparisonOperator":"Equal to","value":"3"}]}}],"outgoingEdgeId":"edgemethodinvalid"}
+      ]
+    },
+    {
+      "id": "grppaymentmethodselect1",
+      "title": "Seleccionar método 1",
+      "graphCoordinates": { "x": 1560, "y": 1060 },
+      "blocks": [
+        {"id":"blkmethod1id","type":"Set variable","options":{"variableId":"vselectedpaymentmethodid","expressionToEvaluate":"{{paymentMethod1Id}}"}},
+        {"id":"blkmethod1type","type":"Set variable","options":{"variableId":"vselectedpaymentmethodtype","expressionToEvaluate":"{{paymentMethod1Type}}"}},
+        {"id":"blkmethod1name","type":"Set variable","options":{"variableId":"vselectedpaymentmethodname","expressionToEvaluate":"{{paymentMethod1Name}}"}},
+        {"id":"blkmethod1holder","type":"Set variable","options":{"variableId":"vbankaccountholder","expressionToEvaluate":"{{paymentMethod1AccountHolder}}"}},
+        {"id":"blkmethod1rut","type":"Set variable","options":{"variableId":"vbankrut","expressionToEvaluate":"{{paymentMethod1Rut}}"}},
+        {"id":"blkmethod1bank","type":"Set variable","options":{"variableId":"vbankname","expressionToEvaluate":"{{paymentMethod1BankName}}"}},
+        {"id":"blkmethod1acct","type":"Set variable","options":{"variableId":"vbankaccounttype","expressionToEvaluate":"{{paymentMethod1AccountType}}"}},
+        {"id":"blkmethod1num","type":"Set variable","options":{"variableId":"vbankaccountnumber","expressionToEvaluate":"{{paymentMethod1AccountNumber}}"}},
+        {"id":"blkmethod1email","type":"Set variable","options":{"variableId":"vbankemail","expressionToEvaluate":"{{paymentMethod1Email}}"},"outgoingEdgeId":"edgemethodselect1"}
+      ]
+    },
+    {
+      "id": "grppaymentmethodselect2",
+      "title": "Seleccionar método 2",
+      "graphCoordinates": { "x": 1940, "y": 1060 },
+      "blocks": [
+        {"id":"blkmethod2id","type":"Set variable","options":{"variableId":"vselectedpaymentmethodid","expressionToEvaluate":"{{paymentMethod2Id}}"}},
+        {"id":"blkmethod2type","type":"Set variable","options":{"variableId":"vselectedpaymentmethodtype","expressionToEvaluate":"{{paymentMethod2Type}}"}},
+        {"id":"blkmethod2name","type":"Set variable","options":{"variableId":"vselectedpaymentmethodname","expressionToEvaluate":"{{paymentMethod2Name}}"}},
+        {"id":"blkmethod2holder","type":"Set variable","options":{"variableId":"vbankaccountholder","expressionToEvaluate":"{{paymentMethod2AccountHolder}}"}},
+        {"id":"blkmethod2rut","type":"Set variable","options":{"variableId":"vbankrut","expressionToEvaluate":"{{paymentMethod2Rut}}"}},
+        {"id":"blkmethod2bank","type":"Set variable","options":{"variableId":"vbankname","expressionToEvaluate":"{{paymentMethod2BankName}}"}},
+        {"id":"blkmethod2acct","type":"Set variable","options":{"variableId":"vbankaccounttype","expressionToEvaluate":"{{paymentMethod2AccountType}}"}},
+        {"id":"blkmethod2num","type":"Set variable","options":{"variableId":"vbankaccountnumber","expressionToEvaluate":"{{paymentMethod2AccountNumber}}"}},
+        {"id":"blkmethod2email","type":"Set variable","options":{"variableId":"vbankemail","expressionToEvaluate":"{{paymentMethod2Email}}"},"outgoingEdgeId":"edgemethodselect2"}
+      ]
+    },
+    {
+      "id": "grppaymentmethodselect3",
+      "title": "Seleccionar método 3",
+      "graphCoordinates": { "x": 2320, "y": 1060 },
+      "blocks": [
+        {"id":"blkmethod3id","type":"Set variable","options":{"variableId":"vselectedpaymentmethodid","expressionToEvaluate":"{{paymentMethod3Id}}"}},
+        {"id":"blkmethod3type","type":"Set variable","options":{"variableId":"vselectedpaymentmethodtype","expressionToEvaluate":"{{paymentMethod3Type}}"}},
+        {"id":"blkmethod3name","type":"Set variable","options":{"variableId":"vselectedpaymentmethodname","expressionToEvaluate":"{{paymentMethod3Name}}"}},
+        {"id":"blkmethod3holder","type":"Set variable","options":{"variableId":"vbankaccountholder","expressionToEvaluate":"{{paymentMethod3AccountHolder}}"}},
+        {"id":"blkmethod3rut","type":"Set variable","options":{"variableId":"vbankrut","expressionToEvaluate":"{{paymentMethod3Rut}}"}},
+        {"id":"blkmethod3bank","type":"Set variable","options":{"variableId":"vbankname","expressionToEvaluate":"{{paymentMethod3BankName}}"}},
+        {"id":"blkmethod3acct","type":"Set variable","options":{"variableId":"vbankaccounttype","expressionToEvaluate":"{{paymentMethod3AccountType}}"}},
+        {"id":"blkmethod3num","type":"Set variable","options":{"variableId":"vbankaccountnumber","expressionToEvaluate":"{{paymentMethod3AccountNumber}}"}},
+        {"id":"blkmethod3email","type":"Set variable","options":{"variableId":"vbankemail","expressionToEvaluate":"{{paymentMethod3Email}}"},"outgoingEdgeId":"edgemethodselect3"}
+      ]
+    },
+    {
+      "id": "grppaymentmethodcheck",
+      "title": "Revisar método",
+      "graphCoordinates": { "x": 2700, "y": 1060 },
+      "blocks": [
+        {"id":"blkmethodselected","type":"Condition","items":[{"id":"itmmethodempty","outgoingEdgeId":"edgemethodunavailable","content":{"comparisons":[{"id":"cmpmethodempty","variableId":"vselectedpaymentmethodid","comparisonOperator":"Is empty"}]}}],"outgoingEdgeId":"edgemethodcreate"}
+      ]
+    },
+    {
+      "id": "grppaymentmethodinvalid",
+      "title": "Método inválido",
+      "graphCoordinates": { "x": 3080, "y": 1060 },
+      "blocks": [
+        {"id":"blkpaymentmethodinvalidtext","type":"text","content":{"richText":[{"id":"rtblkpaymentmethodinvalidtext","type":"p","children":[{"text":"Ese método no está disponible. Escribe un número de la lista."}]}]},"outgoingEdgeId":"edgemethodinvalidretry"}
+      ]
+    },
+    {
+      "id": "grporderalreadyconverted",
+      "title": "Pedido ya registrado",
+      "graphCoordinates": { "x": 3460, "y": 1060 },
+      "blocks": [
+        {"id":"blkorderalreadytext","type":"text","content":{"richText":[{"id":"rtblkorderalreadytext","type":"p","children":[{"text":"ℹ️ Este pedido ya había sido registrado antes, así que no creamos uno nuevo.\nPuedes revisar su estado o pedir ayuda a una persona."}]}]}},
+        {"id":"blkorderalreadychoices","type":"choice input","items":[{"id":"itmalreadyconvertedstatus","content":"📦 Estado de mi pedido","outgoingEdgeId":"edgealreadyconvertedstatus"},{"id":"itmalreadyconvertedhuman","content":"🙋 Hablar con una persona","outgoingEdgeId":"edgealreadyconvertedhuman"},{"id":"itmalreadyconvertedmenu","content":"⬅️ Volver al menú","outgoingEdgeId":"edgealreadyconvertedmenu"}]}
+      ]
+    },
+    {
+      "id": "grpbanksummary",
+      "title": "Transferencia bancaria",
+      "graphCoordinates": { "x": 3840, "y": 1060 },
+      "blocks": [
+        {"id":"blkbanksummarytext","type":"text","content":{"richText":[{"id":"rtblkbanksummarytext","type":"p","children":[{"text":"🏦 Transferencia bancaria\n\nTitular: {{bankAccountHolder}}\nRUT: {{bankRut}}\nBanco: {{bankName}}\nTipo de cuenta: {{bankAccountType}}\nNúmero de cuenta: {{bankAccountNumber}}\nEmail: {{bankEmail}}\n\nTransfiere y envía el comprobante por este chat. Un asesor confirmará la recepción: el bot no confirma pagos por sí solo. Tu pedido queda pendiente de confirmación humana."}]}]}},
+        {"id":"blkbankchoices","type":"choice input","items":[{"id":"itmbankstatus","content":"📦 Estado de mi pedido","outgoingEdgeId":"edgebankstatus"},{"id":"itmbankhuman","content":"🙋 Hablar con una persona","outgoingEdgeId":"edgebankhuman"},{"id":"itmbankmenu","content":"⬅️ Volver al menú","outgoingEdgeId":"edgebankmenu"}]}
+      ]
+    },
+    {
+      "id": "grppostventanoorder",
+      "title": "Sin pedido en la conversación",
+      "graphCoordinates": { "x": 1180, "y": 1320 },
+      "blocks": [
+        {"id":"blkpostventanoordertext","type":"text","content":{"richText":[{"id":"rtblkpostventanoordertext","type":"p","children":[{"text":"No tengo un pedido asociado a esta conversación. Puedes elegir un servicio para crear uno."}]}]}},
+        {"id":"blkpostventanoorderchoices","type":"choice input","items":[{"id":"itmpostventanoordercatalog","content":"🛍️ Ver servicios","outgoingEdgeId":"edgepostventanoordercatalog"},{"id":"itmpostventanoordermenu","content":"⬅️ Volver al menú","outgoingEdgeId":"edgepostventanoordermenu"}]}
+      ]
+    },
+    {
+      "id": "grppostventa",
+      "title": "Estado del pedido",
+      "graphCoordinates": { "x": 1560, "y": 1320 },
+      "blocks": [
+        {"id":"blkorderexists","type":"Condition","items":[{"id":"itmorderexistsempty","outgoingEdgeId":"edgepostventanoorder","content":{"comparisons":[{"id":"cmporderexistsempty","variableId":"vorderid","comparisonOperator":"Is empty"}]}}]},
+        {"id":"blkclearqueryorderstatus","type":"Set variable","options":{"variableId":"vorderstatus","expressionToEvaluate":""}},
+        {"id":"blkclearqueryordertotal","type":"Set variable","options":{"variableId":"vordertotal","expressionToEvaluate":""}},
+        {"id":"blkclearqueryordercurrency","type":"Set variable","options":{"variableId":"vordercurrency","expressionToEvaluate":""}},
+        {"id":"blkclearqueryfulfillmentid","type":"Set variable","options":{"variableId":"vfulfillmentid","expressionToEvaluate":""}},
+        {"id":"blkclearqueryfulfillmentstatus","type":"Set variable","options":{"variableId":"vfulfillmentstatus","expressionToEvaluate":""}},
+        {"id":"blkclearqueryfulfillmentsubmitted","type":"Set variable","options":{"variableId":"vfulfillmentsubmittedat","expressionToEvaluate":""}},
+        {"id":"blkclearqueryfulfillmentcompleted","type":"Set variable","options":{"variableId":"vfulfillmentcompletedat","expressionToEvaluate":""}},
+        {"id":"blkclearqueryerror","type":"Set variable","options":{"variableId":"vbackenderrorcode","expressionToEvaluate":""}},
+        {"id":"blkclearqueryerrormsg","type":"Set variable","options":{"variableId":"vbackenderrormessage","expressionToEvaluate":""}},
+        {
+          "id": "blkorderquerywebhook",
+          "type": "Webhook",
+          "options": {
+            "webhook": {
+              "url": "{{backend_base_url}}/bot/v1/orders/{{orderId}}",
+              "method": "GET",
+              "headers": [
+                {
+                  "id": "hdrauthorderquery",
+                  "key": "Authorization",
+                  "value": "Bearer {{backend_token}}"
+                }
+              ]
+            },
+            "responseVariableMapping": [
+              {
+                "id": "maporderqstatus",
+                "bodyPath": "data.status",
+                "variableId": "vorderstatus"
+              },
+              {
+                "id": "maporderqtotal",
+                "bodyPath": "data.total",
+                "variableId": "vordertotal"
+              },
+              {
+                "id": "maporderqcurrency",
+                "bodyPath": "data.currency",
+                "variableId": "vordercurrency"
+              },
+              {
+                "id": "maporderqerror",
+                "bodyPath": "error.code",
+                "variableId": "vbackenderrorcode"
+              },
+              {
+                "id": "maporderqerrormsg",
+                "bodyPath": "error.message",
+                "variableId": "vbackenderrormessage"
+              }
+            ]
+          }
+        },
+        {
+          "id": "blkorderfulfillmentswebhook",
+          "type": "Webhook",
+          "options": {
+            "webhook": {
+              "url": "{{backend_base_url}}/bot/v1/orders/{{orderId}}/fulfillments",
+              "method": "GET",
+              "headers": [
+                {
+                  "id": "hdrauthorderfulfillments",
+                  "key": "Authorization",
+                  "value": "Bearer {{backend_token}}"
+                }
+              ]
+            },
+            "responseVariableMapping": [
+              {
+                "id": "mapfulfillmentid",
+                "bodyPath": "data[0].fulfillmentId",
+                "variableId": "vfulfillmentid"
+              },
+              {
+                "id": "mapfulfillmentstatus",
+                "bodyPath": "data[0].status",
+                "variableId": "vfulfillmentstatus"
+              },
+              {
+                "id": "mapfulfillmentsubmitted",
+                "bodyPath": "data[0].submittedAt",
+                "variableId": "vfulfillmentsubmittedat"
+              },
+              {
+                "id": "mapfulfillmentcompleted",
+                "bodyPath": "data[0].completedAt",
+                "variableId": "vfulfillmentcompletedat"
+              }
+            ]
+          }
+        },
+        {"id":"blkpostventaerror","type":"Condition","items":[{"id":"itmpostventaok","outgoingEdgeId":"edgepostventaok","content":{"comparisons":[{"id":"cmppostventaok","variableId":"vbackenderrorcode","comparisonOperator":"Is empty"}]}}],"outgoingEdgeId":"edgepostventaerror"}
+      ]
+    },
+    {
+      "id": "grppostventasummary",
+      "title": "Resumen de estado",
+      "graphCoordinates": { "x": 1940, "y": 1320 },
+      "blocks": [
+        {"id":"blkpostventasummarytext","type":"text","content":{"richText":[{"id":"rtblkpostventasummarytext","type":"p","children":[{"text":"📦 Pedido {{orderId}}\n\nEstado del pedido: {{orderStatus}}\nTotal: {{orderTotal}} {{orderCurrency}}\nPreparación: {{fulfillmentStatus}}"}]}]}},
+        {"id":"blkfulfillmentstatus","type":"Condition","items":[{"id":"itmfulfillmentpartial","outgoingEdgeId":"edgefulfillmentpartial","content":{"comparisons":[{"id":"cmpfulfillmentpartial","variableId":"vfulfillmentstatus","comparisonOperator":"Equal to","value":"partial"}]}},{"id":"itmfulfillmentunknown","outgoingEdgeId":"edgefulfillmentunknown","content":{"comparisons":[{"id":"cmpfulfillmentunknown","variableId":"vfulfillmentstatus","comparisonOperator":"Equal to","value":"submission_unknown"}]}},{"id":"itmfulfillmentfailed","outgoingEdgeId":"edgefulfillmentfailed","content":{"comparisons":[{"id":"cmpfulfillmentfailed","variableId":"vfulfillmentstatus","comparisonOperator":"Equal to","value":"failed"}]}},{"id":"itmfulfillmentcancelled","outgoingEdgeId":"edgefulfillmentcancelled","content":{"comparisons":[{"id":"cmpfulfillmentcancelled","variableId":"vfulfillmentstatus","comparisonOperator":"Equal to","value":"cancelled"}]}}],"outgoingEdgeId":"edgefulfillmentinfo"}
+      ]
+    },
+    {
+      "id": "grpfulfillmentinfo",
+      "title": "Preparación en curso",
+      "graphCoordinates": { "x": 2320, "y": 1320 },
+      "blocks": [
+        {"id":"blkfulfillmentinfotext","type":"text","content":{"richText":[{"id":"rtblkfulfillmentinfotext","type":"p","children":[{"text":"ℹ️ La preparación de tu pedido figura como *{{fulfillmentStatus}}*.\nSi aún no hay preparación registrada, aparecerá cuando el pago quede confirmado."}]}]}},
+        {"id":"blkfulfillmentinfochoices","type":"choice input","items":[{"id":"itmfulfillmentinfohuman","content":"🙋 Hablar con una persona","outgoingEdgeId":"edgefulfillmentinfohuman"},{"id":"itmfulfillmentinfomenu","content":"⬅️ Volver al menú","outgoingEdgeId":"edgefulfillmentinfomenu"}]}
+      ]
+    },
+    {
+      "id": "grpfulfillmentproblem",
+      "title": "Problema de preparación",
+      "graphCoordinates": { "x": 2700, "y": 1320 },
+      "blocks": [
+        {"id":"blkfulfillmentproblemtext","type":"text","content":{"richText":[{"id":"rtblkfulfillmentproblemtext","type":"p","children":[{"text":"⚠️ La preparación de tu pedido requiere revisión (estado: {{fulfillmentStatus}}).\nTe derivamos a una persona del equipo para que lo revise."}]}]}},
+        {"id":"blkfulfillmentproblemchoices","type":"choice input","items":[{"id":"itmfulfillmentproblemhuman","content":"🙋 Hablar con una persona","outgoingEdgeId":"edgefulfillmentproblemhuman"},{"id":"itmfulfillmentproblemm","content":"⬅️ Volver al menú","outgoingEdgeId":"edgefulfillmentproblemm"}]}
       ]
     }
   ],
@@ -705,7 +1347,7 @@
     { "id": "edgeviewercustomer", "from": { "blockId": "blkviewerphoneinput" }, "to": { "groupId": "grpcustomerresolve" } },
     { "id": "edgeevolutioncustomer", "from": { "blockId": "blknormalizephone" }, "to": { "groupId": "grpcustomerresolve" } },
     { "id": "edgecustomererror", "from": { "blockId": "blkcustomercheck", "itemId": "itmcustomermissing" }, "to": { "groupId": "grpgenericerror" } },
-    { "id": "edgecustomerproducts", "from": { "blockId": "blkcustomercheck" }, "to": { "groupId": "grpproductsfetch" } },
+    { "id": "edgecustomerproducts", "from": { "blockId": "blkcustomercheck" }, "to": { "groupId": "grpmainmenu" } },
     { "id": "edgeproductserror", "from": { "blockId": "blkproductscheck", "itemId": "itmproductsnone" }, "to": { "groupId": "grpgenericerror" } },
     { "id": "edgeproductsmenu", "from": { "blockId": "blkproductscheck" }, "to": { "groupId": "grpproductmenu" } },
     { "id": "edgemenuselection", "from": { "blockId": "blkproductselectioninput" }, "to": { "groupId": "grpselectionrouter" } },
@@ -721,7 +1363,7 @@
     { "id": "edgeselect4check", "from": { "blockId": "blkselect4name" }, "to": { "groupId": "grpselectedcheck" } },
     { "id": "edgeselect5check", "from": { "blockId": "blkselect5name" }, "to": { "groupId": "grpselectedcheck" } },
     { "id": "edgeselectedunavailable", "from": { "blockId": "blkselectedcondition", "itemId": "itmselectedempty" }, "to": { "groupId": "grpproductunavailable" } },
-    { "id": "edgeselectedquantity", "from": { "blockId": "blkselectedcondition" }, "to": { "groupId": "grpquantity" } },
+    { "id": "edgeselectedquantity", "from": { "blockId": "blkselectedcondition" }, "to": { "groupId": "grpproductdetail" } },
     { "id": "edgeunavailablemenu", "from": { "blockId": "blkunavailabletext" }, "to": { "groupId": "grpproductmenu" } },
     { "id": "edgeinvalidselectionmenu", "from": { "blockId": "blkinvalidselectiontext" }, "to": { "groupId": "grpproductmenu" } },
     { "id": "edgequantityinvalid", "from": { "blockId": "blkquantitycondition", "itemId": "itmquantityinvalid" }, "to": { "groupId": "grpinvalidquantity" } },
@@ -729,12 +1371,12 @@
     { "id": "edgeinvalidquantityretry", "from": { "blockId": "blkinvalidquantitytext" }, "to": { "groupId": "grpquantity" } },
     { "id": "edgequoteerror", "from": { "blockId": "blkquotecheck", "itemId": "itmquotemissing" }, "to": { "groupId": "grpgenericerror" } },
     { "id": "edgequotesummary", "from": { "blockId": "blkquotecheck" }, "to": { "groupId": "grpquotesummary" } },
-    { "id": "edgeconfirmorder", "from": { "blockId": "blkquoteconfirmation", "itemId": "itmconfirmorder" }, "to": { "groupId": "grpcreateorder" } },
+    { "id": "edgeconfirmorder", "from": { "blockId": "blkquoteconfirmation", "itemId": "itmconfirmorder" }, "to": { "groupId": "grpinputone" } },
     { "id": "edgechooseagain", "from": { "blockId": "blkquoteconfirmation", "itemId": "itmchooseagain" }, "to": { "groupId": "grpproductsfetch" } },
     { "id": "edgeordererror", "from": { "blockId": "blkordercheck", "itemId": "itmordermissing" }, "to": { "groupId": "grpgenericerror" } },
-    { "id": "edgeorderpayment", "from": { "blockId": "blkordercheck" }, "to": { "groupId": "grpcreatepayment" } },
+    { "id": "edgeorderpayment", "from": { "blockId": "blkordercheck" }, "to": { "groupId": "grppaymentmethods" } },
     { "id": "edgepaymenterror", "from": { "blockId": "blkpaymentcheck", "itemId": "itmpaymentmissing" }, "to": { "groupId": "grpgenericerror" } },
-    { "id": "edgepaymentstatus", "from": { "blockId": "blkpaymentcheck" }, "to": { "groupId": "grppaymentstatus" } },
+    { "id": "edgepaymentstatus", "from": { "blockId": "blkpaymenttype" }, "to": { "groupId": "grppaymentstatus" } },
     { "id": "edgestatusapproved", "from": { "blockId": "blkpaymentstatuscondition", "itemId": "itmpaymentapproved" }, "to": { "groupId": "grppaymentapproved" } },
     { "id": "edgestatuspending", "from": { "blockId": "blkpaymentstatuscondition", "itemId": "itmpaymentpending" }, "to": { "groupId": "grpcheckoutavailability" } },
     { "id": "edgestatusrejected", "from": { "blockId": "blkpaymentstatuscondition", "itemId": "itmpaymentrejected" }, "to": { "groupId": "grppaymentrejected" } },
@@ -753,7 +1395,68 @@
     { "id": "edgerejectedcatalog", "from": { "blockId": "blkrejectedchoices", "itemId": "itmrejectedcatalog" }, "to": { "groupId": "grpproductsfetch" } },
     { "id": "edgeterminalcatalog", "from": { "blockId": "blkterminalchoices", "itemId": "itmterminalcatalog" }, "to": { "groupId": "grpproductsfetch" } },
     { "id": "edgeterminalrestart", "from": { "blockId": "blkterminalchoices", "itemId": "itmterminalrestart" }, "to": { "groupId": "grpentrycontext" } },
-    { "id": "edgeerrorrestart", "from": { "blockId": "blkgenericerrorchoice", "itemId": "itmerrorrestart" }, "to": { "groupId": "grpentrycontext" } }
+    { "id": "edgeerrorrestart", "from": { "blockId": "blkgenericerrorchoice", "itemId": "itmerrorrestart" }, "to": { "groupId": "grpentrycontext" } },
+    {"id":"edgemaincatalog","from":{"blockId":"blkmainmenuchoices","itemId":"itmmaincatalog"},"to":{"groupId":"grpproductsfetch"}},
+    {"id":"edgemainfaq","from":{"blockId":"blkmainmenuchoices","itemId":"itmmainfaq"},"to":{"groupId":"grpfaq"}},
+    {"id":"edgemainstatus","from":{"blockId":"blkmainmenuchoices","itemId":"itmmainstatus"},"to":{"groupId":"grppostventa"}},
+    {"id":"edgemainhuman","from":{"blockId":"blkmainmenuchoices","itemId":"itmmainhuman"},"to":{"groupId":"grphumanhandoff"}},
+    {"id":"edgefaqhuman","from":{"blockId":"blkfaqchoices","itemId":"itmfaqhuman"},"to":{"groupId":"grphumanhandoff"}},
+    {"id":"edgefaqmenu","from":{"blockId":"blkfaqchoices","itemId":"itmfaqmenu"},"to":{"groupId":"grpmainmenu"}},
+    {"id":"edgehumanmenu","from":{"blockId":"blkhumanchoices","itemId":"itmhumanmenu"},"to":{"groupId":"grpmainmenu"}},
+    {"id":"edgehumanrestart","from":{"blockId":"blkhumanchoices","itemId":"itmhumanrestart"},"to":{"groupId":"grpentrycontext"}},
+    {"id":"edgedetailerror","from":{"blockId":"blkdetailinputs","itemId":"itmdetailerror"},"to":{"groupId":"grpgenericerror"}},
+    {"id":"edgedetailtoomany","from":{"blockId":"blkdetailinputs","itemId":"itmdetailtoomany"},"to":{"groupId":"grpinputstoomany"}},
+    {"id":"edgedetailquantity","from":{"blockId":"blkdetailinputs"},"to":{"groupId":"grpquantity"}},
+    {"id":"edgeinputstoomanyhuman","from":{"blockId":"blkinputstoomanych","itemId":"itmtoomanyhuman"},"to":{"groupId":"grphumanhandoff"}},
+    {"id":"edgeinputstoomanycatalog","from":{"blockId":"blkinputstoomanych","itemId":"itmtoomanycatalog"},"to":{"groupId":"grpproductsfetch"}},
+    {"id":"edgeinputonezero","from":{"blockId":"blkinputonecount","itemId":"itminputonezero"},"to":{"groupId":"grpcreateorder"}},
+    {"id":"edgeinputoneinvalid","from":{"blockId":"blkinputonecheck","itemId":"itminputoneinvalid"},"to":{"groupId":"grpinputone"}},
+    {"id":"edgeinputonetwo","from":{"blockId":"blkinputonecheck"},"to":{"groupId":"grpinputtwo"}},
+    {"id":"edgeinputtwoone","from":{"blockId":"blkinputtwocount","itemId":"itminputtwoone"},"to":{"groupId":"grpcreateorder"}},
+    {"id":"edgeinputtwoinvalid","from":{"blockId":"blkinputtwocheck","itemId":"itminputtwoinvalid"},"to":{"groupId":"grpinputtwo"}},
+    {"id":"edgeinputtwothree","from":{"blockId":"blkinputtwocheck"},"to":{"groupId":"grpinputthree"}},
+    {"id":"edgeinputthreetwo","from":{"blockId":"blkinputthreecount","itemId":"itminputthreetwo"},"to":{"groupId":"grpcreateorder"}},
+    {"id":"edgeinputthreeinvalid","from":{"blockId":"blkinputthreecheck","itemId":"itminputthreeinvalid"},"to":{"groupId":"grpinputthree"}},
+    {"id":"edgeinputthreeorder","from":{"blockId":"blkinputthreecheck"},"to":{"groupId":"grpcreateorder"}},
+    {"id":"edgemethodsnone","from":{"blockId":"blkmethodsexist","itemId":"itmmethodsnone"},"to":{"groupId":"grpgenericerror"}},
+    {"id":"edgemethod1","from":{"blockId":"blkmethodselection","itemId":"itmmethod1"},"to":{"groupId":"grppaymentmethodselect1"}},
+    {"id":"edgemethod2","from":{"blockId":"blkmethodselection","itemId":"itmmethod2"},"to":{"groupId":"grppaymentmethodselect2"}},
+    {"id":"edgemethod3","from":{"blockId":"blkmethodselection","itemId":"itmmethod3"},"to":{"groupId":"grppaymentmethodselect3"}},
+    {"id":"edgemethodinvalid","from":{"blockId":"blkmethodselection"},"to":{"groupId":"grppaymentmethodinvalid"}},
+    {"id":"edgemethodselect1","from":{"blockId":"blkmethod1email"},"to":{"groupId":"grppaymentmethodcheck"}},
+    {"id":"edgemethodselect2","from":{"blockId":"blkmethod2email"},"to":{"groupId":"grppaymentmethodcheck"}},
+    {"id":"edgemethodselect3","from":{"blockId":"blkmethod3email"},"to":{"groupId":"grppaymentmethodcheck"}},
+    {"id":"edgemethodunavailable","from":{"blockId":"blkmethodselected","itemId":"itmmethodempty"},"to":{"groupId":"grppaymentmethodinvalid"}},
+    {"id":"edgemethodcreate","from":{"blockId":"blkmethodselected"},"to":{"groupId":"grpcreatepayment"}},
+    {"id":"edgemethodinvalidretry","from":{"blockId":"blkpaymentmethodinvalidtext"},"to":{"groupId":"grppaymentmethods"}},
+    {"id":"edgeorderalreadyconverted","from":{"blockId":"blkordercheck","itemId":"itmorderalreadyconverted"},"to":{"groupId":"grporderalreadyconverted"}},
+    {"id":"edgealreadyconvertedstatus","from":{"blockId":"blkorderalreadychoices","itemId":"itmalreadyconvertedstatus"},"to":{"groupId":"grppostventa"}},
+    {"id":"edgealreadyconvertedhuman","from":{"blockId":"blkorderalreadychoices","itemId":"itmalreadyconvertedhuman"},"to":{"groupId":"grphumanhandoff"}},
+    {"id":"edgealreadyconvertedmenu","from":{"blockId":"blkorderalreadychoices","itemId":"itmalreadyconvertedmenu"},"to":{"groupId":"grpmainmenu"}},
+    {"id":"edgepaymentbank","from":{"blockId":"blkpaymenttype","itemId":"itmpaymentbank"},"to":{"groupId":"grpbanksummary"}},
+    {"id":"edgebankstatus","from":{"blockId":"blkbankchoices","itemId":"itmbankstatus"},"to":{"groupId":"grppostventa"}},
+    {"id":"edgebankhuman","from":{"blockId":"blkbankchoices","itemId":"itmbankhuman"},"to":{"groupId":"grphumanhandoff"}},
+    {"id":"edgebankmenu","from":{"blockId":"blkbankchoices","itemId":"itmbankmenu"},"to":{"groupId":"grpmainmenu"}},
+    {"id":"edgepostventanoorder","from":{"blockId":"blkorderexists","itemId":"itmorderexistsempty"},"to":{"groupId":"grppostventanoorder"}},
+    {"id":"edgepostventanoordercatalog","from":{"blockId":"blkpostventanoorderchoices","itemId":"itmpostventanoordercatalog"},"to":{"groupId":"grpproductsfetch"}},
+    {"id":"edgepostventanoordermenu","from":{"blockId":"blkpostventanoorderchoices","itemId":"itmpostventanoordermenu"},"to":{"groupId":"grpmainmenu"}},
+    {"id":"edgepostventaok","from":{"blockId":"blkpostventaerror","itemId":"itmpostventaok"},"to":{"groupId":"grppostventasummary"}},
+    {"id":"edgepostventaerror","from":{"blockId":"blkpostventaerror"},"to":{"groupId":"grpgenericerror"}},
+    {"id":"edgefulfillmentpartial","from":{"blockId":"blkfulfillmentstatus","itemId":"itmfulfillmentpartial"},"to":{"groupId":"grpfulfillmentproblem"}},
+    {"id":"edgefulfillmentunknown","from":{"blockId":"blkfulfillmentstatus","itemId":"itmfulfillmentunknown"},"to":{"groupId":"grpfulfillmentproblem"}},
+    {"id":"edgefulfillmentfailed","from":{"blockId":"blkfulfillmentstatus","itemId":"itmfulfillmentfailed"},"to":{"groupId":"grpfulfillmentproblem"}},
+    {"id":"edgefulfillmentcancelled","from":{"blockId":"blkfulfillmentstatus","itemId":"itmfulfillmentcancelled"},"to":{"groupId":"grpfulfillmentproblem"}},
+    {"id":"edgefulfillmentinfo","from":{"blockId":"blkfulfillmentstatus"},"to":{"groupId":"grpfulfillmentinfo"}},
+    {"id":"edgefulfillmentinfohuman","from":{"blockId":"blkfulfillmentinfochoices","itemId":"itmfulfillmentinfohuman"},"to":{"groupId":"grphumanhandoff"}},
+    {"id":"edgefulfillmentinfomenu","from":{"blockId":"blkfulfillmentinfochoices","itemId":"itmfulfillmentinfomenu"},"to":{"groupId":"grpmainmenu"}},
+    {"id":"edgefulfillmentproblemhuman","from":{"blockId":"blkfulfillmentproblemchoices","itemId":"itmfulfillmentproblemhuman"},"to":{"groupId":"grphumanhandoff"}},
+    {"id":"edgefulfillmentproblemm","from":{"blockId":"blkfulfillmentproblemchoices","itemId":"itmfulfillmentproblemm"},"to":{"groupId":"grpmainmenu"}},
+    {"id":"edgestatusrefunded","from":{"blockId":"blkpaymentstatuscondition","itemId":"itmpaymentrefunded"},"to":{"groupId":"grppaymentterminal"}},
+    {"id":"edgestatuschargeback","from":{"blockId":"blkpaymentstatuscondition","itemId":"itmpaymentchargeback"},"to":{"groupId":"grppaymentterminal"}},
+    {"id":"edgeapprovedstatus","from":{"blockId":"blkapprovedchoices","itemId":"itmapprovedstatus"},"to":{"groupId":"grppostventa"}},
+    {"id":"edgeapprovedhuman","from":{"blockId":"blkapprovedchoices","itemId":"itmapprovedhuman"},"to":{"groupId":"grphumanhandoff"}},
+    {"id":"edgeapprovedmenu","from":{"blockId":"blkapprovedchoices","itemId":"itmapprovedmenu"},"to":{"groupId":"grpmainmenu"}},
+    {"id":"edgeerrorhuman","from":{"blockId":"blkgenericerrorchoice","itemId":"itmerrorhuman"},"to":{"groupId":"grphumanhandoff"}}
   ],
   "variables": [
     { "id": "vremotejid", "name": "remoteJid", "isSessionVariable": true },
@@ -805,7 +1508,73 @@
     { "id": "vpaymentstatus", "name": "paymentStatus", "isSessionVariable": true },
     { "id": "vcheckouturl", "name": "checkoutUrl", "isSessionVariable": true },
     { "id": "vpaymentexpiresat", "name": "paymentExpiresAt", "isSessionVariable": true },
-    { "id": "vpaymentidempotencykey", "name": "paymentIdempotencyKey", "isSessionVariable": true }
+    { "id": "vpaymentidempotencykey", "name": "paymentIdempotencyKey", "isSessionVariable": true },
+    {"id":"vselectedproductdescription","name":"selectedProductDescription","isSessionVariable":true},
+    {"id":"vselectedproductmin","name":"selectedProductMin","isSessionVariable":true},
+    {"id":"vselectedproductmax","name":"selectedProductMax","isSessionVariable":true},
+    {"id":"vselectedinput1key","name":"selectedInput1Key","isSessionVariable":true},
+    {"id":"vselectedinput1label","name":"selectedInput1Label","isSessionVariable":true},
+    {"id":"vselectedinput1type","name":"selectedInput1Type","isSessionVariable":true},
+    {"id":"vselectedinput2key","name":"selectedInput2Key","isSessionVariable":true},
+    {"id":"vselectedinput2label","name":"selectedInput2Label","isSessionVariable":true},
+    {"id":"vselectedinput2type","name":"selectedInput2Type","isSessionVariable":true},
+    {"id":"vselectedinput3key","name":"selectedInput3Key","isSessionVariable":true},
+    {"id":"vselectedinput3label","name":"selectedInput3Label","isSessionVariable":true},
+    {"id":"vselectedinput3type","name":"selectedInput3Type","isSessionVariable":true},
+    {"id":"vextrainputkey","name":"extraInputKey","isSessionVariable":true},
+    {"id":"vselectedinputcount","name":"selectedInputCount","isSessionVariable":true},
+    {"id":"vquantityvalid","name":"quantityValid","isSessionVariable":true},
+    {"id":"vinput1value","name":"input1Value","isSessionVariable":true},
+    {"id":"vinput2value","name":"input2Value","isSessionVariable":true},
+    {"id":"vinput3value","name":"input3Value","isSessionVariable":true},
+    {"id":"vfield1valid","name":"field1Valid","isSessionVariable":true},
+    {"id":"vfield2valid","name":"field2Valid","isSessionVariable":true},
+    {"id":"vfield3valid","name":"field3Valid","isSessionVariable":true},
+    {"id":"vfulfillmentinput","name":"fulfillmentInput","isSessionVariable":true},
+    {"id":"vbackenderrorcode","name":"backendErrorCode","isSessionVariable":true},
+    {"id":"vbackenderrormessage","name":"backendErrorMessage","isSessionVariable":true},
+    {"id":"vordercurrency","name":"orderCurrency","isSessionVariable":true},
+    {"id":"vpaymentmethod1id","name":"paymentMethod1Id","isSessionVariable":true},
+    {"id":"vpaymentmethod1type","name":"paymentMethod1Type","isSessionVariable":true},
+    {"id":"vpaymentmethod1name","name":"paymentMethod1Name","isSessionVariable":true},
+    {"id":"vpaymentmethod1accountholder","name":"paymentMethod1AccountHolder","isSessionVariable":true},
+    {"id":"vpaymentmethod1rut","name":"paymentMethod1Rut","isSessionVariable":true},
+    {"id":"vpaymentmethod1bankname","name":"paymentMethod1BankName","isSessionVariable":true},
+    {"id":"vpaymentmethod1accounttype","name":"paymentMethod1AccountType","isSessionVariable":true},
+    {"id":"vpaymentmethod1accountnumber","name":"paymentMethod1AccountNumber","isSessionVariable":true},
+    {"id":"vpaymentmethod1email","name":"paymentMethod1Email","isSessionVariable":true},
+    {"id":"vpaymentmethod2id","name":"paymentMethod2Id","isSessionVariable":true},
+    {"id":"vpaymentmethod2type","name":"paymentMethod2Type","isSessionVariable":true},
+    {"id":"vpaymentmethod2name","name":"paymentMethod2Name","isSessionVariable":true},
+    {"id":"vpaymentmethod2accountholder","name":"paymentMethod2AccountHolder","isSessionVariable":true},
+    {"id":"vpaymentmethod2rut","name":"paymentMethod2Rut","isSessionVariable":true},
+    {"id":"vpaymentmethod2bankname","name":"paymentMethod2BankName","isSessionVariable":true},
+    {"id":"vpaymentmethod2accounttype","name":"paymentMethod2AccountType","isSessionVariable":true},
+    {"id":"vpaymentmethod2accountnumber","name":"paymentMethod2AccountNumber","isSessionVariable":true},
+    {"id":"vpaymentmethod2email","name":"paymentMethod2Email","isSessionVariable":true},
+    {"id":"vpaymentmethod3id","name":"paymentMethod3Id","isSessionVariable":true},
+    {"id":"vpaymentmethod3type","name":"paymentMethod3Type","isSessionVariable":true},
+    {"id":"vpaymentmethod3name","name":"paymentMethod3Name","isSessionVariable":true},
+    {"id":"vpaymentmethod3accountholder","name":"paymentMethod3AccountHolder","isSessionVariable":true},
+    {"id":"vpaymentmethod3rut","name":"paymentMethod3Rut","isSessionVariable":true},
+    {"id":"vpaymentmethod3bankname","name":"paymentMethod3BankName","isSessionVariable":true},
+    {"id":"vpaymentmethod3accounttype","name":"paymentMethod3AccountType","isSessionVariable":true},
+    {"id":"vpaymentmethod3accountnumber","name":"paymentMethod3AccountNumber","isSessionVariable":true},
+    {"id":"vpaymentmethod3email","name":"paymentMethod3Email","isSessionVariable":true},
+    {"id":"vpaymentmethodselection","name":"paymentMethodSelection","isSessionVariable":true},
+    {"id":"vselectedpaymentmethodid","name":"selectedPaymentMethodId","isSessionVariable":true},
+    {"id":"vselectedpaymentmethodtype","name":"selectedPaymentMethodType","isSessionVariable":true},
+    {"id":"vselectedpaymentmethodname","name":"selectedPaymentMethodName","isSessionVariable":true},
+    {"id":"vbankaccountholder","name":"bankAccountHolder","isSessionVariable":true},
+    {"id":"vbankrut","name":"bankRut","isSessionVariable":true},
+    {"id":"vbankname","name":"bankName","isSessionVariable":true},
+    {"id":"vbankaccounttype","name":"bankAccountType","isSessionVariable":true},
+    {"id":"vbankaccountnumber","name":"bankAccountNumber","isSessionVariable":true},
+    {"id":"vbankemail","name":"bankEmail","isSessionVariable":true},
+    {"id":"vfulfillmentid","name":"fulfillmentId","isSessionVariable":true},
+    {"id":"vfulfillmentstatus","name":"fulfillmentStatus","isSessionVariable":true},
+    {"id":"vfulfillmentsubmittedat","name":"fulfillmentSubmittedAt","isSessionVariable":true},
+    {"id":"vfulfillmentcompletedat","name":"fulfillmentCompletedAt","isSessionVariable":true}
   ],
   "theme": {},
   "selectedThemeTemplateId": null,
@@ -824,3 +1593,4 @@
   "riskLevel": null,
   "spaceId": null
 }
+

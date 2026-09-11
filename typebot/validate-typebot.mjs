@@ -139,9 +139,27 @@ export function validateTypebotDocument(template) {
       `product${slot}Id`, `product${slot}Name`, `product${slot}Min`, `product${slot}Max`,
     ]),
     "productSelection", "selectedProductId", "selectedProductName", "quantityInput", "quantity",
+    "selectedProductDescription", "selectedProductMin", "selectedProductMax", "quantityValid",
+    ...Array.from({ length: 3 }, (_, index) => index + 1).flatMap((slot) => [
+      `selectedInput${slot}Key`, `selectedInput${slot}Label`, `selectedInput${slot}Type`,
+      `input${slot}Value`, `field${slot}Valid`,
+    ]),
+    "extraInputKey", "selectedInputCount", "fulfillmentInput",
+    "backendErrorCode", "backendErrorMessage",
     "quoteId", "quoteProductName", "quoteQuantity", "quoteCurrency", "quoteTotal", "quoteStatus",
-    "orderId", "orderStatus", "orderItemId", "orderTotal", "paymentId", "paymentStatus",
+    "orderId", "orderStatus", "orderItemId", "orderTotal", "orderCurrency",
+    ...Array.from({ length: 3 }, (_, index) => index + 1).flatMap((slot) => [
+      `paymentMethod${slot}Id`, `paymentMethod${slot}Type`, `paymentMethod${slot}Name`,
+      `paymentMethod${slot}AccountHolder`, `paymentMethod${slot}Rut`,
+      `paymentMethod${slot}BankName`, `paymentMethod${slot}AccountType`,
+      `paymentMethod${slot}AccountNumber`, `paymentMethod${slot}Email`,
+    ]),
+    "paymentMethodSelection", "selectedPaymentMethodId", "selectedPaymentMethodType",
+    "selectedPaymentMethodName",
+    "bankAccountHolder", "bankRut", "bankName", "bankAccountType", "bankAccountNumber", "bankEmail",
+    "paymentId", "paymentStatus",
     "checkoutUrl", "paymentExpiresAt", "paymentIdempotencyKey",
+    "fulfillmentId", "fulfillmentStatus", "fulfillmentSubmittedAt", "fulfillmentCompletedAt",
   ];
   for (const name of requiredVariables) {
     if (!variableNames.has(name)) fail(`required variable ${name} is missing`);
@@ -181,10 +199,14 @@ export function validateTypebotDocument(template) {
   const requiredEndpointFragments = [
     "/bot/v1/customers/resolve",
     "/bot/v1/products?limit=5&offset=0&type=service",
+    "/bot/v1/products/{{selectedProductId}}",
     "/bot/v1/quotes",
     "/bot/v1/orders",
+    "/bot/v1/orders/{{orderId}}",
     "/bot/v1/orders/{{orderId}}/payments",
+    "/bot/v1/payment-methods",
     "/bot/v1/payments/{{paymentId}}",
+    "/bot/v1/orders/{{orderId}}/fulfillments",
   ];
   const webhookUrls = webhooks.map((block) => block.options?.webhook?.url);
   for (const fragment of requiredEndpointFragments) {
@@ -211,6 +233,26 @@ export function validateTypebotDocument(template) {
     }
   }
 
+  // Fulfillments are read-only for the bot: only two GET endpoints may be used to
+  // reflect status to the customer. Dispatching or syncing fulfillments stays
+  // behind the backend and must never be reachable from the template.
+  const allowedFulfillmentUrls = new Set([
+    "{{backend_base_url}}/bot/v1/orders/{{orderId}}/fulfillments",
+    "{{backend_base_url}}/bot/v1/fulfillments/{{fulfillmentId}}",
+  ]);
+  for (const block of webhooks) {
+    const webhook = block.options?.webhook;
+    const url = webhook?.url ?? "";
+    if (!url.includes("/fulfillments")) continue;
+    const method = webhook?.method ?? (webhook?.body ? "POST" : "GET");
+    if (method !== "GET" || webhook?.body !== undefined) {
+      fail(`Webhook ${block.id} must not dispatch fulfillments`);
+    }
+    if (!allowedFulfillmentUrls.has(url)) {
+      fail(`Webhook ${block.id} uses a forbidden fulfillment endpoint`);
+    }
+  }
+
   const backendToken = template.variables.find(({ name }) => name === "backend_token");
   const tokenSetBlock = blocks.find(
     (block) => block.type === "Set variable" && block.options?.variableId === backendToken.id,
@@ -227,8 +269,11 @@ export function validateTypebotDocument(template) {
   if (/localhost|pablete\.xyz|\b(?:\d{1,3}\.){3}\d{1,3}\b|docker[^\s\"/]*:3000/i.test(raw)) {
     fail("hardcoded deployment address detected");
   }
-  if (/businessId|provider_service_id|providerServiceId|\/fulfillments/i.test(raw)) {
-    fail("forbidden Business/provider/Fulfillment concept detected");
+  if (/businessId|provider_service_id|providerServiceId|externalServiceId/i.test(raw)) {
+    fail("forbidden Business/provider identifier detected");
+  }
+  if (/provider[_-]?cost|cost[_-]?price|provider[_-]?price|api[_-]?key/i.test(raw)) {
+    fail("forbidden provider cost or credential field detected");
   }
 
   return template;
