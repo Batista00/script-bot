@@ -81,7 +81,7 @@ test(
     const migrationResult = await db.query<{ count: number }>(
       "SELECT count(*)::integer AS count FROM pgmigrations",
     );
-    assert.equal(migrationResult.rows[0]?.count, 14);
+    assert.equal(migrationResult.rows[0]?.count, 15);
 
     const tableResult = await db.query<{ table_name: string }>(
       `SELECT table_name
@@ -159,6 +159,36 @@ test(
        ORDER BY enumsortorder`,
     );
     assert.deepEqual(credentialStatuses.rows.map((row) => row.enumlabel), ["active", "inactive"]);
+
+    const membershipStatuses = await db.query<{ enumlabel: string }>(
+      `SELECT enumlabel FROM pg_enum
+       JOIN pg_type ON pg_type.oid = pg_enum.enumtypid
+       WHERE pg_type.typname = 'membership_status'
+       ORDER BY enumsortorder`,
+    );
+    assert.deepEqual(membershipStatuses.rows.map((row) => row.enumlabel), ["active", "inactive"]);
+
+    const membershipStatusColumn = await db.query<{ column_name: string; is_nullable: string }>(
+      `SELECT column_name, is_nullable
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'business_memberships'
+         AND column_name = 'status'`,
+    );
+    assert.deepEqual(membershipStatusColumn.rows[0], {
+      column_name: "status",
+      is_nullable: "NO",
+    });
+
+    const membershipIndexes = await db.query<{ indexname: string }>(
+      `SELECT indexname FROM pg_indexes
+       WHERE schemaname = 'public' AND indexname = ANY($1::text[])`,
+      [[
+        "business_memberships_business_status_idx",
+        "business_memberships_business_user_unique",
+      ]],
+    );
+    assert.equal(membershipIndexes.rows.length, 2);
 
     const providerReferenceColumn = await db.query<{ column_name: string }>(
       `SELECT column_name

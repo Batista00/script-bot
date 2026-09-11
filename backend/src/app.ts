@@ -41,6 +41,9 @@ import { IntegrationCredentialsCrypto } from "./modules/integrations/integration
 import { PostgresIntegrationsRepository } from "./modules/integrations/integrations.repository.js";
 import { IntegrationsService } from "./modules/integrations/integrations.service.js";
 import { MachineAuthService } from "./modules/machine-auth/machine-auth.service.js";
+import { PostgresMembershipsRepository } from "./modules/memberships/memberships.repository.js";
+import { businessMembershipsRoutes } from "./modules/memberships/memberships.routes.js";
+import { BusinessMembershipsService } from "./modules/memberships/memberships.service.js";
 import { PostgresOrdersRepository } from "./modules/orders/orders.repository.js";
 import { ordersRoutes } from "./modules/orders/orders.routes.js";
 import { OrdersService } from "./modules/orders/orders.service.js";
@@ -67,6 +70,7 @@ import { ProviderProductImportService } from "./modules/provider-catalog/provide
 import { PostgresQuotesRepository } from "./modules/quotes/quotes.repository.js";
 import { quotesRoutes } from "./modules/quotes/quotes.routes.js";
 import { QuotesService } from "./modules/quotes/quotes.service.js";
+import { PostgresUsersRepository } from "./modules/users/users.repository.js";
 
 export async function buildApp(config: Env): Promise<FastifyInstance> {
   const app = Fastify({
@@ -176,6 +180,13 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
     loginRateLimit: loginRateLimitGuard(loginRateLimiter),
   });
   await app.register(businessesRoutes, { prefix: "/businesses" });
+  await app.register(businessMembershipsRoutes, {
+    service: new BusinessMembershipsService(
+      new PostgresMembershipsRepository(app.db),
+      new PostgresUsersRepository(app.db),
+      app.db,
+    ),
+  });
   await app.register(apiCredentialsRoutes, { service: apiCredentialsService });
   await app.register(botGatewayRoutes, {
     prefix: "/bot/v1",

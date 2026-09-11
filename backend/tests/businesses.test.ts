@@ -46,6 +46,7 @@ function repositoryStub(
 }
 
 const existingMembership: BusinessMembership = {
+  status: "active", businessStatus: "active",
   id: "273676c0-da1f-47d4-a0a7-15624760233b",
   businessId: existingBusiness.id,
   userId: "46f5476a-c7e9-403f-9fff-fc3bb234c8b6",

@@ -5,6 +5,7 @@ import {
   requireBusinessMembership,
   requireBusinessRole,
 } from "../auth/auth.middleware.js";
+import { requireActiveBusiness } from "../businesses/businesses.active.middleware.js";
 import {
   type OrderBusinessParams,
   OrdersController,
@@ -30,10 +31,12 @@ export const ordersRoutes: FastifyPluginAsync = async (app) => {
   const allowManagers = requireBusinessRole(["owner", "admin"]);
   const regularAuthorization = [requireUser, requireMembership, allowAllRoles];
   const cancelAuthorization = [requireUser, requireMembership, allowManagers];
+  const commercialAuthorization = [...regularAuthorization, requireActiveBusiness()];
+  const commercialCancelAuthorization = [...cancelAuthorization, requireActiveBusiness()];
 
   app.post<{ Params: OrderBusinessParams; Body: CreateOrderInput }>(
     "/businesses/:businessId/orders",
-    { schema: createOrderSchema, preHandler: regularAuthorization },
+    { schema: createOrderSchema, preHandler: commercialAuthorization },
     controller.create,
   );
   app.get<{ Params: OrderBusinessParams; Querystring: OrderListQuery }>(
@@ -48,7 +51,7 @@ export const ordersRoutes: FastifyPluginAsync = async (app) => {
   );
   app.post<{ Params: OrderIdParams }>(
     "/businesses/:businessId/orders/:orderId/cancel",
-    { schema: cancelOrderSchema, preHandler: cancelAuthorization },
+    { schema: cancelOrderSchema, preHandler: commercialCancelAuthorization },
     controller.cancel,
   );
 };

@@ -27,6 +27,7 @@ async function buildRoleApp(role: BusinessRole) {
     createdAt: paymentNow, updatedAt: paymentNow,
   });
   app.membershipsRepository.findByBusinessAndUser = async () => ({
+    status: "active", businessStatus: "active",
     id: membershipId, businessId: paymentBusinessA, userId, role,
     createdAt: paymentNow, updatedAt: paymentNow,
   });

@@ -42,6 +42,7 @@ test("machine authentication accepts only the exact active credential", async ()
     credentialId: created.credential.id,
     businessId: businessA,
     credentialName: "Typebot",
+    businessStatus: "active",
   });
   assert.equal(await machine.authenticate("bw_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"), null);
   await credentials.update(businessA, created.credential.id, { status: "inactive" });

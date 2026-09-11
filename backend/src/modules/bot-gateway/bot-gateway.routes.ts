@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 
+import { requireActiveBusiness } from "../businesses/businesses.active.middleware.js";
 import { requireMachineCredential } from "../machine-auth/machine-auth.middleware.js";
 import { MachineAuthService } from "../machine-auth/machine-auth.service.js";
 import {
@@ -50,71 +51,73 @@ export const botGatewayRoutes: FastifyPluginAsync<BotGatewayRoutesOptions> = asy
   app.decorateRequest("machineAuthContext", null);
   const controller = new BotGatewayController(options.service);
   const machineAuth = requireMachineCredential(options.machineAuth);
+  const activeBusiness = requireActiveBusiness();
+  const commercialAuthorization = [machineAuth, activeBusiness];
 
   app.post<{ Body: BotResolveCustomerInput }>(
-    "/customers/resolve", { schema: resolveCustomerSchema, preHandler: machineAuth },
+    "/customers/resolve", { schema: resolveCustomerSchema, preHandler: commercialAuthorization },
     controller.resolveCustomer,
   );
   app.get<{ Querystring: BotListQuery }>(
-    "/categories", { schema: listBotCategoriesSchema, preHandler: machineAuth },
+    "/categories", { schema: listBotCategoriesSchema, preHandler: commercialAuthorization },
     controller.listCategories,
   );
   app.get<{ Querystring: BotProductListQuery }>(
-    "/products", { schema: listBotProductsSchema, preHandler: machineAuth },
+    "/products", { schema: listBotProductsSchema, preHandler: commercialAuthorization },
     controller.listProducts,
   );
   app.get<{ Params: BotProductParams }>(
-    "/products/:productId", { schema: getBotProductSchema, preHandler: machineAuth },
+    "/products/:productId", { schema: getBotProductSchema, preHandler: commercialAuthorization },
     controller.getProduct,
   );
   app.get<{ Params: BotProductParams; Querystring: BotListQuery }>(
-    "/products/:productId/prices", { schema: listBotPricesSchema, preHandler: machineAuth },
+    "/products/:productId/prices", { schema: listBotPricesSchema, preHandler: commercialAuthorization },
     controller.listPrices,
   );
   app.post<{ Body: BotCreateQuoteInput }>(
-    "/quotes", { schema: createBotQuoteSchema, preHandler: machineAuth },
+    "/quotes", { schema: createBotQuoteSchema, preHandler: commercialAuthorization },
     controller.createQuote,
   );
   app.post<{ Body: BotCreateOrderInput }>(
-    "/orders", { schema: createBotOrderSchema, preHandler: machineAuth },
+    "/orders", { schema: createBotOrderSchema, preHandler: commercialAuthorization },
     controller.createOrder,
   );
   app.get<{ Params: BotOrderParams }>(
-    "/orders/:orderId", { schema: getBotOrderSchema, preHandler: machineAuth },
+    "/orders/:orderId", { schema: getBotOrderSchema, preHandler: commercialAuthorization },
     controller.getOrder,
   );
   app.post<{
     Params: BotOrderParams; Body: BotCreatePaymentInput; Headers: BotIdempotencyHeaders;
   }>(
-    "/orders/:orderId/payments", { schema: createBotPaymentSchema, preHandler: machineAuth },
+    "/orders/:orderId/payments", { schema: createBotPaymentSchema, preHandler: commercialAuthorization },
     controller.createPayment,
   );
   app.get(
-    "/payment-methods", { schema: listBotPaymentMethodsSchema, preHandler: machineAuth },
+    "/payment-methods", { schema: listBotPaymentMethodsSchema, preHandler: commercialAuthorization },
     controller.listPaymentMethods,
   );
   app.get<{ Params: BotPaymentParams }>(
-    "/payments/:paymentId", { schema: getBotPaymentSchema, preHandler: machineAuth },
+    "/payments/:paymentId", { schema: getBotPaymentSchema, preHandler: commercialAuthorization },
     controller.getPayment,
   );
   app.post<{ Params: BotOrderParams; Body: BotDispatchFulfillmentInput }>(
     "/orders/:orderId/fulfillments",
-    { schema: dispatchBotFulfillmentSchema, preHandler: machineAuth },
+    { schema: dispatchBotFulfillmentSchema, preHandler: commercialAuthorization },
     controller.dispatchFulfillment,
   );
   app.get<{ Params: BotOrderParams }>(
     "/orders/:orderId/fulfillments",
-    { schema: listBotFulfillmentsSchema, preHandler: machineAuth },
+    { schema: listBotFulfillmentsSchema, preHandler: commercialAuthorization },
     controller.listFulfillments,
   );
   app.post<{ Params: BotFulfillmentParams }>(
     "/fulfillments/:fulfillmentId/sync-status",
-    { schema: syncBotFulfillmentSchema, preHandler: machineAuth },
+    { schema: syncBotFulfillmentSchema, preHandler: commercialAuthorization },
     controller.syncFulfillment,
   );
   app.get<{ Params: BotFulfillmentParams }>(
     "/fulfillments/:fulfillmentId",
-    { schema: getBotFulfillmentSchema, preHandler: machineAuth },
+    { schema: getBotFulfillmentSchema, preHandler: commercialAuthorization },
     controller.getFulfillment,
   );
 };

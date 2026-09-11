@@ -168,6 +168,7 @@ test("GET /auth/me and GET /businesses reject a missing session", async (t) => {
 });
 
 const membershipBase: BusinessMembership = {
+  status: "active", businessStatus: "active",
   id: "273676c0-da1f-47d4-a0a7-15624760233b",
   businessId: "0e2f6f5e-72e1-4ec9-8680-0c2185d91c68",
   userId: userBase.id,

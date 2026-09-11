@@ -148,6 +148,38 @@ test(
     assert.equal(updateResponse.json<Business>().name, "Integration Test Updated");
     assert.equal(updateResponse.json<Business>().status, "inactive");
 
+    const inactiveWriteResponse = await app.inject({
+      method: "POST",
+      url: `/businesses/${createdId}/customers`,
+      headers: { cookie },
+      payload: { phone: "+56900000000" },
+    });
+    assert.equal(inactiveWriteResponse.statusCode, 409);
+    assert.equal(inactiveWriteResponse.json().error.code, "BUSINESS_INACTIVE");
+
+    const inactiveReadResponse = await app.inject({
+      method: "GET",
+      url: `/businesses/${createdId}/customers`,
+      headers: { cookie },
+    });
+    assert.equal(inactiveReadResponse.statusCode, 200);
+
+    const inactiveAdministrationResponse = await app.inject({
+      method: "GET",
+      url: `/businesses/${createdId}/api-credentials`,
+      headers: { cookie },
+    });
+    assert.equal(inactiveAdministrationResponse.statusCode, 200);
+
+    const reactivateResponse = await app.inject({
+      method: "PATCH",
+      url: `/businesses/${createdId}`,
+      headers: { cookie },
+      payload: { status: "active" },
+    });
+    assert.equal(reactivateResponse.statusCode, 200);
+    assert.equal(reactivateResponse.json<Business>().status, "active");
+
     const customerPhone = "+56 9 1234 5678";
     const createCustomerResponse = await app.inject({
       method: "POST",

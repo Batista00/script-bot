@@ -5,6 +5,7 @@ import {
   requireBusinessMembership,
   requireBusinessRole,
 } from "../auth/auth.middleware.js";
+import { requireActiveBusiness } from "../businesses/businesses.active.middleware.js";
 import {
   ProductProviderMappingParams,
   ProviderCatalogBusinessParams,
@@ -52,6 +53,7 @@ export const providerCatalogRoutes: FastifyPluginAsync<ProviderCatalogRoutesOpti
   ];
   const read = [...membership, requireBusinessRole(["owner", "admin", "operator"])];
   const write = [...membership, requireBusinessRole(["owner", "admin"])];
+  const commercialWrite = [...write, requireActiveBusiness()];
 
   app.get<{ Params: ProviderCatalogBusinessParams; Querystring: ProviderServiceListQuery }>(
     "/businesses/:businessId/provider-services",
@@ -65,7 +67,7 @@ export const providerCatalogRoutes: FastifyPluginAsync<ProviderCatalogRoutesOpti
   );
   app.post<{ Params: ProviderCatalogSyncParams }>(
     "/businesses/:businessId/integrations/:integrationId/provider-services/sync",
-    { schema: syncProviderServicesSchema, preHandler: write },
+    { schema: syncProviderServicesSchema, preHandler: commercialWrite },
     controller.sync,
   );
   app.get<{ Params: ProviderCatalogSyncParams }>(
@@ -75,7 +77,7 @@ export const providerCatalogRoutes: FastifyPluginAsync<ProviderCatalogRoutesOpti
   );
   app.post<{ Params: ProviderProductImportParams; Body: ImportProviderServiceInput }>(
     "/businesses/:businessId/provider-services/import-product",
-    { schema: importProviderServiceSchema, preHandler: write },
+    { schema: importProviderServiceSchema, preHandler: commercialWrite },
     importController.import,
   );
   app.post<{
@@ -83,7 +85,7 @@ export const providerCatalogRoutes: FastifyPluginAsync<ProviderCatalogRoutesOpti
     Body: CreateProductProviderMappingInput;
   }>(
     "/businesses/:businessId/products/:productId/provider-mapping",
-    { schema: createProviderMappingSchema, preHandler: write },
+    { schema: createProviderMappingSchema, preHandler: commercialWrite },
     controller.createMapping,
   );
   app.get<{ Params: ProductProviderMappingParams }>(
@@ -96,7 +98,7 @@ export const providerCatalogRoutes: FastifyPluginAsync<ProviderCatalogRoutesOpti
     Body: UpdateProductProviderMappingInput;
   }>(
     "/businesses/:businessId/products/:productId/provider-mapping",
-    { schema: updateProviderMappingSchema, preHandler: write },
+    { schema: updateProviderMappingSchema, preHandler: commercialWrite },
     controller.updateMapping,
   );
 };

@@ -5,6 +5,7 @@ import {
   requireBusinessMembership,
   requireBusinessRole,
 } from "../auth/auth.middleware.js";
+import { requireActiveBusiness } from "../businesses/businesses.active.middleware.js";
 import {
   type FulfillmentIdParams,
   type FulfillmentBusinessParams,
@@ -38,10 +39,13 @@ export const fulfillmentsRoutes: FastifyPluginAsync<FulfillmentsRoutesOptions> =
   ];
   const operations = [...membership, requireBusinessRole(["owner", "admin", "operator"])];
   const administration = [...membership, requireBusinessRole(["owner", "admin"])];
+  const activeBusiness = requireActiveBusiness();
+  const commercialOperations = [...operations, activeBusiness];
+  const commercialAdministration = [...administration, activeBusiness];
 
   app.post<{ Params: FulfillmentOrderParams; Body: DispatchFulfillmentInput }>(
     "/businesses/:businessId/orders/:orderId/fulfillments",
-    { schema: dispatchFulfillmentSchema, preHandler: operations },
+    { schema: dispatchFulfillmentSchema, preHandler: commercialOperations },
     controller.dispatch,
   );
   app.get<{ Params: FulfillmentOrderParams }>(
@@ -61,7 +65,7 @@ export const fulfillmentsRoutes: FastifyPluginAsync<FulfillmentsRoutesOptions> =
   );
   app.post<{ Params: FulfillmentIdParams }>(
     "/businesses/:businessId/fulfillments/:fulfillmentId/retry",
-    { schema: retryFulfillmentSchema, preHandler: administration },
+    { schema: retryFulfillmentSchema, preHandler: commercialAdministration },
     controller.retry,
   );
   app.post<{ Params: FulfillmentIdParams }>(

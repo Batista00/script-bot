@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import type { InjectOptions } from "fastify";
 
 import { buildApp } from "../src/app.js";
 import type { Env } from "../src/config/env.js";
@@ -21,7 +22,11 @@ const config: Env = {
   LOG_LEVEL: "silent", AUTH_SESSION_TTL_HOURS: 168,
 };
 
-async function appWithRole(role: BusinessRole, active = true) {
+async function appWithRole(
+  role: BusinessRole,
+  active = true,
+  businessStatus: "active" | "inactive" = "active",
+) {
   const app = await buildApp(config);
   app.authService.authenticate = async (session) => {
     if (session !== "session") {
@@ -33,12 +38,14 @@ async function appWithRole(role: BusinessRole, active = true) {
     };
   };
   app.membershipsRepository.findByBusinessAndUser = async () => ({
+    status: "active", businessStatus,
     id: membershipId, businessId: businessA, userId, role, createdAt: now, updatedAt: now,
   });
   const credentialRow = {
     id: credentialId, business_id: businessA, name: "Typebot Principal",
     token_hash: hashApiCredentialToken(token), token_prefix: token.slice(0, 11),
-    status: active ? "active" : "inactive", created_at: now, updated_at: now,
+    status: active ? "active" : "inactive", business_status: businessStatus,
+    created_at: now, updated_at: now,
   };
   app.db.query = (async (sql: string, values?: unknown[]) => {
     if (sql.includes("INSERT INTO business_api_credentials")) {
@@ -139,4 +146,47 @@ test("inactive credential receives the same 401 as an invalid token", async (t) 
   });
   assert.equal(response.statusCode, 401);
   assert.equal(response.json().error.code, "MACHINE_AUTHENTICATION_REQUIRED");
+});
+
+test("an inactive business blocks the bot channel and commercial writes but keeps administration", async (t) => {
+  const app = await appWithRole("owner", true, "inactive");
+  t.after(async () => app.close());
+  const session = { cookie: `${sessionCookieName}=session` };
+
+  const blocked: InjectOptions[] = [
+    { method: "GET", url: "/bot/v1/categories", headers: { authorization: `Bearer ${token}` } },
+    { method: "GET", url: "/bot/v1/payment-methods", headers: { authorization: `Bearer ${token}` } },
+    {
+      method: "POST", url: "/bot/v1/customers/resolve",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { phone: "+56911111111" },
+    },
+    {
+      method: "POST", url: `/businesses/${businessA}/categories`,
+      headers: session, payload: { name: "Instagram" },
+    },
+    {
+      method: "POST", url: `/businesses/${businessA}/products`,
+      headers: session, payload: { name: "Seguidores", type: "service" },
+    },
+    {
+      method: "POST", url: `/businesses/${businessA}/quotes`,
+      headers: session, payload: { productId: categoryId, quantity: 1, currency: "CLP" },
+    },
+  ];
+  for (const request of blocked) {
+    const response = await app.inject(request);
+    assert.equal(response.statusCode, 409, `${request.method} ${request.url}`);
+    assert.equal(response.json().error.code, "BUSINESS_INACTIVE");
+  }
+
+  const adminRead = await app.inject({
+    method: "GET", url: `/businesses/${businessA}/api-credentials`, headers: session,
+  });
+  assert.equal(adminRead.statusCode, 200);
+
+  const commercialRead = await app.inject({
+    method: "GET", url: `/businesses/${businessA}/categories`, headers: session,
+  });
+  assert.equal(commercialRead.statusCode, 200);
 });

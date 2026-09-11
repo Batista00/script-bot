@@ -37,6 +37,7 @@ async function buildRoleApp(role: BusinessRole, withRecord = true) {
     createdAt: now, updatedAt: now,
   });
   app.membershipsRepository.findByBusinessAndUser = async () => ({
+    status: "active", businessStatus: "active",
     id: membershipId, businessId, userId, role, createdAt: now, updatedAt: now,
   });
   app.db.query = (async () => ({ rows: withRecord ? [integrationRow] : [] })) as unknown as

@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 
+import { requireActiveBusiness } from "../businesses/businesses.active.middleware.js";
 import {
   requireAuthenticatedUser,
   requireBusinessMembership,
@@ -32,10 +33,18 @@ export const customersRoutes: FastifyPluginAsync = async (app) => {
   const requireMembership = requireBusinessMembership(app.membershipsRepository);
   const requireCustomerRole = requireBusinessRole(["owner", "admin", "operator"]);
   const authorization = [requireUser, requireMembership, requireCustomerRole];
+  const activeBusiness = requireActiveBusiness();
+  const writeAuthorization = [...authorization, activeBusiness];
+  const deleteAuthorization = [
+    requireUser,
+    requireMembership,
+    requireBusinessRole(["owner", "admin"]),
+    activeBusiness,
+  ];
 
   app.post<{ Params: CustomerBusinessParams; Body: CreateCustomerInput }>(
     "/businesses/:businessId/customers",
-    { schema: createCustomerSchema, preHandler: authorization },
+    { schema: createCustomerSchema, preHandler: writeAuthorization },
     controller.create,
   );
   app.get<{ Params: CustomerBusinessParams; Querystring: CustomerListQuery }>(
@@ -50,12 +59,12 @@ export const customersRoutes: FastifyPluginAsync = async (app) => {
   );
   app.patch<{ Params: CustomerIdParams; Body: UpdateCustomerInput }>(
     "/businesses/:businessId/customers/:customerId",
-    { schema: updateCustomerSchema, preHandler: authorization },
+    { schema: updateCustomerSchema, preHandler: writeAuthorization },
     controller.update,
   );
   app.delete<{ Params: CustomerIdParams }>(
     "/businesses/:businessId/customers/:customerId",
-    { schema: deleteCustomerSchema, preHandler: [requireUser, requireMembership, requireBusinessRole(["owner", "admin"])] },
+    { schema: deleteCustomerSchema, preHandler: deleteAuthorization },
     controller.delete,
   );
 };

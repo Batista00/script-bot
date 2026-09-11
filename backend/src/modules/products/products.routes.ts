@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 
+import { requireActiveBusiness } from "../businesses/businesses.active.middleware.js";
 import {
   requireAuthenticatedUser,
   requireBusinessMembership,
@@ -39,10 +40,11 @@ export const productsRoutes: FastifyPluginAsync = async (app) => {
   const allowWrite = requireBusinessRole(["owner", "admin"]);
   const readAuthorization = [requireUser, requireMembership, allowRead];
   const writeAuthorization = [requireUser, requireMembership, allowWrite];
+  const commercialWrite = [...writeAuthorization, requireActiveBusiness()];
 
   app.post<{ Params: ProductBusinessParams; Body: CreateProductInput }>(
     "/businesses/:businessId/products",
-    { schema: createProductSchema, preHandler: writeAuthorization },
+    { schema: createProductSchema, preHandler: commercialWrite },
     controller.create,
   );
   app.get<{ Params: ProductBusinessParams; Querystring: ProductListQuery }>(
@@ -57,12 +59,12 @@ export const productsRoutes: FastifyPluginAsync = async (app) => {
   );
   app.patch<{ Params: ProductIdParams; Body: UpdateProductInput }>(
     "/businesses/:businessId/products/:productId",
-    { schema: updateProductSchema, preHandler: writeAuthorization },
+    { schema: updateProductSchema, preHandler: commercialWrite },
     controller.update,
   );
   app.delete<{ Params: ProductIdParams }>(
     "/businesses/:businessId/products/:productId",
-    { schema: deleteProductSchema, preHandler: writeAuthorization },
+    { schema: deleteProductSchema, preHandler: commercialWrite },
     controller.delete,
   );
 };

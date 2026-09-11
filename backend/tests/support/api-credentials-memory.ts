@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 
+import type { BusinessStatus } from "../../src/modules/businesses/businesses.types.js";
 import type {
+  ActiveApiCredential,
   ApiCredential,
   ApiCredentialsRepository,
   ApiCredentialStatus,
-  ApiCredentialWithHash,
 } from "../../src/modules/api-credentials/api-credentials.types.js";
 
 export const credentialNow = "2026-08-19T12:00:00.000Z";
@@ -13,6 +14,8 @@ interface StoredCredential extends ApiCredential { tokenHash: string }
 
 export class MemoryApiCredentialsRepository implements ApiCredentialsRepository {
   readonly credentials: StoredCredential[] = [];
+  /** Tenant status reported by machine authentication; tests can flip it. */
+  businessStatus: BusinessStatus = "active";
 
   async create(
     businessId: string,
@@ -34,10 +37,12 @@ export class MemoryApiCredentialsRepository implements ApiCredentialsRepository 
       item.businessId === businessId && item.id === credentialId);
     return value ? this.public(value) : null;
   }
-  async findActiveByHash(tokenHash: string): Promise<ApiCredentialWithHash | null> {
+  async findActiveByHash(tokenHash: string): Promise<ActiveApiCredential | null> {
     const value = this.credentials.find((item) =>
       item.tokenHash === tokenHash && item.status === "active");
-    return value ? structuredClone(value) : null;
+    return value
+      ? { ...structuredClone(value), businessStatus: this.businessStatus }
+      : null;
   }
   async update(
     businessId: string,
