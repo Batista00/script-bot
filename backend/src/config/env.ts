@@ -26,10 +26,36 @@ const envSchema = z.object({
       "PUBLIC_API_BASE_URL must use the http or https protocol",
     ).optional(),
   ),
+  TRUST_PROXY: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.string().trim().min(1).max(200).optional(),
+  ),
+  AUTH_LOGIN_RATE_LIMIT_MAX: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.coerce.number().int().min(1).max(10_000).optional(),
+  ),
+  AUTH_LOGIN_RATE_LIMIT_WINDOW_SECONDS: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.coerce.number().int().min(1).max(86_400).optional(),
+  ),
 });
 
 export type Env = z.infer<typeof envSchema>;
 
 export function loadEnv(input: NodeJS.ProcessEnv = process.env): Env {
   return envSchema.parse(input);
+}
+
+export type TrustProxyValue = boolean | string;
+
+/**
+ * Resolves the Fastify `trustProxy` option. The default trusts loopback only,
+ * which matches the documented Nginx reverse proxy on 127.0.0.1 without
+ * trusting forwarded headers from any other peer.
+ */
+export function resolveTrustProxy(value: Env["TRUST_PROXY"]): TrustProxyValue {
+  if (value === undefined) return "loopback";
+  if (value === "false") return false;
+  if (value === "true") return true;
+  return value;
 }

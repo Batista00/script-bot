@@ -69,6 +69,10 @@ Endpoints:
 - `GET /auth/me`: devuelve el usuario y sus negocios con rol, sin hashes.
 - `POST /auth/logout`: invalida la sesión actual y limpia la cookie.
 
+`POST /auth/login` es el único endpoint con rate limiting. El contador es una ventana fija en memoria por dirección IP de cliente y devuelve `429 TOO_MANY_LOGIN_ATTEMPTS` con el header `Retry-After` cuando se excede. Los valores por defecto son `AUTH_LOGIN_RATE_LIMIT_MAX=10` intentos por `AUTH_LOGIN_RATE_LIMIT_WINDOW_SECONDS=900`; cuentan tanto los intentos fallidos como los exitosos. Al estar en memoria, el límite es por proceso y presupone la réplica única documentada en `deploy/README.md`.
+
+La IP del cliente se resuelve según `TRUST_PROXY` (por defecto `loopback`), que confía en los headers reenviados únicamente cuando el par inmediato es loopback — el caso del reverse proxy Nginx documentado. Usar `TRUST_PROXY=false` si el backend se expone sin proxy, o una IP/CIDR si el proxy corre en Docker.
+
 No existe registro público. Después de aplicar las migraciones, crea el primer negocio y su owner mediante variables de entorno temporales:
 
 ```bash

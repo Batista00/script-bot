@@ -1,6 +1,6 @@
 import Fastify, { type FastifyInstance } from "fastify";
 
-import type { Env } from "./config/env.js";
+import { type Env, resolveTrustProxy } from "./config/env.js";
 import { databasePlugin } from "./core/database/database.plugin.js";
 import { registerErrorHandler } from "./core/errors/error-handler.js";
 import { createLoggerOptions } from "./core/logger/logger.js";
@@ -15,6 +15,11 @@ import { PostgresApiCredentialsRepository } from "./modules/api-credentials/api-
 import { apiCredentialsRoutes } from "./modules/api-credentials/api-credentials.routes.js";
 import { ApiCredentialsService } from "./modules/api-credentials/api-credentials.service.js";
 import { authPlugin } from "./modules/auth/auth.plugin.js";
+import {
+  LoginRateLimiter,
+  loginRateLimitDefaults,
+  loginRateLimitGuard,
+} from "./modules/auth/auth.login-rate-limit.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { businessesRoutes } from "./modules/businesses/businesses.routes.js";
 import { PostgresBusinessesRepository } from "./modules/businesses/businesses.repository.js";
@@ -66,6 +71,7 @@ import { QuotesService } from "./modules/quotes/quotes.service.js";
 export async function buildApp(config: Env): Promise<FastifyInstance> {
   const app = Fastify({
     bodyLimit: 32 * 1024,
+    trustProxy: resolveTrustProxy(config.TRUST_PROXY),
     ajv: {
       customOptions: {
         coerceTypes: false,
@@ -159,7 +165,16 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   await app.register(healthRoutes);
   await app.register(mercadoPagoWebhookRoutes, { service: mercadoPagoWebhookService });
   await app.register(integrationsRoutes, { service: integrationsService });
-  await app.register(authRoutes, { prefix: "/auth", config });
+  const loginRateLimiter = new LoginRateLimiter({
+    max: config.AUTH_LOGIN_RATE_LIMIT_MAX ?? loginRateLimitDefaults.max,
+    windowSeconds:
+      config.AUTH_LOGIN_RATE_LIMIT_WINDOW_SECONDS ?? loginRateLimitDefaults.windowSeconds,
+  });
+  await app.register(authRoutes, {
+    prefix: "/auth",
+    config,
+    loginRateLimit: loginRateLimitGuard(loginRateLimiter),
+  });
   await app.register(businessesRoutes, { prefix: "/businesses" });
   await app.register(apiCredentialsRoutes, { service: apiCredentialsService });
   await app.register(botGatewayRoutes, {
