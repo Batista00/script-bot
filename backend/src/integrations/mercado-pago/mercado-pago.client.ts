@@ -1,6 +1,8 @@
 import {
+  type MercadoPagoAccount,
   type MercadoPagoHttpClient,
   MercadoPagoApiError,
+  MercadoPagoAuthError,
   type MercadoPagoPaymentResource,
   type MercadoPagoPreference,
   type MercadoPagoPreferenceRequest,
@@ -82,6 +84,11 @@ export class NativeMercadoPagoClient implements MercadoPagoHttpClient {
     return this.paymentResource(results[0]);
   }
 
+  async getAccount(accessToken: string): Promise<MercadoPagoAccount> {
+    const body = objectValue(await this.request("/users/me", accessToken, { method: "GET" }));
+    return { id: paymentId(body.id) };
+  }
+
   private paymentResource(raw: unknown): MercadoPagoPaymentResource {
     const body = objectValue(raw);
     const amount = body.transaction_amount;
@@ -118,10 +125,11 @@ export class NativeMercadoPagoClient implements MercadoPagoHttpClient {
         },
         signal: AbortSignal.timeout(this.timeoutMs),
       });
+      if (response.status === 401 || response.status === 403) throw new MercadoPagoAuthError();
       if (!response.ok) throw new MercadoPagoApiError();
       return await response.json();
     } catch (error) {
-      if (error instanceof MercadoPagoApiError) throw error;
+      if (error instanceof MercadoPagoApiError || error instanceof MercadoPagoAuthError) throw error;
       throw new MercadoPagoApiError();
     }
   }

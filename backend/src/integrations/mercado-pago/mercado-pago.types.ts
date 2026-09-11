@@ -31,6 +31,10 @@ export interface MercadoPagoPaymentResource {
   externalReference: string | null;
 }
 
+export interface MercadoPagoAccount {
+  id: string;
+}
+
 export interface MercadoPagoHttpClient {
   createPreference(
     accessToken: string,
@@ -42,6 +46,16 @@ export interface MercadoPagoHttpClient {
     accessToken: string,
     externalReference: string,
   ): Promise<MercadoPagoPaymentResource | null>;
+  /** Validates that the access token belongs to an active account. */
+  getAccount?(accessToken: string): Promise<MercadoPagoAccount>;
+}
+
+/** The provider rejected the credentials (401/403) instead of failing transiently. */
+export class MercadoPagoAuthError extends Error {
+  constructor() {
+    super("Mercado Pago rejected the credentials");
+    this.name = "MercadoPagoAuthError";
+  }
 }
 
 export class MercadoPagoApiError extends Error {

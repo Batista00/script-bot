@@ -20,6 +20,7 @@ import {
   getProviderCatalogStateSchema,
   listProviderServicesSchema,
   syncProviderServicesSchema,
+  testProviderConnectionSchema,
   updateProviderMappingSchema,
 } from "./provider-catalog.schema.js";
 import { ProviderCatalogService } from "./provider-catalog.service.js";
@@ -69,6 +70,11 @@ export const providerCatalogRoutes: FastifyPluginAsync<ProviderCatalogRoutesOpti
     "/businesses/:businessId/integrations/:integrationId/provider-services/sync",
     { schema: syncProviderServicesSchema, preHandler: commercialWrite },
     controller.sync,
+  );
+  app.post<{ Params: ProviderCatalogSyncParams }>(
+    "/businesses/:businessId/integrations/:integrationId/provider-services/test-connection",
+    { schema: testProviderConnectionSchema, preHandler: read },
+    controller.testConnection,
   );
   app.get<{ Params: ProviderCatalogSyncParams }>(
     "/businesses/:businessId/integrations/:integrationId/provider-catalog/state",

@@ -29,6 +29,8 @@ interface ProviderServiceRow extends QueryResultRow {
   min_quantity: number | null;
   max_quantity: number | null;
   provider_description: string | null;
+  supports_refill: boolean | null;
+  supports_cancel: boolean | null;
   order_capabilities: ProviderOrderCapabilities;
   provider_status: ProviderServiceStatus;
   mapping_count: number;
@@ -68,7 +70,8 @@ interface PostgreSqlError { code?: string; constraint?: string }
 
 const serviceColumns = `id, business_id, integration_id, provider_key,
   external_service_id, name, category, service_type, rate, rate_currency,
-  min_quantity, max_quantity, provider_description, order_capabilities,
+  min_quantity, max_quantity, provider_description, supports_refill, supports_cancel,
+  order_capabilities,
   provider_status, metadata, last_synced_at, created_at, updated_at`;
 const mappingColumns = `id, business_id, product_id, provider_service_id,
   status, created_at, updated_at`;
@@ -92,6 +95,8 @@ function mapService(row: ProviderServiceRow): ProviderService {
     minQuantity: row.min_quantity,
     maxQuantity: row.max_quantity,
     providerDescription: row.provider_description,
+    supportsRefill: row.supports_refill,
+    supportsCancel: row.supports_cancel,
     orderCapabilities: row.order_capabilities,
     providerStatus: row.provider_status,
     mappingCount: row.mapping_count ?? 0,
@@ -275,6 +280,8 @@ export class PostgresProviderCatalogRepository implements ProviderCatalogReposit
       min_quantity: service.minQuantity,
       max_quantity: service.maxQuantity,
       provider_description: service.providerDescription ?? null,
+      supports_refill: service.supportsRefill ?? null,
+      supports_cancel: service.supportsCancel ?? null,
       order_capabilities: service.orderCapabilities ?? {
         supported: false, required: [], optional: [], source: "unverified",
       },
@@ -284,17 +291,20 @@ export class PostgresProviderCatalogRepository implements ProviderCatalogReposit
       `INSERT INTO provider_services (
          business_id, integration_id, provider_key, external_service_id, name,
          category, service_type, rate, rate_currency, min_quantity, max_quantity,
-         provider_description, order_capabilities, provider_status, metadata, last_synced_at
+         provider_description, supports_refill, supports_cancel, order_capabilities,
+         provider_status, metadata, last_synced_at
        )
        SELECT $1, $2, $3, service.external_service_id, service.name,
          service.category, service.service_type, service.rate::numeric,
          service.rate_currency, service.min_quantity, service.max_quantity,
-         service.provider_description, service.order_capabilities, 'active', service.metadata,
+         service.provider_description, service.supports_refill, service.supports_cancel,
+         service.order_capabilities, 'active', service.metadata,
          $5::timestamptz
        FROM jsonb_to_recordset($4::jsonb) AS service(
          external_service_id text, name text, category text, service_type text,
          rate text, rate_currency text, min_quantity integer, max_quantity integer,
-         provider_description text, order_capabilities jsonb, metadata jsonb
+         provider_description text, supports_refill boolean, supports_cancel boolean,
+         order_capabilities jsonb, metadata jsonb
        )
        ON CONFLICT (integration_id, external_service_id) DO UPDATE SET
          provider_key = EXCLUDED.provider_key,
@@ -306,6 +316,8 @@ export class PostgresProviderCatalogRepository implements ProviderCatalogReposit
          min_quantity = EXCLUDED.min_quantity,
          max_quantity = EXCLUDED.max_quantity,
          provider_description = EXCLUDED.provider_description,
+         supports_refill = EXCLUDED.supports_refill,
+         supports_cancel = EXCLUDED.supports_cancel,
          order_capabilities = EXCLUDED.order_capabilities,
          provider_status = 'active',
          metadata = EXCLUDED.metadata,

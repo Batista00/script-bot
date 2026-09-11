@@ -24,11 +24,37 @@ import {
   type UpdateProductProviderMappingInput,
 } from "./provider-catalog.types.js";
 
+export interface ProviderConnectionTestResult {
+  integrationId: string;
+  providerKey: string;
+  connectionStatus: "ok";
+  balance: string | null;
+  currency: string | null;
+  checkedAt: string;
+}
+
 export interface ProviderCatalogSyncFailure {
   businessId: string;
   integrationId: string;
   providerKey: string;
   failureCode: string;
+}
+
+/** Translates a provider transport error into a safe, actionable API error. */
+function translateProviderFailure(error: unknown): AppError | undefined {
+  if (error instanceof ProviderCatalogUnavailableError) {
+    return new AppError("Provider catalog is not available", 503, "PROVIDER_CATALOG_NOT_AVAILABLE");
+  }
+  if (error instanceof ProviderTemporarilyUnavailableError) {
+    return new AppError("Provider is temporarily unavailable", 503, "PROVIDER_TEMPORARILY_UNAVAILABLE");
+  }
+  if (error instanceof ProviderRequestRejectedError) {
+    return new AppError("Provider rejected the catalog request", 502, "PROVIDER_REQUEST_REJECTED");
+  }
+  if (error instanceof ProviderResponseInvalidError) {
+    return new AppError("Provider response is invalid", 502, "PROVIDER_RESPONSE_INVALID");
+  }
+  return undefined;
 }
 
 function mappingConflict(): AppError {
@@ -96,6 +122,81 @@ export class ProviderCatalogService {
     return this.repository.findCatalogState(businessId, integrationId);
   }
 
+  /**
+   * Non-destructive credential/connectivity check: asks the provider for its
+   * balance and records the observed connection state, without touching the
+   * catalog, products or pricing.
+   */
+  async testConnection(
+    businessId: string,
+    integrationId: string,
+  ): Promise<ProviderConnectionTestResult> {
+    const integration = await this.integrations.getById(businessId, integrationId);
+    if (integration.status !== "active") {
+      throw new AppError("Integration is inactive", 409, "INTEGRATION_INACTIVE");
+    }
+    const adapter = this.adapters.resolve(integration.providerKey);
+    if (!adapter) {
+      throw new AppError(
+        "Provider catalog is not available",
+        503,
+        "PROVIDER_CATALOG_NOT_AVAILABLE",
+      );
+    }
+
+    let balance: { balance: string | null; currency: string | null } = {
+      balance: null,
+      currency: null,
+    };
+    try {
+      const providerBalance = await adapter.getBalance?.(businessId);
+      if (providerBalance) {
+        balance = { balance: providerBalance.balance, currency: providerBalance.currency };
+      }
+    } catch (error) {
+      const mappedError = translateProviderFailure(error);
+      if (mappedError) {
+        this.reportFailure?.({
+          businessId,
+          integrationId,
+          providerKey: integration.providerKey,
+          failureCode: mappedError.code,
+        });
+        await this.recordFailure(businessId, integrationId, mappedError.code);
+        throw mappedError;
+      }
+      throw error;
+    }
+
+    const checkedAt = this.now().toISOString();
+    const existing = await this.repository.findCatalogState(businessId, integrationId);
+    await withTransaction(this.db, (client) => this.repository.saveCatalogState(
+      businessId,
+      integrationId,
+      {
+        connectionStatus: "ok",
+        providerBalance: balance.balance,
+        providerCurrency: balance.currency,
+        servicesReceived: existing?.servicesReceived ?? 0,
+        servicesNormalized: existing?.servicesNormalized ?? 0,
+        servicesRejected: existing?.servicesRejected ?? 0,
+        rejectionReasons: existing?.rejectionReasons ?? {},
+        lastSyncAt: existing?.lastSyncAt ?? null,
+        lastBalanceAt: checkedAt,
+        lastErrorCode: null,
+      },
+      client,
+    ));
+    return {
+      integrationId,
+      providerKey: integration.providerKey,
+      connectionStatus: "ok",
+      balance: balance.balance,
+      currency: balance.currency,
+      checkedAt,
+    };
+  }
+
   async getServiceById(businessId: string, providerServiceId: string): Promise<ProviderService> {
     const service = await this.repository.findServiceById(businessId, providerServiceId);
     if (!service) {
@@ -139,32 +240,7 @@ export class ProviderCatalogService {
       balance = providerBalance ?? { balance: null, currency: null };
       this.assertUniqueExternalIds(services);
     } catch (error) {
-      let mappedError: AppError | undefined;
-      if (error instanceof ProviderCatalogUnavailableError) {
-        mappedError = new AppError(
-          "Provider catalog is not available",
-          503,
-          "PROVIDER_CATALOG_NOT_AVAILABLE",
-        );
-      } else if (error instanceof ProviderTemporarilyUnavailableError) {
-        mappedError = new AppError(
-          "Provider is temporarily unavailable",
-          503,
-          "PROVIDER_TEMPORARILY_UNAVAILABLE",
-        );
-      } else if (error instanceof ProviderRequestRejectedError) {
-        mappedError = new AppError(
-          "Provider rejected the catalog request",
-          502,
-          "PROVIDER_REQUEST_REJECTED",
-        );
-      } else if (error instanceof ProviderResponseInvalidError) {
-        mappedError = new AppError(
-          "Provider response is invalid",
-          502,
-          "PROVIDER_RESPONSE_INVALID",
-        );
-      }
+      const mappedError = translateProviderFailure(error);
       if (mappedError) {
         this.reportFailure?.({
           businessId,

@@ -56,6 +56,7 @@ async function start(): Promise<void> {
     undefined,
     paymentMethodsRepository,
     jobsService,
+    integrationsService,
   );
   const fulfillmentsService = new FulfillmentsService(
     new PostgresFulfillmentsRepository(db),

@@ -113,6 +113,7 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
     undefined,
     paymentMethodsRepository,
     jobsService,
+    integrationsService,
   );
   const mercadoPagoWebhookService = new MercadoPagoWebhookService(
     integrationsService,

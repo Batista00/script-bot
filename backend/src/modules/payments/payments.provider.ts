@@ -43,7 +43,17 @@ export interface PaymentProvider {
   fetchStatus?(
     input: FetchProviderPaymentStatusInput,
   ): Promise<ProviderPaymentStatus | null>;
+  /**
+   * Validates the stored credentials without side effects. Implementations must
+   * throw `PaymentProviderCredentialsInvalidError` when the provider rejects
+   * them, so the panel can show an actionable message.
+   */
+  verifyCredentials?(input: {
+    businessId: string;
+    integrationId: string;
+  }): Promise<void>;
 }
 
 export class PaymentProviderUnavailableError extends Error {}
+export class PaymentProviderCredentialsInvalidError extends Error {}
 export class PaymentProviderCurrencyNotSupportedError extends Error {}

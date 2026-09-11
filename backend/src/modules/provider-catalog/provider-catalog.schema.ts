@@ -136,6 +136,31 @@ export const syncProviderServicesSchema = {
   },
 } satisfies FastifySchema;
 
+export const testProviderConnectionSchema = {
+  params: {
+    type: "object", additionalProperties: false,
+    required: ["businessId", "integrationId"],
+    properties: { businessId: uuidSchema, integrationId: uuidSchema },
+  },
+  response: {
+    200: {
+      type: "object", additionalProperties: false,
+      required: ["integrationId", "providerKey", "connectionStatus", "balance", "currency", "checkedAt"],
+      properties: {
+        integrationId: uuidSchema,
+        providerKey: { type: "string" },
+        connectionStatus: { type: "string", const: "ok" },
+        balance: { type: ["string", "null"] },
+        currency: { type: ["string", "null"] },
+        checkedAt: { type: "string", format: "date-time" },
+      },
+    },
+    400: errorResponseSchema, 401: errorResponseSchema, 403: errorResponseSchema,
+    404: errorResponseSchema, 409: errorResponseSchema, 502: errorResponseSchema,
+    503: errorResponseSchema,
+  },
+} satisfies FastifySchema;
+
 export const getProviderCatalogStateSchema = {
   params: {
     type: "object", additionalProperties: false,

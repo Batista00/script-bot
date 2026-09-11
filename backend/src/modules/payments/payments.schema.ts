@@ -134,6 +134,31 @@ export const listOrderPaymentsSchema = {
   },
 } satisfies FastifySchema;
 
+export const testPaymentProviderConnectionSchema = {
+  params: {
+    type: "object", additionalProperties: false,
+    required: ["businessId", "integrationId"],
+    properties: {
+      businessId: { type: "string", format: "uuid" },
+      integrationId: { type: "string", format: "uuid" },
+    },
+  },
+  response: {
+    200: {
+      type: "object", additionalProperties: false,
+      required: ["integrationId", "providerKey", "connectionStatus", "checkedAt"],
+      properties: {
+        integrationId: { type: "string", format: "uuid" },
+        providerKey: { type: "string" },
+        connectionStatus: { type: "string", const: "ok" },
+        checkedAt: { type: "string", format: "date-time" },
+      },
+    },
+    400: errorResponseSchema, 401: errorResponseSchema, 403: errorResponseSchema,
+    404: errorResponseSchema, 409: errorResponseSchema, 503: errorResponseSchema,
+  },
+} satisfies FastifySchema;
+
 export const confirmBankTransferSchema = {
   params: paymentParamsSchema,
   body: {

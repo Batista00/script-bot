@@ -20,6 +20,7 @@ import type { SmmRajaHttpClient } from "./smm-raja.client.js";
 
 const knownServiceKeys = new Set([
   "service", "name", "category", "type", "rate", "min", "max", "description",
+  "refill", "cancel",
 ]);
 const secretKeyPattern = /(secret|token|password|credential|authorization|api_?key|private_?key|^key$)/i;
 const decimalPattern = /^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/;
@@ -79,6 +80,14 @@ function nonnegativeDecimal(value: unknown): string {
     throw new ProviderResponseInvalidError();
   }
   return fractionPart === undefined ? integer : `${integer}.${fractionPart}`;
+}
+
+function optionalBoolean(value: unknown): boolean | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value === "boolean") return value;
+  if (value === "true" || value === 1 || value === "1") return true;
+  if (value === "false" || value === 0 || value === "0") return false;
+  return null;
 }
 
 function optionalPositiveInteger(value: unknown): number | null {
@@ -186,6 +195,8 @@ function normalizeService(item: unknown): NormalizedProviderService {
     minQuantity,
     maxQuantity,
     providerDescription: optionalString(service.description, 5000),
+    supportsRefill: optionalBoolean(service.refill),
+    supportsCancel: optionalBoolean(service.cancel),
     orderCapabilities: smmRajaOrderCapabilities(serviceType),
     metadata: metadata(service),
   };

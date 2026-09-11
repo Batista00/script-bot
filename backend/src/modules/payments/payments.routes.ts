@@ -12,6 +12,7 @@ import {
   type PaymentBusinessParams,
   PaymentsController,
   type PaymentIdParams,
+  type PaymentIntegrationParams,
   type PaymentOrderParams,
 } from "./payments.controller.js";
 import {
@@ -20,6 +21,7 @@ import {
   getPaymentSchema,
   listOrderPaymentsSchema,
   listPaymentsSchema,
+  testPaymentProviderConnectionSchema,
 } from "./payments.schema.js";
 import { PaymentsService } from "./payments.service.js";
 import type { CreatePaymentInput, PaymentListQuery } from "./payments.types.js";
@@ -70,6 +72,11 @@ export const paymentsRoutes: FastifyPluginAsync<PaymentsRoutesOptions> = async (
     "/businesses/:businessId/orders/:orderId/payments",
     { schema: listOrderPaymentsSchema, preHandler: authorization },
     controller.listByOrder,
+  );
+  app.post<{ Params: PaymentIntegrationParams }>(
+    "/businesses/:businessId/integrations/:integrationId/payment-provider/test-connection",
+    { schema: testPaymentProviderConnectionSchema, preHandler: authorization },
+    controller.testConnection,
   );
   app.post<{ Params: PaymentIdParams; Body: ConfirmBankTransferInput }>(
     "/businesses/:businessId/payments/:paymentId/confirm-bank-transfer",

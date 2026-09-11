@@ -15,8 +15,24 @@ export interface JobEnqueuer {
   enqueue(input: EnqueueJobInput, executor?: DatabaseExecutor): Promise<unknown>;
 }
 
+/** Minimal integrations port used by the read-only connection test. */
+export interface IntegrationLookup {
+  getById(
+    businessId: string,
+    integrationId: string,
+  ): Promise<{ id: string; businessId: string; providerKey: string; status: string }>;
+}
+
+export interface PaymentProviderConnectionTest {
+  integrationId: string;
+  providerKey: string;
+  connectionStatus: "ok";
+  checkedAt: string;
+}
+
 import {
   type CreateProviderPaymentResult,
+  PaymentProviderCredentialsInvalidError,
   PaymentProviderCurrencyNotSupportedError,
   PaymentProviderUnavailableError,
   type ProviderPaymentStatus,
@@ -123,6 +139,7 @@ export class PaymentsService {
     private readonly now: () => Date = () => new Date(),
     private readonly paymentMethods?: PaymentMethodsRepository,
     private readonly jobs?: JobEnqueuer,
+    private readonly integrations?: IntegrationLookup,
   ) {}
 
   async create(
@@ -299,6 +316,50 @@ export class PaymentsService {
    * production webhooks MUST use `applyVerifiedProviderUpdate`, which validates
    * the financial snapshot before touching Payment and Order.
    */
+  /**
+   * Read-only credential check: asks the provider to authenticate with the
+   * stored secrets. Nothing is created or modified.
+   */
+  async testConnection(
+    businessId: string,
+    integrationId: string,
+  ): Promise<PaymentProviderConnectionTest> {
+    if (!this.integrations) throw providerNotAvailableError();
+    const integration = await this.integrations.getById(businessId, integrationId);
+    if (integration.status !== "active") {
+      throw new AppError("Integration is inactive", 409, "INTEGRATION_INACTIVE");
+    }
+    const provider = this.providers.resolve(integration.providerKey);
+    if (!provider) throw providerNotAvailableError();
+    if (!provider.verifyCredentials) {
+      throw new AppError(
+        "Payment provider does not support connection tests",
+        409,
+        "PAYMENT_PROVIDER_TEST_UNSUPPORTED",
+      );
+    }
+    try {
+      await provider.verifyCredentials({ businessId, integrationId });
+    } catch (error) {
+      if (error instanceof PaymentProviderCredentialsInvalidError) {
+        throw new AppError(
+          "Payment provider rejected the stored credentials",
+          409,
+          "PAYMENT_PROVIDER_CREDENTIALS_INVALID",
+        );
+      }
+      if (error instanceof PaymentProviderUnavailableError) throw providerNotAvailableError();
+      if (error instanceof AppError) throw error;
+      throw providerNotAvailableError();
+    }
+    return {
+      integrationId,
+      providerKey: integration.providerKey,
+      connectionStatus: "ok",
+      checkedAt: this.now().toISOString(),
+    };
+  }
+
   /**
    * Server-to-server reconciliation for a pending payment. Used by the worker
    * when a webhook never arrived: the provider is queried, the financial

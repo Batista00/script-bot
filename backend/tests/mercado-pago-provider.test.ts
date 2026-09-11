@@ -34,6 +34,14 @@ class FakeIntegrationsLookup {
     credentials: { accessToken: "test-access-token", webhookSecret: "test-webhook-secret" },
   };
 
+  async getActiveIntegrationById(
+    requestedIntegrationId: string,
+    providerKey: string,
+  ): Promise<ActiveIntegration | null> {
+    if (providerKey !== "mercado_pago") return null;
+    return this.integration?.id === requestedIntegrationId ? this.integration : null;
+  }
+
   async getActiveIntegration(businessId: string): Promise<ActiveIntegration | null> {
     this.businessIds.push(businessId);
     return this.integration;

@@ -31,6 +31,8 @@ export interface NormalizedProviderService {
   minQuantity: number | null;
   maxQuantity: number | null;
   providerDescription?: string | null;
+  supportsRefill?: boolean | null;
+  supportsCancel?: boolean | null;
   orderCapabilities?: ProviderOrderCapabilities;
   metadata: JsonObject;
 }

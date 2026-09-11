@@ -4,6 +4,7 @@ import {
   type CreateProviderPaymentResult,
   type FetchProviderPaymentStatusInput,
   type PaymentProvider,
+  PaymentProviderCredentialsInvalidError,
   PaymentProviderCurrencyNotSupportedError,
   PaymentProviderUnavailableError,
   type ProviderPaymentStatus,
@@ -14,17 +15,22 @@ import {
   mercadoPagoNotificationUrl,
 } from "./mercado-pago.settings.js";
 import { mapMercadoPagoStatus } from "./mercado-pago.status.js";
-import type {
-  MercadoPagoHttpClient,
-  MercadoPagoPaymentResource,
-  MercadoPagoPreferenceRequest,
+import {
+  MercadoPagoApiError,
+  MercadoPagoAuthError,
+  type MercadoPagoHttpClient,
+  type MercadoPagoPaymentResource,
+  type MercadoPagoPreferenceRequest,
 } from "./mercado-pago.types.js";
 
 export class MercadoPagoPaymentProvider implements PaymentProvider {
   readonly key = "mercado_pago";
 
   constructor(
-    private readonly integrations: Pick<IntegrationsService, "getActiveIntegration">,
+    private readonly integrations: Pick<
+      IntegrationsService,
+      "getActiveIntegration" | "getActiveIntegrationById"
+    >,
     private readonly client: MercadoPagoHttpClient,
     private readonly publicApiBaseUrl: string | undefined,
     private readonly nodeEnv: "development" | "test" | "production",
@@ -69,6 +75,28 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
       status: "pending",
       checkoutUrl: created.initPoint,
     };
+  }
+
+  async verifyCredentials(input: {
+    businessId: string;
+    integrationId: string;
+  }): Promise<void> {
+    const integration = await this.integrations.getActiveIntegrationById(
+      input.integrationId,
+      this.key,
+    );
+    if (!integration || integration.businessId !== input.businessId) {
+      throw new PaymentProviderUnavailableError();
+    }
+    const credentials = mercadoPagoCredentials(integration);
+    if (!this.client.getAccount) throw new PaymentProviderUnavailableError();
+    try {
+      await this.client.getAccount(credentials.accessToken);
+    } catch (error) {
+      if (error instanceof MercadoPagoAuthError) throw new PaymentProviderCredentialsInvalidError();
+      if (error instanceof MercadoPagoApiError) throw new PaymentProviderUnavailableError();
+      throw new PaymentProviderUnavailableError();
+    }
   }
 
   async fetchStatus(input: FetchProviderPaymentStatusInput): Promise<ProviderPaymentStatus | null> {

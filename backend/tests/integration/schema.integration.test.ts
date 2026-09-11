@@ -82,7 +82,7 @@ test(
     const migrationResult = await db.query<{ count: number }>(
       "SELECT count(*)::integer AS count FROM pgmigrations",
     );
-    assert.equal(migrationResult.rows[0]?.count, 18);
+    assert.equal(migrationResult.rows[0]?.count, 19);
 
     const tableResult = await db.query<{ table_name: string }>(
       `SELECT table_name
@@ -250,6 +250,18 @@ test(
          )`,
     );
     assert.equal(moneyResult.rows.length, 7);
+
+    const capabilityColumns = await db.query<{ column_name: string }>(
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'provider_services'
+         AND column_name = ANY($1::text[])
+       ORDER BY column_name`,
+      [["supports_cancel", "supports_refill"]],
+    );
+    assert.deepEqual(capabilityColumns.rows.map((row) => row.column_name), [
+      "supports_cancel", "supports_refill",
+    ]);
 
     const providerRate = await db.query<{ data_type: string; numeric_precision: number }>(
       `SELECT data_type, numeric_precision
