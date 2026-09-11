@@ -99,12 +99,18 @@ test(
   { skip: testDatabaseUrl ? false : "TEST_DATABASE_URL is not configured" },
   async (t) => {
     if (!testDatabaseUrl) return;
+    // `singleTransaction: true` mirrors the deployment runner exactly:
+    // `backend` starts with `node-pg-migrate up`, which wraps the whole batch
+    // in one transaction. PostgreSQL then rejects using an enum value added
+    // earlier in that same batch (`55P04`), so the schema test has to fail the
+    // same way the container would instead of only passing per-migration.
     await runner({
       databaseUrl: testDatabaseUrl,
       direction: "up",
       dir: "migrations",
       migrationsTable: "pgmigrations",
       count: Infinity,
+      singleTransaction: true,
       log: () => undefined,
     });
     const db = createDatabasePool(testDatabaseUrl);
