@@ -69,6 +69,57 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Worker de background. Comparte el mismo build que `backend` (mismo
+  # context/dockerfile) y consume la cola persistida `job_queue` en PostgreSQL
+  # mediante SELECT ... FOR UPDATE SKIP LOCKED.
+  #
+  # No publica puertos: el proceso `node dist/src/worker.js` no escucha HTTP.
+  # Por eso tampoco define healthcheck HTTP; Compose lo mantiene vivo con
+  # `restart: unless-stopped` y su estado se verifica con logs y con la
+  # readiness del API (`GET /health/ready`). El worker NO ejecuta migraciones:
+  # el servicio `backend` ya las aplica al arrancar y dos runners concurrentes
+  # de node-pg-migrate se pisarían; el worker tolera una base todavía sin
+  # migrar (registra el error del ciclo y reintenta).
+  #
+  # Las WORKER_* son opcionales: si no se definen en deploy/.env.production se
+  # usan los defaults del compose, que coinciden con los defaults seguros del
+  # código (`backend/src/config/env.ts`).
+  backend-worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: ${NODE_ENV:?Set NODE_ENV in deploy/.env.production}
+      # No se publica; el worker no abre ningún puerto. Se mantiene por paridad
+      # con `backend` y porque loadEnv acepta PORT con default interno.
+      PORT: ${PORT:?Set PORT in deploy/.env.production}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in deploy/.env.production}
+      LOG_LEVEL: ${LOG_LEVEL:?Set LOG_LEVEL in deploy/.env.production}
+      AUTH_SESSION_TTL_HOURS: ${AUTH_SESSION_TTL_HOURS:?Set AUTH_SESSION_TTL_HOURS in deploy/.env.production}
+      INTEGRATIONS_ENCRYPTION_KEY: ${INTEGRATIONS_ENCRYPTION_KEY:?Set INTEGRATIONS_ENCRYPTION_KEY in deploy/.env.production}
+      PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:?Set PUBLIC_API_BASE_URL in deploy/.env.production}
+      WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-2000}
+      WORKER_BATCH_SIZE: ${WORKER_BATCH_SIZE:-10}
+      WORKER_LEASE_SECONDS: ${WORKER_LEASE_SECONDS:-120}
+      WORKER_RECONCILE_ORDERS_SECONDS: ${WORKER_RECONCILE_ORDERS_SECONDS:-120}
+      WORKER_RECONCILE_FULFILLMENTS_SECONDS: ${WORKER_RECONCILE_FULFILLMENTS_SECONDS:-180}
+      WORKER_RECONCILE_PAYMENTS_SECONDS: ${WORKER_RECONCILE_PAYMENTS_SECONDS:-300}
+      WORKER_PRUNE_SESSIONS_SECONDS: ${WORKER_PRUNE_SESSIONS_SECONDS:-21600}
+    command:
+      - node
+      - dist/src/worker.js
+    depends_on:
+      backend-postgres:
+        condition: service_healthy
+    networks:
+      - bot_whatsapp_backend
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
   bot_whatsapp_postgres_data:
     name: bot_whatsapp_postgres_data

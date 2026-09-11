@@ -22,7 +22,10 @@ node "${repository_root}/deploy/scripts/preflight.mjs" --env-file "${env_file}"
 
 compose=(docker compose --env-file "${env_file}" -f "${compose_file}")
 "${compose[@]}" config --quiet
-"${compose[@]}" build backend
+# `backend` aplica migraciones al arrancar; `backend-worker` comparte el mismo
+# build y no las ejecuta. Se construyen ambas imágenes para que `up` no tenga
+# que construir nada.
+"${compose[@]}" build backend backend-worker
 "${compose[@]}" up -d
 
 backend_port="$(awk -F= '$1 == "BACKEND_HOST_PORT" {
