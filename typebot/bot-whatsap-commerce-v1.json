@@ -3398,6 +3398,30 @@
    },
    "blocks": [
     {
+     "id": "blklatestorderwebhook",
+     "type": "Webhook",
+     "options": {
+      "webhook": {
+       "url": "{{backend_base_url}}/bot/v1/operations/orders?limit=1&customerId={{customerId}}",
+       "method": "GET",
+       "headers": [
+        {
+         "id": "hdrauthlatestorder",
+         "key": "Authorization",
+         "value": "Bearer {{backend_token}}"
+        }
+       ]
+      },
+      "responseVariableMapping": [
+       {
+        "id": "latest-order-id",
+        "bodyPath": "data[0].orderId",
+        "variableId": "vorderid"
+       }
+      ]
+     }
+    },
+    {
      "id": "blkorderexists",
      "type": "Condition",
      "items": [

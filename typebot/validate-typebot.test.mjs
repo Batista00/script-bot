@@ -343,3 +343,15 @@ test("catalog and payment menus render only the entries returned by the backend"
     assert.match(expression, /Name\}\} \? /);
   }
 });
+
+test("post-sale status resolves the customer's real order from the backend", () => {
+  const group = groupById(template, "grppostventa");
+  const lookup = group.blocks.find((block) => block.id === "blklatestorderwebhook");
+  assert.ok(lookup, "post-sale must look the order up by customer");
+  assert.equal(lookup.options.webhook.method, "GET");
+  assert.match(lookup.options.webhook.url, /\/bot\/v1\/operations\/orders\?limit=1&customerId=\{\{customerId\}\}$/);
+  assert.deepEqual(lookup.options.responseVariableMapping,
+    [{ id: "latest-order-id", bodyPath: "data[0].orderId", variableId: "vorderid" }]);
+  // Debe ejecutarse antes de decidir si hay pedido.
+  assert.equal(group.blocks[0].id, "blklatestorderwebhook");
+});
