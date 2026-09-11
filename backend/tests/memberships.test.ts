@@ -105,20 +105,23 @@ class MemoryMembershipsRepository implements BusinessMembershipsRepository {
   }
 
   async listByBusiness(businessId: string): Promise<MembershipWithUser[]> {
-    return this.memberships.filter((item) => item.businessId === businessId);
+    return this.memberships.filter((item) => item.businessId === businessId)
+      .map((item) => this.hydrate(item));
   }
 
   async findById(businessId: string, membershipId: string): Promise<MembershipWithUser | null> {
-    return this.memberships.find((item) =>
-      item.businessId === businessId && item.id === membershipId) ?? null;
+    const membership = this.memberships.find((item) =>
+      item.businessId === businessId && item.id === membershipId);
+    return membership ? this.hydrate(membership) : null;
   }
 
   async findByBusinessAndUserIncludingInactive(
     businessId: string,
     userId: string,
   ): Promise<MembershipWithUser | null> {
-    return this.memberships.find((item) =>
-      item.businessId === businessId && item.userId === userId) ?? null;
+    const membership = this.memberships.find((item) =>
+      item.businessId === businessId && item.userId === userId);
+    return membership ? this.hydrate(membership) : null;
   }
 
   async update(
@@ -126,12 +129,13 @@ class MemoryMembershipsRepository implements BusinessMembershipsRepository {
     membershipId: string,
     input: MembershipUpdateInput,
   ): Promise<MembershipWithUser | null> {
-    const membership = await this.findById(businessId, membershipId);
-    if (!membership) return null;
-    membership.role = input.role;
-    membership.status = input.status;
-    membership.updatedAt = now;
-    return membership;
+    const stored = this.memberships.find((item) =>
+      item.businessId === businessId && item.id === membershipId);
+    if (!stored) return null;
+    stored.role = input.role;
+    stored.status = input.status;
+    stored.updatedAt = now;
+    return this.hydrate(stored);
   }
 
   async delete(businessId: string, membershipId: string): Promise<boolean> {
@@ -151,6 +155,12 @@ class MemoryMembershipsRepository implements BusinessMembershipsRepository {
     return {
       id: account.id, email: account.email, name: account.name, status: account.status,
     };
+  }
+
+  /** Rebuilds the account summary so account-level changes are visible. */
+  private hydrate(membership: MembershipWithUser): MembershipWithUser {
+    const account = this.users.findById(membership.userId);
+    return account ? { ...membership, user: this.summary(account) } : membership;
   }
 }
 
@@ -291,6 +301,21 @@ test("an inactive account cannot receive a membership", async () => {
     409,
     "USER_INACTIVE",
   );
+});
+
+test("an inactive account cannot keep an active membership", async () => {
+  const { service, users, memberships, owner } = await setup();
+  const adminMembership = memberships.memberships[1]!;
+  await service.update(businessA, adminMembership.id, { status: "inactive" }, owner);
+  users.users.find((user) => user.id === adminMembership.userId)!.status = "inactive";
+
+  await expectAppError(
+    service.update(businessA, adminMembership.id, { status: "active" }, owner),
+    409,
+    "USER_INACTIVE",
+  );
+  const stored = await memberships.findById(businessA, adminMembership.id);
+  assert.equal(stored?.status, "inactive");
 });
 
 test("an admin cannot grant the owner role", async () => {

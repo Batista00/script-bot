@@ -111,6 +111,13 @@ export class BusinessMembershipsService {
     const role = input.role ?? target.role;
     const status = input.status ?? target.status;
     if (role !== target.role) this.assertCanAssignRole(actor.role, role);
+    if (status === "active" && target.user.status !== "active") {
+      throw new AppError(
+        "User is inactive and cannot keep an active membership",
+        409,
+        "USER_INACTIVE",
+      );
+    }
     if (target.role === "owner" && target.status === "active" && (role !== "owner" || status !== "active")) {
       await this.assertNotLastActiveOwner(businessId);
     }
