@@ -116,6 +116,7 @@ export interface BotOrderListQuery {
   limit?: string;
   offset?: string;
   status?: OrderStatus;
+  customerId?: string;
 }
 export interface BotPaymentListQuery {
   limit?: string;

@@ -31,6 +31,7 @@ const now = "2026-08-19T12:00:00.000Z";
 
 function fixture() {
   const calls: Array<[string, string]> = [];
+  const orderListFilters: Array<{ customerId?: string }> = [];
   const paymentRequests: Array<{
     orderId: string; providerKey: string; idempotencyKey: string | undefined;
   }> = [];
@@ -132,6 +133,11 @@ function fixture() {
         if (id === orderB) throw new AppError("Order not found", 404, "ORDER_NOT_FOUND");
         return order;
       },
+      list: async (businessId: string, options: { customerId?: string }) => {
+        calls.push(["order-list", businessId]);
+        orderListFilters.push(options);
+        return options.customerId === undefined || options.customerId === customerA ? [order] : [];
+      },
     } as unknown as OrdersService,
     {
       create: async (
@@ -161,7 +167,7 @@ function fixture() {
         return { ...fulfillment, status: "completed" as const, completedAt: now }; },
     } as unknown as FulfillmentsService,
   );
-  return { gateway, calls, paymentRequests };
+  return { gateway, calls, paymentRequests, orderListFilters };
 }
 
 test("Gateway exposes only active commercial catalog DTOs without provider data", async () => {
@@ -290,4 +296,16 @@ test("Gateway forwards a normalized fulfillmentInput object to the orders servic
     fulfillmentInput: { targetUrl: "https://www.tiktok.com/@x/video/1" },
   });
   assert.equal(order.orderId, orderA);
+});
+
+test("Gateway lists a customer's orders through the operations view", async () => {
+  const { gateway, calls, orderListFilters } = fixture();
+  const orders = await gateway.listOrders(businessA, { limit: "1", customerId: customerA });
+  assert.equal(orders.length, 1);
+  assert.deepEqual(orderListFilters, [{ limit: 1, offset: 0, customerId: customerA }]);
+  assert.ok(calls.some(([name, business]) => name === "order-list" && business === businessA));
+  // El filtro es obligatorio para que el estado de postventa sea del cliente
+  // que escribe por WhatsApp y no del ultimo pedido del negocio.
+  const foreign = await gateway.listOrders(businessA, { limit: "1", customerId: orderB });
+  assert.deepEqual(foreign, []);
 });

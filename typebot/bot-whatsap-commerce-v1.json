@@ -442,6 +442,15 @@
    },
    "blocks": [
     {
+     "id": "blkproductslist",
+     "type": "Set variable",
+     "options": {
+      "variableId": "vproductslist",
+      "isCode": true,
+      "expressionToEvaluate": "({{product1Name}} ? \"[1] \" + {{product1Name}} + \"  \" : \"\") + ({{product2Name}} ? \"[2] \" + {{product2Name}} + \"  \" : \"\") + ({{product3Name}} ? \"[3] \" + {{product3Name}} + \"  \" : \"\") + ({{product4Name}} ? \"[4] \" + {{product4Name}} + \"  \" : \"\") + ({{product5Name}} ? \"[5] \" + {{product5Name}} + \"  \" : \"\")"
+     }
+    },
+    {
      "id": "blkproductmenutext",
      "type": "text",
      "content": {
@@ -451,7 +460,7 @@
         "type": "p",
         "children": [
          {
-          "text": "🛍️ Servicios disponibles\n\n1. {{product1Name}}\n2. {{product2Name}}\n3. {{product3Name}}\n4. {{product4Name}}\n5. {{product5Name}}\n\nEscribe el número del servicio:"
+          "text": "🛍️ Servicios disponibles\n\n{{productsList}}\n\nEscribe el número del servicio:"
          }
         ]
        }
@@ -1068,7 +1077,7 @@
      "options": {
       "variableId": "vfulfillmentinput",
       "isCode": true,
-      "expressionToEvaluate": "Object.assign({}, ({{selectedInput1Key}} && String({{input1Value}}).trim() !== \"\" && String({{input1Value}}) !== \"undefined\") ? { [{{selectedInput1Key}}]: ({{selectedInput1Type}} === \"integer\" ? Number({{input1Value}}) : String({{input1Value}}).trim()) } : {}, ({{selectedInput2Key}} && String({{input2Value}}).trim() !== \"\" && String({{input2Value}}) !== \"undefined\") ? { [{{selectedInput2Key}}]: ({{selectedInput2Type}} === \"integer\" ? Number({{input2Value}}) : String({{input2Value}}).trim()) } : {}, ({{selectedInput3Key}} && String({{input3Value}}).trim() !== \"\" && String({{input3Value}}) !== \"undefined\") ? { [{{selectedInput3Key}}]: ({{selectedInput3Type}} === \"integer\" ? Number({{input3Value}}) : String({{input3Value}}).trim()) } : {})"
+      "expressionToEvaluate": "JSON.stringify(Object.assign({}, ({{selectedInput1Key}} && String({{input1Value}}).trim() !== \"\" && String({{input1Value}}) !== \"undefined\") ? { [{{selectedInput1Key}}]: ({{selectedInput1Type}} === \"integer\" ? Number({{input1Value}}) : String({{input1Value}}).trim()) } : {}, ({{selectedInput2Key}} && String({{input2Value}}).trim() !== \"\" && String({{input2Value}}) !== \"undefined\") ? { [{{selectedInput2Key}}]: ({{selectedInput2Type}} === \"integer\" ? Number({{input2Value}}) : String({{input2Value}}).trim()) } : {}, ({{selectedInput3Key}} && String({{input3Value}}).trim() !== \"\" && String({{input3Value}}) !== \"undefined\") ? { [{{selectedInput3Key}}]: ({{selectedInput3Type}} === \"integer\" ? Number({{input3Value}}) : String({{input3Value}}).trim()) } : {}))"
      }
     },
     {
@@ -1146,7 +1155,7 @@
          "value": "application/json"
         }
        ],
-       "body": "{\n  \"quoteId\": \"{{quoteId}}\",\n  \"customerId\": \"{{customerId}}\",\n  \"fulfillmentInput\": {{fulfillmentInput}}\n}"
+       "body": "{\n  \"quoteId\": \"{{quoteId}}\",\n  \"customerId\": \"{{customerId}}\",\n  \"fulfillmentInput\": \"{{fulfillmentInput}}\"\n}"
       },
       "isCustomBody": true,
       "responseVariableMapping": [
@@ -2114,7 +2123,7 @@
      "type": "Set variable",
      "options": {
       "variableId": "vfulfillmentinput",
-      "expressionToEvaluate": "Object.assign({}, ({{selectedInput1Key}} && String({{input1Value}}).trim() !== \"\" && String({{input1Value}}) !== \"undefined\") ? { [{{selectedInput1Key}}]: ({{selectedInput1Type}} === \"integer\" ? Number({{input1Value}}) : String({{input1Value}}).trim()) } : {}, ({{selectedInput2Key}} && String({{input2Value}}).trim() !== \"\" && String({{input2Value}}) !== \"undefined\") ? { [{{selectedInput2Key}}]: ({{selectedInput2Type}} === \"integer\" ? Number({{input2Value}}) : String({{input2Value}}).trim()) } : {}, ({{selectedInput3Key}} && String({{input3Value}}).trim() !== \"\" && String({{input3Value}}) !== \"undefined\") ? { [{{selectedInput3Key}}]: ({{selectedInput3Type}} === \"integer\" ? Number({{input3Value}}) : String({{input3Value}}).trim()) } : {})"
+      "expressionToEvaluate": "JSON.stringify(Object.assign({}, ({{selectedInput1Key}} && String({{input1Value}}).trim() !== \"\" && String({{input1Value}}) !== \"undefined\") ? { [{{selectedInput1Key}}]: ({{selectedInput1Type}} === \"integer\" ? Number({{input1Value}}) : String({{input1Value}}).trim()) } : {}, ({{selectedInput2Key}} && String({{input2Value}}).trim() !== \"\" && String({{input2Value}}) !== \"undefined\") ? { [{{selectedInput2Key}}]: ({{selectedInput2Type}} === \"integer\" ? Number({{input2Value}}) : String({{input2Value}}).trim()) } : {}, ({{selectedInput3Key}} && String({{input3Value}}).trim() !== \"\" && String({{input3Value}}) !== \"undefined\") ? { [{{selectedInput3Key}}]: ({{selectedInput3Type}} === \"integer\" ? Number({{input3Value}}) : String({{input3Value}}).trim()) } : {}))"
      }
     },
     {
@@ -2848,6 +2857,15 @@
      ]
     },
     {
+     "id": "blkmethodslist",
+     "type": "Set variable",
+     "options": {
+      "variableId": "vpaymentmethodslist",
+      "isCode": true,
+      "expressionToEvaluate": "({{paymentMethod1Name}} ? \"[1] \" + {{paymentMethod1Name}} + \"  \" : \"\") + ({{paymentMethod2Name}} ? \"[2] \" + {{paymentMethod2Name}} + \"  \" : \"\") + ({{paymentMethod3Name}} ? \"[3] \" + {{paymentMethod3Name}} + \"  \" : \"\")"
+     }
+    },
+    {
      "id": "blkmethodstext",
      "type": "text",
      "content": {
@@ -2857,7 +2875,7 @@
         "type": "p",
         "children": [
          {
-          "text": "💳 Métodos de pago disponibles:\n\n1. {{paymentMethod1Name}}\n2. {{paymentMethod2Name}}\n3. {{paymentMethod3Name}}\n\nEscribe el número del método que prefieres:"
+          "text": "💳 Métodos de pago disponibles:\n\n{{paymentMethodsList}}\n\nEscribe el número del método que prefieres:"
          }
         ]
        }
@@ -5457,6 +5475,16 @@
   {
    "id": "vfulfillmentcompletedat",
    "name": "fulfillmentCompletedAt",
+   "isSessionVariable": true
+  },
+  {
+   "id": "vproductslist",
+   "name": "productsList",
+   "isSessionVariable": true
+  },
+  {
+   "id": "vpaymentmethodslist",
+   "name": "paymentMethodsList",
    "isSessionVariable": true
   }
  ],

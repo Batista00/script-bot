@@ -244,11 +244,12 @@ export class BotGatewayService {
    */
   async listOrders(
     businessId: string,
-    query: { limit?: string; offset?: string; status?: OrderStatus },
+    query: { limit?: string; offset?: string; status?: OrderStatus; customerId?: string },
   ) {
     const orders = await this.orders.list(businessId, {
       ...pagination(query),
       ...(query.status === undefined ? {} : { status: query.status }),
+      ...(query.customerId === undefined ? {} : { customerId: query.customerId }),
     });
     return orders.map((order) => this.orderDto(order));
   }

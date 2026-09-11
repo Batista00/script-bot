@@ -219,6 +219,18 @@ export function validateTypebotDocument(template) {
     }
   }
 
+  // `fulfillmentInput` viaja como cadena JSON (Typebot no puede inyectar
+  // objetos anidados: al interpolar el objeto el cuerpo deja de ser JSON
+  // válido). Si el cuerpo la interpola sin comillas, el backend responde 400.
+  for (const block of blocks) {
+    const body = block?.options?.webhook?.body;
+    if (typeof body !== "string") continue;
+    if (body.includes("{{fulfillmentInput}}") &&
+        !body.includes('"fulfillmentInput": "{{fulfillmentInput}}"')) {
+      fail(`block ${block.id} must quote the fulfillmentInput placeholder`);
+    }
+  }
+
   validateTypebotSemantics(blocks);
 
   const webhooks = blocks.filter(({ type }) => type === "Webhook");

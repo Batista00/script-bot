@@ -355,7 +355,10 @@ const operationsQuery = {
 } as const;
 
 export const listBotOrdersSchema = {
-  querystring: { ...operationsQuery, properties: { ...operationsQuery.properties, status: orderStatus } },
+  querystring: {
+    ...operationsQuery,
+    properties: { ...operationsQuery.properties, status: orderStatus, customerId: uuid },
+  },
   response: { 200: { type: "array", items: order }, ...errors },
 } satisfies FastifySchema;
 export const listBotPaymentsSchema = {

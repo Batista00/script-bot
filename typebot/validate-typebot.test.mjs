@@ -232,11 +232,12 @@ test("fulfillmentInput is built generically from backend-provided keys", () => {
   assert.match(builder.options.expressionToEvaluate, /selectedInput1Key/);
   assert.match(builder.options.expressionToEvaluate, /selectedInput2Key/);
   assert.match(builder.options.expressionToEvaluate, /selectedInput3Key/);
-  // Debe devolver un OBJETO. El cuerpo del pedido inserta {{fulfillmentInput}}
-  // sin comillas; una cadena JSON haría que el backend responda 400 porque
-  // `fulfillmentInput` tiene que ser un objeto (comprobado contra producción).
+  // Debe devolver una CADENA JSON y el cuerpo del pedido debe citarla.
+  // Typebot no puede inyectar objetos anidados: al interpolar un objeto el
+  // cuerpo deja de ser JSON válido (400). El backend acepta la cadena JSON y la
+  // normaliza (comprobado contra producción).
+  assert.match(builder.options.expressionToEvaluate, /JSON\.stringify/);
   assert.match(builder.options.expressionToEvaluate, /Object\.assign/);
-  assert.doesNotMatch(builder.options.expressionToEvaluate, /JSON\.stringify/);
   assert.doesNotMatch(builder.options.expressionToEvaluate, /targetUrl|instagram|telegram/i);
 });
 
@@ -300,5 +301,45 @@ test("commerce template only uses plain expressions in Set variable blocks", () 
   assert.ok(expressions.length > 0);
   for (const expression of expressions) {
     assert.doesNotMatch(expression, /(^|[^A-Za-z0-9_$])(var|let|const|function|return|for|while)\b/);
+  }
+});
+
+test("validator rejects an unquoted fulfillmentInput placeholder in a webhook body", () => {
+  const mutated = structuredClone(template);
+  const webhook = mutated.groups.flatMap((group) => group.blocks ?? [])
+    .find((block) => typeof block.options?.webhook?.body === "string"
+      && block.options.webhook.body.includes("{{fulfillmentInput}}"));
+  webhook.options.webhook.body = webhook.options.webhook.body
+    .replace('"{{fulfillmentInput}}"', "{{fulfillmentInput}}");
+  assert.throws(() => validateTypebotDocument(mutated),
+    /must quote the fulfillmentInput placeholder/);
+});
+
+test("commerce template quotes the fulfillmentInput placeholder", () => {
+  const bodies = blocks()
+    .map((block) => block.options?.webhook?.body)
+    .filter((body) => typeof body === "string" && body.includes("{{fulfillmentInput}}"));
+  assert.ok(bodies.length > 0, "order webhook must send fulfillmentInput");
+  for (const body of bodies) {
+    assert.match(body, /"fulfillmentInput": "\{\{fulfillmentInput\}\}"/);
+  }
+});
+
+test("catalog and payment menus render only the entries returned by the backend", () => {
+  const productText = findBlock(template, "blkproductmenutext");
+  const methodText = findBlock(template, "blkmethodstext");
+  const text = (block) => block.content.richText.flatMap((node) =>
+    (node.children ?? []).map((child) => child.text ?? "")).join("");
+  // Las ranuras vacias producian entradas "3. " sin nombre cuando el negocio
+  // tiene menos metodos o productos que ranuras fijas.
+  assert.match(text(productText), /\{\{productsList\}\}/);
+  assert.doesNotMatch(text(productText), /\{\{product5Name\}\}/);
+  assert.match(text(methodText), /\{\{paymentMethodsList\}\}/);
+  assert.doesNotMatch(text(methodText), /\{\{paymentMethod3Name\}\}/);
+
+  const productsList = findBlock(template, "blkproductslist").options.expressionToEvaluate;
+  const methodsList = findBlock(template, "blkmethodslist").options.expressionToEvaluate;
+  for (const expression of [productsList, methodsList]) {
+    assert.match(expression, /Name\}\} \? /);
   }
 });
