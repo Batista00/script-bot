@@ -38,6 +38,22 @@ const envSchema = z.object({
     (value) => value === "" ? undefined : value,
     z.coerce.number().int().min(1).max(86_400).optional(),
   ),
+  BOT_RATE_LIMIT_MAX: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.coerce.number().int().min(1).max(100_000).optional(),
+  ),
+  BOT_RATE_LIMIT_WINDOW_SECONDS: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.coerce.number().int().min(1).max(86_400).optional(),
+  ),
+  WEBHOOK_RATE_LIMIT_MAX: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.coerce.number().int().min(1).max(100_000).optional(),
+  ),
+  WEBHOOK_RATE_LIMIT_WINDOW_SECONDS: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.coerce.number().int().min(1).max(86_400).optional(),
+  ),
   WORKER_POLL_INTERVAL_MS: z.preprocess(
     (value) => value === "" ? undefined : value,
     z.coerce.number().int().min(250).max(60_000).optional(),

@@ -14,6 +14,10 @@ import { SmmRajaFulfillmentAdapter } from "./integrations/smm-raja/smm-raja.fulf
 import { PostgresApiCredentialsRepository } from "./modules/api-credentials/api-credentials.repository.js";
 import { apiCredentialsRoutes } from "./modules/api-credentials/api-credentials.routes.js";
 import { ApiCredentialsService } from "./modules/api-credentials/api-credentials.service.js";
+import {
+  FixedWindowRateLimiter,
+  rateLimitGuard,
+} from "./core/rate-limit/fixed-window-rate-limiter.js";
 import { authPlugin } from "./modules/auth/auth.plugin.js";
 import {
   LoginRateLimiter,
@@ -88,6 +92,27 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   });
 
   registerErrorHandler(app);
+
+  // Public surfaces are throttled per identity: the login by client address,
+  // the Bot Gateway by machine credential and the provider webhook by address.
+  const webhookRateLimit = rateLimitGuard({
+    limiter: new FixedWindowRateLimiter({
+      max: config.WEBHOOK_RATE_LIMIT_MAX ?? 240,
+      windowSeconds: config.WEBHOOK_RATE_LIMIT_WINDOW_SECONDS ?? 60,
+    }),
+    key: (request) => (request.ip.length > 0 ? request.ip : "unknown"),
+    code: "TOO_MANY_REQUESTS",
+    message: "Too many requests. Try again later.",
+  });
+  const botRateLimit = rateLimitGuard({
+    limiter: new FixedWindowRateLimiter({
+      max: config.BOT_RATE_LIMIT_MAX ?? 600,
+      windowSeconds: config.BOT_RATE_LIMIT_WINDOW_SECONDS ?? 60,
+    }),
+    key: (request) => request.machineAuthContext?.credentialId ?? request.ip,
+    code: "TOO_MANY_REQUESTS",
+    message: "Too many requests. Try again later.",
+  });
   await app.register(databasePlugin, {
     connectionString: config.DATABASE_URL,
   });
@@ -173,7 +198,10 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
     new PostgresBusinessesRepository(app.db),
   );
   await app.register(healthRoutes);
-  await app.register(mercadoPagoWebhookRoutes, { service: mercadoPagoWebhookService });
+  await app.register(mercadoPagoWebhookRoutes, {
+    service: mercadoPagoWebhookService,
+    rateLimit: webhookRateLimit,
+  });
   await app.register(integrationsRoutes, { service: integrationsService });
   const loginRateLimiter = new LoginRateLimiter({
     max: config.AUTH_LOGIN_RATE_LIMIT_MAX ?? loginRateLimitDefaults.max,
@@ -198,6 +226,7 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
     prefix: "/bot/v1",
     service: botGatewayService,
     machineAuth: new MachineAuthService(apiCredentialsRepository),
+    rateLimit: botRateLimit,
   });
   await app.register(customersRoutes);
   await app.register(categoriesRoutes);

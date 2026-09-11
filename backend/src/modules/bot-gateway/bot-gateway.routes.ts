@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, preHandlerHookHandler } from "fastify";
 
 import { requireActiveBusiness } from "../businesses/businesses.active.middleware.js";
 import { requireMachineCredential } from "../machine-auth/machine-auth.middleware.js";
@@ -42,6 +42,8 @@ import type {
 interface BotGatewayRoutesOptions {
   service: BotGatewayService;
   machineAuth: MachineAuthService;
+  /** Applied per machine credential after successful authentication. */
+  rateLimit?: preHandlerHookHandler;
 }
 
 export const botGatewayRoutes: FastifyPluginAsync<BotGatewayRoutesOptions> = async (
@@ -52,7 +54,9 @@ export const botGatewayRoutes: FastifyPluginAsync<BotGatewayRoutesOptions> = asy
   const controller = new BotGatewayController(options.service);
   const machineAuth = requireMachineCredential(options.machineAuth);
   const activeBusiness = requireActiveBusiness();
-  const commercialAuthorization = [machineAuth, activeBusiness];
+  const commercialAuthorization: preHandlerHookHandler[] = [machineAuth];
+  if (options.rateLimit) commercialAuthorization.push(options.rateLimit);
+  commercialAuthorization.push(activeBusiness);
 
   app.post<{ Body: BotResolveCustomerInput }>(
     "/customers/resolve", { schema: resolveCustomerSchema, preHandler: commercialAuthorization },
