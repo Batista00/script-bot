@@ -43,8 +43,9 @@ jobs:
 
       - name: Check shell script syntax
         run: |
-          bash -n deploy/scripts/deploy.sh
-          bash -n deploy/scripts/backup-postgres.sh
+          for script in deploy/scripts/*.sh; do
+            bash -n "${script}"
+          done
 
       # `docker compose config` is used instead of a bare YAML load because it
       # validates the artifact the way the deployment actually consumes it:

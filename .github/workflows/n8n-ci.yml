@@ -1,0 +1,41 @@
+name: n8n CI
+
+on:
+  push:
+    paths:
+      - "n8n/**"
+      - ".github/workflows/n8n-ci.yml"
+  pull_request:
+    paths:
+      - "n8n/**"
+      - ".github/workflows/n8n-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  n8n:
+    name: n8n workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      # The validator only uses the Node.js standard library, so there is no
+      # `pnpm install` and both commands run from the repository root.
+      - name: Validate workflows
+        run: node n8n/validate-n8n.mjs
+
+      - name: Run validator tests
+        run: node --test n8n/validate-n8n.test.mjs

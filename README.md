@@ -9,8 +9,9 @@ Backend comercial multi-negocio, panel administrativo y flujo conversacional par
 | `backend/` | API Fastify + PostgreSQL, migraciones, tests unitarios y de integración |
 | `admin/` | SPA administrativa React + Vite para las APIs humanas |
 | `typebot/` | Template de flujo Typebot 6.1 y su validador offline |
-| `deploy/` | Compose de producción, plantillas Nginx, scripts de despliegue y backup |
-| `docs/` | Arquitectura, auditorías y descubrimiento de proveedores |
+| `n8n/` | Workflows importables de alertas, reporte y reconciliación + validador |
+| `deploy/` | Compose de producción (API + worker + PostgreSQL), Nginx, scripts y runbook |
+| `docs/` | Operación, arquitectura, auditorías y descubrimiento de proveedores |
 | `datos/` | Documentación histórica de planificación (no describe el estado actual) |
 
 Cada aplicación es independiente: no hay workspace raíz. `backend/` y `admin/` tienen su propio `package.json` y `pnpm-lock.yaml`.
@@ -18,19 +19,26 @@ Cada aplicación es independiente: no hay workspace raíz. `backend/` y `admin/`
 ## Arquitectura en una vista
 
 ```text
-WhatsApp → Typebot → Bot Gateway (/bot/v1, Bearer bw_...)
-                              ↓
+WhatsApp → Evolution → Typebot → Bot Gateway (/bot/v1, Bearer bw_...)
+                                        ↓
 Panel admin (/businesses/:id/..., cookie de sesión)
-                              ↓
+                                        ↓
 Customers → Categories/Products → Pricing → Quotes → Orders
                                                        ↓
                               Payments (Mercado Pago | transferencia)
                                                        ↓
-                              Fulfillments → SMM Raja
+                              Order paid → job_queue (PostgreSQL)
+                                                       ↓
+                              Worker → Fulfillments → SMM Raja
+                                                       ↓
+                              Sync de estado → Order completed/failed
 ```
+
+El backend es la única fuente de verdad: precios, estados de pago, estados de pedido, fulfillment, idempotencia y autorización viven aquí. Typebot, Evolution y n8n son interfaces y automatización, nunca lógica de negocio paralela.
 
 Reglas de crecimiento y convenciones de capas: [`AGENTS.md`](AGENTS.md).
 Arquitectura detallada: [`backend/docs/architecture.md`](backend/docs/architecture.md).
+Operación (proveedores, credenciales, Typebot, Evolution, n8n, worker): [`docs/operations.md`](docs/operations.md).
 
 ## Requisitos
 
@@ -56,10 +64,14 @@ BOOTSTRAP_OWNER_NAME="Owner" \
 BOOTSTRAP_OWNER_EMAIL="owner@example.com" \
 BOOTSTRAP_OWNER_PASSWORD="una-clave-larga" \
 pnpm bootstrap:owner
+
+# 4. Worker de jobs (despacho, sincronización y mantenimiento)
+pnpm build
+node dist/src/worker.js
 ```
 
 ```bash
-# 4. Panel administrativo
+# 5. Panel administrativo
 cd admin
 cp .env.example .env
 pnpm install --frozen-lockfile
@@ -72,7 +84,7 @@ pnpm dev                     # proxy /api → 127.0.0.1:3000
 cd backend
 pnpm typecheck
 pnpm build
-pnpm test                    # unit + integración (los 11 de integración se omiten sin TEST_DATABASE_URL)
+pnpm test                    # unit + integración (los 14 de integración se omiten sin TEST_DATABASE_URL)
 
 TEST_DATABASE_URL="postgresql://usuario:clave@127.0.0.1:5432/bot_whatsapp_test" pnpm test:integration
 ```
@@ -83,9 +95,10 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ```
 
 ```bash
-# Template Typebot (solo Node estándar)
-node typebot/validate-typebot.mjs
-node --test typebot/validate-typebot.test.mjs
+# Validadores sin dependencias (Node estándar)
+node typebot/validate-typebot.mjs && node --test typebot/validate-typebot.test.mjs
+node n8n/validate-n8n.mjs && node --test n8n/validate-n8n.test.mjs
+node deploy/scripts/preflight.mjs --example
 ```
 
 Los tests de integración crean su propio esquema con las migraciones y limpian los negocios que generan. Nunca apuntes `TEST_DATABASE_URL` a una base productiva.
@@ -95,7 +108,9 @@ Los tests de integración crean su propio esquema con las migraciones y limpian 
 - Los secretos viven solo en variables de entorno; no hay valores por defecto ni credenciales en el repositorio.
 - Las credenciales de integraciones se cifran con AES-256-GCM usando `INTEGRATIONS_ENCRYPTION_KEY` (32 bytes base64). Si se pierde, las credenciales cifradas no se recuperan.
 - La API humana usa cookie `HttpOnly`; el Bot Gateway usa credenciales `bw_...` administradas por owner/admin.
-- `POST /auth/login` tiene rate limiting por IP; `GET /health/ready` verifica PostgreSQL.
+- Rate limiting por IP en `POST /auth/login` y en el webhook público de Mercado Pago, y por credencial en el Bot Gateway.
+- El worker reclama trabajo con `FOR UPDATE SKIP LOCKED`: dos réplicas nunca despachan el mismo pedido, y un reinicio no pierde jobs.
+- `GET /health` es liveness y `GET /health/ready` verifica PostgreSQL.
 - Un negocio con `status = inactive` queda bloqueado para operaciones comerciales y conserva la administración.
 
 Guía de despliegue: [`deploy/README.md`](deploy/README.md).
@@ -105,6 +120,7 @@ Guía de despliegue: [`deploy/README.md`](deploy/README.md).
 El repositorio está preparado para operación real de un negocio (o varios) con un único proceso backend, con las siguientes limitaciones conocidas:
 
 - No hay registro público ni invitaciones por correo: los usuarios se crean desde el panel (Equipo) o con `pnpm bootstrap:owner`.
-- No hay workers, colas ni polling: el despacho de fulfillments es explícito y el webhook de Mercado Pago es la única confirmación automática.
 - No hay CD: el despliegue es manual y está documentado en `deploy/README.md`.
-- Typebot no completa el paso de fulfillment; ver `typebot/README.md`.
+- Refunds y chargebacks se registran y dejan el pedido en `failed` para revisión; no hay devolución automática al cliente.
+- La mensajería WhatsApp depende de Evolution API (instalación aparte) y de una instancia y una credencial reales.
+- La capa de IA es opcional y auxiliar; no participa en precios, pagos ni estados. Ver `docs/operations.md`.
