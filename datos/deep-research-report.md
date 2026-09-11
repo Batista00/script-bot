@@ -1,5 +1,14 @@
 # Investigación profunda: plataforma SaaS multi-tenant de bots automatizados para WhatsApp
 
+> **Documento histórico y aspiracional (2026-08-17). No describe el estado del repositorio.**
+> Es una investigación de producto para un SaaS multi-tenant con WhatsApp Cloud API, motor de
+> flujos propio y `tenant_id` + RLS. El repositorio implementó una **tercera vía**: el dominio del
+> resumen del proyecto (Typebot como capa conversacional, Mercado Pago, SMM Raja, panel propio)
+> junto con los principios de ingeniería recomendados aquí (adapters por contrato, idempotencia,
+> llamadas externas fuera de transacciones, credenciales cifradas), pero sin `tenant_id`/RLS y
+> sin descartar Typebot. Estado vigente: `README.md` raíz, `backend/README.md` y
+> `backend/docs/architecture.md`.
+
 **Fecha de verificación:** 17 de agosto de 2026, America/Santiago.  
 **Objetivo:** construir una plataforma comercial para múltiples clientes, self-hosted, con el menor coste recurrente posible, control del código, capacidad de white-label y una arquitectura que pueda evolucionar de 10 a 1.000+ clientes sin rehacer el producto.
 

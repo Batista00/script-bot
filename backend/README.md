@@ -22,6 +22,7 @@ El servicio escucha en `http://localhost:3000` por defecto.
 
 ```bash
 curl http://localhost:3000/health
+curl http://localhost:3000/health/ready
 ```
 
 Respuesta esperada:
@@ -29,6 +30,8 @@ Respuesta esperada:
 ```json
 {"status":"ok"}
 ```
+
+`GET /health` es liveness (el proceso responde) y `GET /health/ready` es readiness: consulta PostgreSQL y devuelve `503 {"status":"unavailable","database":"unavailable"}` si la base no responde. El healthcheck de Compose usa `/health` para no reiniciar el contenedor por un corte transitorio de base de datos.
 
 ## Scripts
 
@@ -86,6 +89,36 @@ pnpm bootstrap:owner
 El script crea el negocio, el usuario y su membresía `owner` en una sola transacción. Si ya existe cualquier usuario, se rechaza porque el sistema se considera inicializado. No guardes esos valores reales en `.env` ni en el repositorio.
 
 Todos los endpoints `/businesses` requieren sesión. El listado contiene solo negocios asociados al usuario; consultar uno exige membresía; editarlo exige rol `owner` o `admin`. Al crear un negocio, el usuario autenticado obtiene el rol `owner` dentro de la misma transacción.
+
+## Equipo y memberships
+
+Cada negocio administra su propio equipo. Los roles son `owner`, `admin` y `operator`, y cada membresía tiene estado `active` o `inactive`, de modo que retirar el acceso no destruye el historial.
+
+```text
+GET    /businesses/:businessId/memberships
+POST   /businesses/:businessId/memberships
+PATCH  /businesses/:businessId/memberships/:membershipId
+DELETE /businesses/:businessId/memberships/:membershipId
+```
+
+Solo `owner` y `admin` acceden a estos endpoints. Reglas aplicadas por el servicio:
+
+- `POST` recibe `email`, `role` y, si el correo aún no existe, `name` y `password` (12 a 128 caracteres). Si la cuenta ya existe se asocia sin duplicarla.
+- Un `admin` no puede conceder el rol `owner` ni gestionar membresías de `owner`.
+- Un `admin` no puede modificar su propia membresía; un `owner` sí, siempre que quede al menos otro owner activo.
+- El último owner activo no puede ser degradado, desactivado ni retirado (`409 LAST_OWNER_REQUIRED`).
+- Una membresía inactiva equivale a no pertenecer al negocio: `GET /businesses/:businessId` responde 404 y el negocio desaparece de `/auth/me`.
+
+## Estado del negocio
+
+`business.status` es efectivo. Con `status = inactive`, las operaciones comerciales responden `409 BUSINESS_INACTIVE`:
+
+- todo el Bot Gateway (`/bot/v1/*`), porque es el canal del cliente;
+- creación de quotes, creación y cancelación de orders, creación de pagos y confirmación de transferencias;
+- despacho y reintento de fulfillments;
+- mutaciones de clientes, catálogo, precios, métodos de pago, mappings y catálogo de proveedor.
+
+Siguen disponibles las lecturas, la reconciliación de fulfillments (`POST /businesses/:businessId/fulfillments/:fulfillmentId/sync-status`), la administración del negocio (`PATCH /businesses/:businessId` para reactivar), el equipo, las integraciones y las API credentials. El estado viaja dentro de la membresía y de la credencial de máquina, así que el guard no agrega consultas y nunca confía en un `businessId` del request.
 
 ## Machine Auth y Bot Gateway
 

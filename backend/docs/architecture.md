@@ -203,6 +203,24 @@ El token machine contiene al menos 256 bits aleatorios y solo se devuelve al cre
 
 Bot Gateway no tiene repositories ni SQL: orquesta Customers, Categories, Products, Pricing, Quotes, Orders, Payments y Fulfillments. Todas las llamadas reciben el `businessId` del `MachineAuthContext`, nunca del cliente. Sus DTOs excluyen provider rates, referencias externas, credenciales, hashes, idempotency keys e inputs sensibles de fulfillment. Las reglas críticas —pago confirmado por provider y dispatch exclusivo desde Order `paid`— permanecen en sus respectivos servicios Core.
 
+## Equipo, membresías y estado del negocio
+
+`business_memberships` une usuarios y negocios con rol `owner|admin|operator` y estado `active|inactive`. El estado permite retirar el acceso sin borrar historial, y `requireBusinessMembership` solo entrega membresías activas: una membresía inactiva se comporta como ausencia de pertenencia (404), y `/auth/me` deja de listar ese negocio.
+
+```text
+PATCH  role/status   →  admin no gestiona owners ni concede owner
+DELETE membership    →  nunca deja el negocio sin owner activo
+POST   membership    →  crea la cuenta si el correo no existe; si existe, la asocia
+```
+
+El estado del negocio viaja **denormalizado** dentro de la membership (`businessStatus`) y de la credencial de máquina (`MachineAuthContext.businessStatus`), leídos con un JOIN en la misma consulta que ya hacía cada guard. `requireActiveBusiness()` decide entonces sin I/O y sin aceptar `businessId` del request: un negocio `inactive` responde `409 BUSINESS_INACTIVE` en todo el Bot Gateway y en las mutaciones comerciales, mientras las lecturas, la reconciliación de fulfillments y la administración (negocio, equipo, integraciones, credenciales) siguen disponibles para poder reactivarlo.
+
 ## Propiedad de datos por negocio
 
 `businesses` es la entidad raíz para separar negocios. Las futuras entidades que pertenezcan a un negocio deberán incluir una referencia `business_id → businesses.id` cuando corresponda. Esta regla no aplica a la propia tabla `businesses`.
+
+## Manejo de errores y observabilidad
+
+Todo error de dominio es un `AppError` con `code` estable y status explícito; el handler global responde siempre `{error:{code,message}}` y no filtra detalles internos. Los errores de cliente de Fastify (cuerpo demasiado grande, media type no soportado, validación) conservan su status y se registran como advertencia, no como error interno. Las rutas desconocidas usan el mismo envelope mediante `setNotFoundHandler`.
+
+`GET /health` es liveness y `GET /health/ready` verifica PostgreSQL devolviendo 503 sin exponer la cadena de conexión. Las sesiones vencidas se podan por lotes acotados durante el login, y el login verifica un hash señuelo cuando la cuenta no existe para no revelar por tiempo qué correos están registrados.
