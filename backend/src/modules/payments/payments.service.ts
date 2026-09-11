@@ -279,6 +279,12 @@ export class PaymentsService {
     );
   }
 
+  /**
+   * Applies a provider status located by provider identity without verifying
+   * amount or currency. It exists for controlled reconciliation and tests;
+   * production webhooks MUST use `applyVerifiedProviderUpdate`, which validates
+   * the financial snapshot before touching Payment and Order.
+   */
   async applyProviderUpdate(
     businessId: string,
     providerKeyInput: string,
