@@ -88,6 +88,9 @@ import { whatsappRoutes } from "./modules/whatsapp/whatsapp.routes.js";
 import { WhatsappService } from "./modules/whatsapp/whatsapp.service.js";
 import { WhatsappWebhookService } from "./modules/whatsapp/whatsapp.webhook.service.js";
 import { registerSalesAutomation } from "./modules/sales/sales.plugin.js";
+import { PostgresConversationRepository } from "./modules/conversation/conversation.repository.js";
+import { ConversationService } from "./modules/conversation/conversation.service.js";
+import { conversationRoutes } from "./modules/conversation/conversation.routes.js";
 
 export async function buildApp(config: Env): Promise<FastifyInstance> {
   const app = Fastify({
@@ -228,6 +231,31 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
     new CustomersService(customersRepository),
     whatsappRepository,
   );
+  const conversationService = new ConversationService({
+    repository: new PostgresConversationRepository(app.db),
+    customers: new CustomersService(customersRepository),
+    quotes: new QuotesService(
+      new PostgresQuotesRepository(app.db),
+      new PriceCalculatorService(productsRepository, pricingRepository),
+      customersRepository,
+    ),
+    orders: new OrdersService(new PostgresOrdersRepository(app.db), app.db),
+    payments: paymentsService,
+    paymentMethods: paymentMethodsService,
+    ai: {
+      // La IA conversa; nunca decide categoría, producto, cantidad ni pago.
+      reply: async ({ businessId, message, customerId, conversationId, context }) => {
+        const answer = await aiOrchestratorService.handle(businessId, {
+          message,
+          customerId,
+          conversationId,
+          context,
+        });
+        if (!answer.message) return null;
+        return { message: answer.message, action: answer.action };
+      },
+    },
+  });
   await app.register(healthRoutes);
   await app.register(mercadoPagoWebhookRoutes, {
     service: mercadoPagoWebhookService,
@@ -283,6 +311,11 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   await app.register(paymentsRoutes, { service: paymentsService });
   await app.register(paymentMethodsRoutes, { service: paymentMethodsService });
   await app.register(jobsRoutes, { service: jobsService });
+  await app.register(conversationRoutes, {
+    prefix: "/bot/v1",
+    service: conversationService,
+    machineAuth: machineAuthService,
+  });
   await registerSalesAutomation(app, config, botGatewayService, integrationsService, paymentsService,
     new ProviderFulfillmentRegistry([new SmmRajaFulfillmentAdapter(integrationsService, smmRajaClient)]));
 

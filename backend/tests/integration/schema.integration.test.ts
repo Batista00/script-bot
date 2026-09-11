@@ -18,6 +18,8 @@ const expectedTables = [
   "job_queue",
   "categories",
   "conversation_messages",
+  "conversation_sessions",
+  "conversation_turns",
   "conversations",
   "customers",
   "digital_order_deliveries",
@@ -119,7 +121,7 @@ test(
     const migrationResult = await db.query<{ count: number }>(
       "SELECT count(*)::integer AS count FROM pgmigrations",
     );
-    assert.equal(migrationResult.rows[0]?.count, 26);
+    assert.equal(migrationResult.rows[0]?.count, 27);
 
     const tableResult = await db.query<{ table_name: string }>(
       `SELECT table_name

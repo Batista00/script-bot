@@ -1,0 +1,155 @@
+{
+ "id": "cmthintypebot000001",
+ "name": "BW - Conversacion WhatsApp (delgado)",
+ "version": "6.1",
+ "publicId": null,
+ "workspaceId": "cmske6ll700001fqf7yll9l1r",
+ "folderId": null,
+ "themeId": null,
+ "selectedThemeTemplateId": null,
+ "customDomain": null,
+ "whatsAppCredentialsId": null,
+ "icon": null,
+ "isArchived": false,
+ "isClosed": false,
+ "riskLevel": null,
+ "resultsTablePreferences": null,
+ "spaceId": null,
+ "createdAt": "2026-09-11T00:00:00.000Z",
+ "updatedAt": "2026-09-11T00:00:00.000Z",
+ "theme": {},
+ "settings": {},
+ "events": [
+  {
+   "id": "evtthinstart",
+   "outgoingEdgeId": "edgethinstart",
+   "graphCoordinates": {
+    "x": 0,
+    "y": 0
+   },
+   "type": "start"
+  }
+ ],
+ "variables": [
+  {
+   "id": "vremotejid",
+   "name": "remoteJid",
+   "isSessionVariable": true
+  },
+  {
+   "id": "vpushname",
+   "name": "pushName",
+   "isSessionVariable": true
+  },
+  {
+   "id": "vbackendbaseurl",
+   "name": "backend_base_url",
+   "isSessionVariable": true
+  },
+  {
+   "id": "vbackendtoken",
+   "name": "backend_token",
+   "isSessionVariable": true
+  },
+  {
+   "id": "vturn",
+   "name": "turn",
+   "isSessionVariable": true
+  },
+  {
+   "id": "vrenderedmessage",
+   "name": "renderedMessage",
+   "isSessionVariable": true
+  }
+ ],
+ "groups": [
+  {
+   "id": "grpturn",
+   "title": "00 - Turno conversacional",
+   "graphCoordinates": {
+    "x": 300,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkturninput",
+     "type": "text input",
+     "options": {
+      "variableId": "vturn",
+      "labels": {
+       "placeholder": "Escribe tu mensaje"
+      }
+     }
+    },
+    {
+     "id": "blkturnwebhook",
+     "type": "Webhook",
+     "options": {
+      "webhook": {
+       "url": "{{backend_base_url}}/bot/v1/conversation/turn",
+       "method": "POST",
+       "headers": [
+        {
+         "id": "hdrthin",
+         "key": "Authorization",
+         "value": "Bearer {{backend_token}}"
+        },
+        {
+         "id": "hdrthin2",
+         "key": "Content-Type",
+         "value": "application/json"
+        }
+       ],
+       "body": "{\n  \"remoteJid\": \"{{remoteJid}}\",\n  \"text\": \"{{turn}}\"\n}"
+      },
+      "isCustomBody": true,
+      "responseVariableMapping": [
+       {
+        "id": "mapthin",
+        "bodyPath": "data.renderedMessage",
+        "variableId": "vrenderedmessage"
+       }
+      ]
+     }
+    },
+    {
+     "id": "blkshow",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtthin",
+        "type": "p",
+        "children": [
+         {
+          "text": "{{renderedMessage}}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ],
+ "edges": [
+  {
+   "id": "edgethinstart",
+   "from": {
+    "eventId": "evtthinstart"
+   },
+   "to": {
+    "groupId": "grpturn"
+   }
+  },
+  {
+   "id": "edgethinloop",
+   "from": {
+    "blockId": "blkshow"
+   },
+   "to": {
+    "blockId": "blkturninput"
+   }
+  }
+ ]
+}

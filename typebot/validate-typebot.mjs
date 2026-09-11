@@ -8,7 +8,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const templateUrl = new URL("./bot-whatsap-commerce-v1.json", import.meta.url);
+const templateUrl = new URL("./bot-whatsap-commerce-v1.legacy.json", import.meta.url);
 const templatePath = fileURLToPath(templateUrl);
 const modulePath = fileURLToPath(import.meta.url);
 

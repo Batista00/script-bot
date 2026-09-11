@@ -77,7 +77,7 @@ export function withRuntimeVariables(flow, { backendToken, backendBaseUrl = BACK
 }
 
 /** Artefacto JSON del flujo, tal como se versiona en el repositorio. */
-export function loadFlow(path = resolve(here, "bot-whatsap-commerce-v1.json")) {
+export function loadFlow(path = process.env.TYPEBOT_FLOW_PATH ?? resolve(here, "bot-whatsap-thin-v1.json")) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 

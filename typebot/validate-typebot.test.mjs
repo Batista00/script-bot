@@ -10,7 +10,7 @@ import {
   validateTypebotTemplate,
 } from "./validate-typebot.mjs";
 
-const templateUrl = new URL("./bot-whatsap-commerce-v1.json", import.meta.url);
+const templateUrl = new URL("./bot-whatsap-commerce-v1.legacy.json", import.meta.url);
 const validatorPath = fileURLToPath(new URL("./validate-typebot.mjs", import.meta.url));
 
 const template = JSON.parse(await readFile(templateUrl, "utf8"));
