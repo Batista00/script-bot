@@ -2,6 +2,7 @@ import type { ActiveIntegration, JsonObject } from "../../modules/integrations/i
 import { PaymentProviderUnavailableError } from "../../modules/payments/payments.provider.js";
 
 export interface MercadoPagoCredentials {
+  publicKey: string;
   accessToken: string;
   webhookSecret: string;
 }
@@ -12,12 +13,16 @@ export interface MercadoPagoConfig {
   failureUrl?: string;
 }
 
-function requiredSecret(credentials: JsonObject, key: string): string {
+function requiredCredential(credentials: JsonObject, key: string): string {
   const value = credentials[key];
   if (typeof value !== "string" || value.length === 0 || value.length > 4096) {
     throw new PaymentProviderUnavailableError();
   }
-  return value;
+  const normalized = key === "accessToken"
+    ? value.trim().replace(/^Bearer\s+/i, "")
+    : value.trim();
+  if (normalized.length === 0) throw new PaymentProviderUnavailableError();
+  return normalized;
 }
 
 function optionalUrl(config: JsonObject, key: string): string | undefined {
@@ -39,8 +44,9 @@ function optionalUrl(config: JsonObject, key: string): string | undefined {
 
 export function mercadoPagoCredentials(integration: ActiveIntegration): MercadoPagoCredentials {
   return {
-    accessToken: requiredSecret(integration.credentials, "accessToken"),
-    webhookSecret: requiredSecret(integration.credentials, "webhookSecret"),
+    publicKey: requiredCredential(integration.credentials, "publicKey"),
+    accessToken: requiredCredential(integration.credentials, "accessToken"),
+    webhookSecret: requiredCredential(integration.credentials, "webhookSecret"),
   };
 }
 

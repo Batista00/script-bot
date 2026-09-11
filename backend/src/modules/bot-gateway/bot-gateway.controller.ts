@@ -3,6 +3,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { requireMachineContext } from "../machine-auth/machine-auth.fastify.js";
 import { BotGatewayService } from "./bot-gateway.service.js";
 import type {
+  BotCatalogPackagesQuery,
   BotCreateOrderInput,
   BotFulfillmentListQuery,
   BotJobListQuery,
@@ -46,6 +47,14 @@ export class BotGatewayController {
     request: FastifyRequest<{ Querystring: BotProductListQuery }>, reply: FastifyReply,
   ) => reply.status(200).send(await this.service.listProducts(
     this.business(request), request.query,
+  ));
+
+  listCatalogPackages = async (
+    request: FastifyRequest<{ Querystring: BotCatalogPackagesQuery }>,
+    reply: FastifyReply,
+  ) => reply.status(200).send(await this.service.listCatalogPackages(
+    this.business(request),
+    request.query.categoryId,
   ));
 
   getProduct = async (

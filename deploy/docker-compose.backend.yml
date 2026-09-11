@@ -36,6 +36,9 @@ services:
       AUTH_SESSION_TTL_HOURS: ${AUTH_SESSION_TTL_HOURS:?Set AUTH_SESSION_TTL_HOURS in deploy/.env.production}
       INTEGRATIONS_ENCRYPTION_KEY: ${INTEGRATIONS_ENCRYPTION_KEY:?Set INTEGRATIONS_ENCRYPTION_KEY in deploy/.env.production}
       PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:?Set PUBLIC_API_BASE_URL in deploy/.env.production}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.4-nano}
+      OPENAI_TIMEOUT_MS: ${OPENAI_TIMEOUT_MS:-10000}
     command:
       - sh
       - -c

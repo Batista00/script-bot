@@ -115,6 +115,17 @@ test("create normalizes provider, encrypts credentials, and returns no secrets",
   assert.equal(stored.credentialsEncrypted.includes("visible-only-before-encryption"), false);
 });
 
+test("create can leave an integration inactive while its webhook setup is pending", async () => {
+  const { service } = createService();
+  const created = await service.create(businessA, {
+    providerKey: "mercado_pago",
+    status: "inactive",
+    credentials: { publicKey: "public-key", accessToken: "access-token" },
+  });
+  assert.equal(created.status, "inactive");
+  assert.equal(await service.getActiveIntegration(businessA, "mercado_pago"), null);
+});
+
 test("internal access decrypts only an active integration", async () => {
   const { service } = createService();
   const created = await service.create(businessA, {
@@ -131,12 +142,17 @@ test("internal webhook lookup requires the exact active provider", async () => {
   const { service } = createService();
   const created = await service.create(businessA, {
     providerKey: "mercado_pago",
-    credentials: { accessToken: "internal-secret", webhookSecret: "webhook-secret" },
+    credentials: {
+      publicKey: "public-key",
+      accessToken: "internal-secret",
+      webhookSecret: "webhook-secret",
+    },
   });
 
   const active = await service.getActiveIntegrationById(created.id, "mercado_pago");
   assert.equal(active?.businessId, businessA);
   assert.deepEqual(active?.credentials, {
+    publicKey: "public-key",
     accessToken: "internal-secret",
     webhookSecret: "webhook-secret",
   });

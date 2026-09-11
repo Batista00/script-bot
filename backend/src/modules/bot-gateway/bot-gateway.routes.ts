@@ -25,6 +25,7 @@ import {
   getBotOrderSchema,
   getBotPaymentSchema,
   getBotProductSchema,
+  listBotCatalogPackagesSchema,
   listBotCategoriesSchema,
   listBotFulfillmentsSchema,
   listBotPricesSchema,
@@ -35,6 +36,7 @@ import {
 } from "./bot-gateway.schema.js";
 import { BotGatewayService } from "./bot-gateway.service.js";
 import type {
+  BotCatalogPackagesQuery,
   BotCreateOrderInput,
   BotFulfillmentListQuery,
   BotJobListQuery,
@@ -80,6 +82,15 @@ export const botGatewayRoutes: FastifyPluginAsync<BotGatewayRoutesOptions> = asy
     "/products", { schema: listBotProductsSchema, preHandler: commercialAuthorization },
     controller.listProducts,
   );
+  app.get<{ Querystring: BotCatalogPackagesQuery }>(
+    "/catalog/packages",
+    {
+      schema: listBotCatalogPackagesSchema,
+      preHandler: machineAuth,
+    },
+    controller.listCatalogPackages,
+  );
+
   app.get<{ Params: BotProductParams }>(
     "/products/:productId", { schema: getBotProductSchema, preHandler: commercialAuthorization },
     controller.getProduct,

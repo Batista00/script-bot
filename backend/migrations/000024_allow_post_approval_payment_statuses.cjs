@@ -1,6 +1,6 @@
 /**
  * Refunds and chargebacks happen after an approved payment, so `approved_at`
- * must survive the transition. Enum values were added in 000017; PostgreSQL
+ * must survive the transition. Enum values were added in 000023; PostgreSQL
  * cannot remove them, so the down migration only restores the stricter check.
  *
  * @type {(pgm: import("node-pg-migrate").MigrationBuilder) => void}

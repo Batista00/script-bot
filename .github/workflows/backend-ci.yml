@@ -4,10 +4,12 @@ on:
   push:
     paths:
       - "backend/**"
+      - "flows/**"
       - ".github/workflows/backend-ci.yml"
   pull_request:
     paths:
       - "backend/**"
+      - "flows/**"
       - ".github/workflows/backend-ci.yml"
   workflow_dispatch:
 
@@ -82,3 +84,7 @@ jobs:
 
       - name: Run complete test suite
         run: pnpm test
+
+      - name: Validate importable workflow artifacts without external calls
+        working-directory: .
+        run: node --test flows/tests/importables.test.mjs flows/tests/transport.test.mjs flows/tests/conversational-contract.test.mjs

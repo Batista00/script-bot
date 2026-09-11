@@ -56,6 +56,7 @@ export const createIntegrationSchema = {
     required: ["providerKey", "credentials"],
     properties: {
       providerKey: providerKeySchema,
+      status: statusSchema,
       config: jsonObjectSchema,
       credentials: credentialsSchema,
     },

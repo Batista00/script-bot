@@ -11,10 +11,12 @@ export interface Customer {
   email: string | null; status: Status; createdAt: string; updatedAt: string;
 }
 export interface Category {
+  parentId?: string | null;
   id: string; businessId: string; name: string; status: Status;
   createdAt: string; updatedAt: string;
 }
 export interface Product {
+  deliveryConfig?: ProductDelivery | null;
   id: string; businessId: string; categoryId: string | null; name: string;
   description: string | null; type: "service" | "product"; sku: string | null;
   minQuantity: number | null; maxQuantity: number | null; status: Status;
@@ -22,6 +24,16 @@ export interface Product {
   createdAt: string; updatedAt: string;
 }
 export type ProductInputType = "url" | "text" | "textarea" | "integer" | "date";
+export interface ProductDelivery {
+  digitalContents?: "downloads" | "licenses" | "both";
+  kind: "service" | "digital" | "physical";
+  methods: Array<"service" | "digital" | "shipping" | "pickup">;
+  processing: "manual" | "automatic";
+  instructions: string;
+  shipping?: {mode:"fixed";fee:number} | {mode:"zones";zones:Array<{name:string;fee:number}>} | {mode:"quote"};
+  pickupAddress?: string;
+}
+export interface PhysicalDelivery {method:"shipping"|"pickup";address:string;zone:string|null;fee:number;instructions:string}
 export interface ProductInputField {
   key: string; label: string; helpText: string | null; type: ProductInputType;
   required: boolean; position: number;
@@ -39,6 +51,8 @@ export interface Price {
   createdAt: string; updatedAt: string;
 }
 export interface Quote {
+  items?:Array<Omit<OrderItem,"id">>;
+  delivery?: PhysicalDelivery | null;
   id: string; businessId: string; customerId: string | null; productId: string;
   quantity: number; productName: string; currency: string; pricingType: "fixed" | "unit";
   unitPrice: number | null; totalPrice: number; status: string;
@@ -49,6 +63,7 @@ export interface OrderItem {
   pricingType: string; unitPrice: number | null; totalPrice: number;
 }
 export interface Order {
+  delivery?: PhysicalDelivery | null;
   id: string; businessId: string; customerId: string; quoteId: string; status: string;
   currency: string; subtotal: number; total: number; createdAt: string; updatedAt: string;
   items: OrderItem[];
@@ -102,6 +117,7 @@ export interface ProductMapping {
   status: Status; createdAt: string; updatedAt: string;
 }
 export interface ImportProviderProductInput {
+  deliveryConfig?: ProductDelivery | null;
   providerServiceId: string; name: string; description: string | null;
   categoryId: string | null; sku: string | null; type: "service" | "product";
   minQuantity: number | null; maxQuantity: number | null; currency: string;

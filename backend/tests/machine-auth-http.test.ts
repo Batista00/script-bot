@@ -217,3 +217,71 @@ test("an inactive business blocks the bot channel and commercial writes but keep
   });
   assert.equal(commercialRead.statusCode, 200);
 });
+
+test("AI assistant requires Machine Auth", async (t) => {
+  const app = await appWithRole("owner");
+  t.after(async () => app.close());
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/bot/v1/assistant/message",
+    payload: {
+      message: "quiero seguidores de instagram",
+    },
+  });
+
+  assert.equal(response.statusCode, 401);
+  assert.equal(
+    response.json().error.code,
+    "MACHINE_AUTHENTICATION_REQUIRED",
+  );
+});
+
+test("AI assistant has safe fallback without OpenAI key", async (t) => {
+  const app = await appWithRole("owner");
+  t.after(async () => app.close());
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/bot/v1/assistant/message",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+    payload: {
+      message: "quiero 1000 seguidores de instagram",
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+
+  const body = response.json();
+
+  assert.equal(body.intent, "unknown");
+  assert.equal(body.action, "clarify");
+  assert.equal(body.confidence, 0);
+  assert.equal(body.data.aiConfigured, false);
+});
+
+test("AI assistant ignores client supplied businessId", async (t) => {
+  const app = await appWithRole("owner");
+  t.after(async () => app.close());
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/bot/v1/assistant/message",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+    payload: {
+      message: "quiero seguidores de instagram",
+      businessId: "11111111-1111-4111-8111-111111111111",
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+
+  const body = response.json();
+
+  assert.equal(body.data.aiConfigured, false);
+  assert.equal(body.intent, "unknown");
+});

@@ -18,6 +18,7 @@ import {
 } from "./orders.types.js";
 
 interface OrderRow extends QueryResultRow {
+  delivery: Order["delivery"];
   id: string;
   business_id: string;
   customer_id: string;
@@ -45,6 +46,8 @@ interface OrderItemRow extends QueryResultRow {
 }
 
 interface QuoteRow extends QueryResultRow {
+  items:OrderQuoteSnapshot["items"];
+  delivery: Order["delivery"];
   id: string;
   business_id: string;
   customer_id: string | null;
@@ -67,7 +70,7 @@ interface CustomerRow extends QueryResultRow {
 interface PostgreSqlError { code?: string; constraint?: string }
 
 const orderColumns = `id, business_id, customer_id, quote_id, status, currency,
-  subtotal, total, created_at, updated_at`;
+  subtotal, total, created_at, updated_at, delivery`;
 const itemColumns = `id, business_id, order_id, product_id, product_name, quantity,
   fulfillment_input,
   pricing_type, unit_price, total_price, created_at`;
@@ -108,6 +111,7 @@ function mapItem(row: OrderItemRow): OrderItem {
 
 function mapOrder(row: OrderRow, items: OrderItem[] = []): Order {
   return {
+    ...(row.delivery?{delivery:row.delivery}:{}),
     id: row.id,
     businessId: row.business_id,
     customerId: row.customer_id,
@@ -137,7 +141,7 @@ export class PostgresOrdersRepository implements OrdersRepository {
   ): Promise<OrderQuoteSnapshot | null> {
     const result = await executor.query<QuoteRow>(
       `SELECT id, business_id, customer_id, product_id, quantity, product_name,
-              currency, pricing_type, unit_price, total_price, status, expires_at
+              currency, pricing_type, unit_price, total_price, status, expires_at, delivery, items
        FROM quotes
        WHERE business_id = $1 AND id = $2
        FOR UPDATE`,
@@ -145,6 +149,8 @@ export class PostgresOrdersRepository implements OrdersRepository {
     );
     const row = result.rows[0];
     return row ? {
+      ...(row.items?{items:row.items}:{}),
+      ...(row.delivery?{delivery:row.delivery}:{}),
       id: row.id,
       businessId: row.business_id,
       customerId: row.customer_id,
@@ -179,11 +185,11 @@ export class PostgresOrdersRepository implements OrdersRepository {
   ): Promise<Order> {
     try {
       const result = await executor.query<OrderRow>(
-        `INSERT INTO orders (business_id, customer_id, quote_id, status, currency, subtotal, total)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO orders (business_id, customer_id, quote_id, status, currency, subtotal, total, delivery)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
          RETURNING ${orderColumns}`,
         [businessId, input.customerId, input.quoteId, input.status, input.currency,
-          input.subtotal, input.total],
+          input.subtotal, input.total,input.delivery?JSON.stringify(input.delivery):null],
       );
       const row = result.rows[0];
       if (!row) throw new Error("PostgreSQL did not return the created order");

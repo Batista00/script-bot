@@ -1,0 +1,3240 @@
+{
+  "version": "6.1",
+  "id": "cmtypebotcommercev10000001",
+  "name": "BOT WHATSAP - AI Commerce v1",
+  "events": [
+    {
+      "id": "evtcommercev1start",
+      "outgoingEdgeId": "edgestartentry",
+      "graphCoordinates": {
+        "x": 0,
+        "y": 0
+      },
+      "type": "start"
+    }
+  ],
+  "groups": [
+    {
+      "id": "grpentrycontext",
+      "title": "Origen de la conversación",
+      "graphCoordinates": {
+        "x": 300,
+        "y": 0
+      },
+      "blocks": [
+        {
+          "id": "blkentrycondition",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "itmentryviewer",
+              "outgoingEdgeId": "edgeentryviewer",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpremotejidempty",
+                    "variableId": "vremotejid",
+                    "comparisonOperator": "Is empty"
+                  }
+                ]
+              }
+            }
+          ],
+          "outgoingEdgeId": "edgeentryevolution"
+        }
+      ]
+    },
+    {
+      "id": "grpvieweridentity",
+      "title": "Fallback Viewer",
+      "graphCoordinates": {
+        "x": 680,
+        "y": -220
+      },
+      "blocks": [
+        {
+          "id": "blkviewernamequestion",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rtviewername",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "¿Cómo te llamas?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blkviewernameinput",
+          "type": "text input",
+          "options": {
+            "labels": {
+              "placeholder": "Escribe tu nombre"
+            },
+            "variableId": "vpushname"
+          }
+        },
+        {
+          "id": "blkviewerphonequestion",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rtviewerphone",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "¿Cuál es tu número de teléfono con código de país?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blkviewerphoneinput",
+          "type": "text input",
+          "options": {
+            "labels": {
+              "placeholder": "Ejemplo: 56912345678"
+            },
+            "variableId": "vwhatsappnumber"
+          },
+          "outgoingEdgeId": "edgeviewercustomer"
+        }
+      ]
+    },
+    {
+      "id": "grpnormalizeevolution",
+      "title": "Normalizar número Evolution",
+      "graphCoordinates": {
+        "x": 680,
+        "y": 120
+      },
+      "blocks": [
+        {
+          "id": "blknormalizephone",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vwhatsappnumber",
+            "expressionToEvaluate": "{{remoteJid}}.split(\"@\")[0].split(\":\")[0]"
+          },
+          "outgoingEdgeId": "edgeevolutioncustomer"
+        }
+      ]
+    },
+    {
+      "id": "grpcustomerresolve",
+      "title": "Customer Resolve",
+      "graphCoordinates": {
+        "x": 1060,
+        "y": 0
+      },
+      "blocks": [
+        {
+          "id": "blkclearcustomerid",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vcustomerid",
+            "expressionToEvaluate": ""
+          }
+        },
+        {
+          "id": "blkcustomerwebhook",
+          "type": "Webhook",
+          "options": {
+            "webhook": {
+              "url": "{{backend_base_url}}/bot/v1/customers/resolve",
+              "method": "POST",
+              "headers": [
+                {
+                  "id": "hdrauthcustomer",
+                  "key": "Authorization",
+                  "value": "Bearer {{backend_token}}"
+                },
+                {
+                  "id": "hdrctcustomer",
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"name\": \"{{pushName}}\",\n  \"phone\": \"{{whatsappNumber}}\"\n}"
+            },
+            "isCustomBody": true,
+            "responseVariableMapping": [
+              {
+                "id": "mapcustomerid",
+                "bodyPath": "data.customerId",
+                "variableId": "vcustomerid"
+              },
+              {
+                "id": "mapcustomername",
+                "bodyPath": "data.name",
+                "variableId": "vcustomername"
+              }
+            ]
+          }
+        },
+        {
+          "id": "blkcustomercheck",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "itmcustomermissing",
+              "outgoingEdgeId": "edgecustomererror",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpcustomerempty",
+                    "variableId": "vcustomerid",
+                    "comparisonOperator": "Is empty"
+                  }
+                ]
+              }
+            }
+          ],
+          "outgoingEdgeId": "edgecustomerproducts"
+        }
+      ]
+    },
+    {
+      "id": "grpproductsfetch",
+      "title": "Catálogo comercial",
+      "graphCoordinates": {
+        "x": 1440,
+        "y": 0
+      },
+      "blocks": [
+        {
+          "id": "blkaiclearproductcatalog",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vaiproductscatalog",
+            "expressionToEvaluate": "[]"
+          }
+        },
+        {
+          "id": "blkproductswebhook",
+          "type": "Webhook",
+          "options": {
+            "webhook": {
+              "url": "{{backend_base_url}}/bot/v1/products?limit=100&offset=0&type=service&categoryId={{selectedCategoryId}}",
+              "method": "GET",
+              "headers": [
+                {
+                  "id": "hdrauthproducts",
+                  "key": "Authorization",
+                  "value": "Bearer {{backend_token}}"
+                }
+              ]
+            },
+            "responseVariableMapping": [
+              {
+                "id": "mapaiproductscatalog",
+                "bodyPath": "data",
+                "variableId": "vaiproductscatalog"
+              }
+            ]
+          }
+        },
+        {
+          "id": "blkproductscheck",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "itmproductsnone",
+              "outgoingEdgeId": "edgeproductserror",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpproductcatalogempty",
+                    "variableId": "vaiproductscatalog",
+                    "comparisonOperator": "Is empty"
+                  }
+                ]
+              }
+            }
+          ],
+          "outgoingEdgeId": "edgeaiproductresolve"
+        }
+      ]
+    },
+    {
+      "id": "grpproductmenu",
+      "title": "Menú de productos",
+      "graphCoordinates": {
+        "x": 1820,
+        "y": 0
+      },
+      "blocks": [
+        {
+          "id": "blkproductmenutext",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rtproductmenu",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "🛍️ Servicios disponibles\n\n1. {{product1Name}}\n2. {{product2Name}}\n3. {{product3Name}}\n4. {{product4Name}}\n5. {{product5Name}}\n\nEscribe el número del servicio:"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blkproductselectioninput",
+          "type": "text input",
+          "options": {
+            "labels": {
+              "placeholder": "1, 2, 3, 4 o 5"
+            },
+            "variableId": "vproductselection"
+          },
+          "outgoingEdgeId": "edgemenuselection"
+        }
+      ]
+    },
+    {
+      "id": "grpselectionrouter",
+      "title": "Validar selección",
+      "graphCoordinates": {
+        "x": 2200,
+        "y": 0
+      },
+      "blocks": [
+        {
+          "id": "blkselectioncondition",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "itmselection1",
+              "outgoingEdgeId": "edgeselect1",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpselection1",
+                    "variableId": "vproductselection",
+                    "comparisonOperator": "Equal to",
+                    "value": "1"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "itmselection2",
+              "outgoingEdgeId": "edgeselect2",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpselection2",
+                    "variableId": "vproductselection",
+                    "comparisonOperator": "Equal to",
+                    "value": "2"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "itmselection3",
+              "outgoingEdgeId": "edgeselect3",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpselection3",
+                    "variableId": "vproductselection",
+                    "comparisonOperator": "Equal to",
+                    "value": "3"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "itmselection4",
+              "outgoingEdgeId": "edgeselect4",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpselection4",
+                    "variableId": "vproductselection",
+                    "comparisonOperator": "Equal to",
+                    "value": "4"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "itmselection5",
+              "outgoingEdgeId": "edgeselect5",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpselection5",
+                    "variableId": "vproductselection",
+                    "comparisonOperator": "Equal to",
+                    "value": "5"
+                  }
+                ]
+              }
+            }
+          ],
+          "outgoingEdgeId": "edgeselectioninvalid"
+        }
+      ]
+    },
+    {
+      "id": "grpselectproduct1",
+      "title": "Seleccionar producto 1",
+      "graphCoordinates": {
+        "x": 2580,
+        "y": -400
+      },
+      "blocks": [
+        {
+          "id": "blkselect1id",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vselectedproductid",
+            "expressionToEvaluate": "{{product1Id}}"
+          }
+        },
+        {
+          "id": "blkselect1name",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vselectedproductname",
+            "expressionToEvaluate": "{{product1Name}}"
+          },
+          "outgoingEdgeId": "edgeselect1check"
+        }
+      ]
+    },
+    {
+      "id": "grpselectproduct2",
+      "title": "Seleccionar producto 2",
+      "graphCoordinates": {
+        "x": 2580,
+        "y": -200
+      },
+      "blocks": [
+        {
+          "id": "blkselect2id",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vselectedproductid",
+            "expressionToEvaluate": "{{product2Id}}"
+          }
+        },
+        {
+          "id": "blkselect2name",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vselectedproductname",
+            "expressionToEvaluate": "{{product2Name}}"
+          },
+          "outgoingEdgeId": "edgeselect2check"
+        }
+      ]
+    },
+    {
+      "id": "grpselectproduct3",
+      "title": "Seleccionar producto 3",
+      "graphCoordinates": {
+        "x": 2580,
+        "y": 0
+      },
+      "blocks": [
+        {
+          "id": "blkselect3id",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vselectedproductid",
+            "expressionToEvaluate": "{{product3Id}}"
+          }
+        },
+        {
+          "id": "blkselect3name",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vselectedproductname",
+            "expressionToEvaluate": "{{product3Name}}"
+          },
+          "outgoingEdgeId": "edgeselect3check"
+        }
+      ]
+    },
+    {
+      "id": "grpselectproduct4",
+      "title": "Seleccionar producto 4",
+      "graphCoordinates": {
+        "x": 2580,
+        "y": 200
+      },
+      "blocks": [
+        {
+          "id": "blkselect4id",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vselectedproductid",
+            "expressionToEvaluate": "{{product4Id}}"
+          }
+        },
+        {
+          "id": "blkselect4name",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vselectedproductname",
+            "expressionToEvaluate": "{{product4Name}}"
+          },
+          "outgoingEdgeId": "edgeselect4check"
+        }
+      ]
+    },
+    {
+      "id": "grpselectproduct5",
+      "title": "Seleccionar producto 5",
+      "graphCoordinates": {
+        "x": 2580,
+        "y": 400
+      },
+      "blocks": [
+        {
+          "id": "blkselect5id",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vselectedproductid",
+            "expressionToEvaluate": "{{product5Id}}"
+          }
+        },
+        {
+          "id": "blkselect5name",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vselectedproductname",
+            "expressionToEvaluate": "{{product5Name}}"
+          },
+          "outgoingEdgeId": "edgeselect5check"
+        }
+      ]
+    },
+    {
+      "id": "grpselectedcheck",
+      "title": "Producto disponible",
+      "graphCoordinates": {
+        "x": 2960,
+        "y": 0
+      },
+      "blocks": [
+        {
+          "id": "blkselectedcondition",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "itmselectedempty",
+              "outgoingEdgeId": "edgeselectedunavailable",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpselectedempty",
+                    "variableId": "vselectedproductid",
+                    "comparisonOperator": "Is empty"
+                  }
+                ]
+              }
+            }
+          ],
+          "outgoingEdgeId": "edgeselectedquantity"
+        }
+      ]
+    },
+    {
+      "id": "grpproductunavailable",
+      "title": "Slot no disponible",
+      "graphCoordinates": {
+        "x": 3340,
+        "y": -180
+      },
+      "blocks": [
+        {
+          "id": "blkunavailabletext",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rtunavailable",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Ese servicio no está disponible."
+                  }
+                ]
+              }
+            ]
+          },
+          "outgoingEdgeId": "edgeunavailablemenu"
+        }
+      ]
+    },
+    {
+      "id": "grpinvalidselection",
+      "title": "Selección inválida",
+      "graphCoordinates": {
+        "x": 2580,
+        "y": 620
+      },
+      "blocks": [
+        {
+          "id": "blkinvalidselectiontext",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rtinvalidselection",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "La opción no es válida. Escribe un número del 1 al 5."
+                  }
+                ]
+              }
+            ]
+          },
+          "outgoingEdgeId": "edgeinvalidselectionmenu"
+        }
+      ]
+    },
+    {
+      "id": "grpquantity",
+      "title": "Cantidad",
+      "graphCoordinates": {
+        "x": 3340,
+        "y": 80
+      },
+      "blocks": [
+        {
+          "id": "blkquantityquestion",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rtquantityquestion",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "¿Qué cantidad necesitas?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blkquantityinput",
+          "type": "text input",
+          "options": {
+            "labels": {
+              "placeholder": "Escribe un número entero"
+            },
+            "variableId": "vquantityinput"
+          }
+        },
+        {
+          "id": "blkquantityconvert",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vquantity",
+            "isCode": true,
+            "expressionToEvaluate": "Number.isInteger(Number({{quantityInput}})) && Number({{quantityInput}}) > 0 ? Number({{quantityInput}}) : \"\""
+          }
+        },
+        {
+          "id": "blkquantitycondition",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "itmquantityinvalid",
+              "outgoingEdgeId": "edgequantityinvalid",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpquantityempty",
+                    "variableId": "vquantity",
+                    "comparisonOperator": "Is empty"
+                  }
+                ]
+              }
+            }
+          ],
+          "outgoingEdgeId": "edgequantityquote"
+        }
+      ]
+    },
+    {
+      "id": "grpinvalidquantity",
+      "title": "Cantidad inválida",
+      "graphCoordinates": {
+        "x": 3720,
+        "y": -100
+      },
+      "blocks": [
+        {
+          "id": "blkinvalidquantitytext",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rtinvalidquantity",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Ingresa una cantidad entera mayor que cero."
+                  }
+                ]
+              }
+            ]
+          },
+          "outgoingEdgeId": "edgeinvalidquantityretry"
+        }
+      ]
+    },
+    {
+      "id": "grpcreatequote",
+      "title": "Crear Quote",
+      "graphCoordinates": {
+        "x": 3720,
+        "y": 160
+      },
+      "blocks": [
+        {
+          "id": "blkclearquoteid",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vquoteid",
+            "expressionToEvaluate": ""
+          }
+        },
+        {
+          "id": "blkquotewebhook",
+          "type": "Webhook",
+          "options": {
+            "webhook": {
+              "url": "{{backend_base_url}}/bot/v1/quotes",
+              "method": "POST",
+              "headers": [
+                {
+                  "id": "hdrauthquote",
+                  "key": "Authorization",
+                  "value": "Bearer {{backend_token}}"
+                },
+                {
+                  "id": "hdrctquote",
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"productId\": \"{{selectedProductId}}\",\n  \"quantity\": {{quantity}},\n  \"customerId\": \"{{customerId}}\"\n}"
+            },
+            "isCustomBody": true,
+            "responseVariableMapping": [
+              {
+                "id": "mapquoteid",
+                "bodyPath": "data.quoteId",
+                "variableId": "vquoteid"
+              },
+              {
+                "id": "mapquoteproductname",
+                "bodyPath": "data.productName",
+                "variableId": "vquoteproductname"
+              },
+              {
+                "id": "mapquotequantity",
+                "bodyPath": "data.quantity",
+                "variableId": "vquotequantity"
+              },
+              {
+                "id": "mapquotecurrency",
+                "bodyPath": "data.currency",
+                "variableId": "vquotecurrency"
+              },
+              {
+                "id": "mapquotetotal",
+                "bodyPath": "data.totalPrice",
+                "variableId": "vquotetotal"
+              },
+              {
+                "id": "mapquotestatus",
+                "bodyPath": "data.status",
+                "variableId": "vquotestatus"
+              }
+            ]
+          }
+        },
+        {
+          "id": "blkquotecheck",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "itmquotemissing",
+              "outgoingEdgeId": "edgequoteerror",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpquoteempty",
+                    "variableId": "vquoteid",
+                    "comparisonOperator": "Is empty"
+                  }
+                ]
+              }
+            }
+          ],
+          "outgoingEdgeId": "edgequotesummary"
+        }
+      ]
+    },
+    {
+      "id": "grpquotesummary",
+      "title": "Resumen y confirmación",
+      "graphCoordinates": {
+        "x": 4100,
+        "y": 160
+      },
+      "blocks": [
+        {
+          "id": "blkquotesummarytext",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rtquotesummary",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "🧾 Resumen\n\nServicio: {{quoteProductName}}\nCantidad: {{quoteQuantity}}\nTotal: ${{quoteTotal}} {{quoteCurrency}}"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blkquoteconfirmation",
+          "type": "choice input",
+          "items": [
+            {
+              "id": "itmconfirmorder",
+              "content": "✅ Confirmar pedido",
+              "outgoingEdgeId": "edgeconfirmorder"
+            },
+            {
+              "id": "itmchooseagain",
+              "content": "🔄 Elegir otro servicio",
+              "outgoingEdgeId": "edgechooseagain"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "grpcreateorder",
+      "title": "Crear Order",
+      "graphCoordinates": {
+        "x": 4480,
+        "y": 80
+      },
+      "blocks": [
+        {
+          "id": "blkclearorderid",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vorderid",
+            "expressionToEvaluate": ""
+          }
+        },
+        {
+          "id": "blkorderwebhook",
+          "type": "Webhook",
+          "options": {
+            "webhook": {
+              "url": "{{backend_base_url}}/bot/v1/orders",
+              "method": "POST",
+              "headers": [
+                {
+                  "id": "hdrauthorder",
+                  "key": "Authorization",
+                  "value": "Bearer {{backend_token}}"
+                },
+                {
+                  "id": "hdrctorder",
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"quoteId\": \"{{quoteId}}\",\n  \"customerId\": \"{{customerId}}\"\n}"
+            },
+            "isCustomBody": true,
+            "responseVariableMapping": [
+              {
+                "id": "maporderid",
+                "bodyPath": "data.orderId",
+                "variableId": "vorderid"
+              },
+              {
+                "id": "maporderstatus",
+                "bodyPath": "data.status",
+                "variableId": "vorderstatus"
+              },
+              {
+                "id": "maporderitemid",
+                "bodyPath": "data.items[0].orderItemId",
+                "variableId": "vorderitemid"
+              },
+              {
+                "id": "mapordertotal",
+                "bodyPath": "data.total",
+                "variableId": "vordertotal"
+              }
+            ]
+          }
+        },
+        {
+          "id": "blkordercheck",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "itmordermissing",
+              "outgoingEdgeId": "edgeordererror",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmporderempty",
+                    "variableId": "vorderid",
+                    "comparisonOperator": "Is empty"
+                  }
+                ]
+              }
+            }
+          ],
+          "outgoingEdgeId": "edgeorderpayment"
+        }
+      ]
+    },
+    {
+      "id": "grpcreatepayment",
+      "title": "Crear Payment Mercado Pago",
+      "graphCoordinates": {
+        "x": 4860,
+        "y": 80
+      },
+      "blocks": [
+        {
+          "id": "blksetpaymentidempotency",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vpaymentidempotencykey",
+            "expressionToEvaluate": "typebot-{{orderId}}-mercado-pago-v1"
+          }
+        },
+        {
+          "id": "blkclearpaymentid",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vpaymentid",
+            "expressionToEvaluate": ""
+          }
+        },
+        {
+          "id": "blkclearpaymentstatus",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vpaymentstatus",
+            "expressionToEvaluate": ""
+          }
+        },
+        {
+          "id": "blkclearcheckouturl",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vcheckouturl",
+            "expressionToEvaluate": ""
+          }
+        },
+        {
+          "id": "blkclearpaymentexpires",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vpaymentexpiresat",
+            "expressionToEvaluate": ""
+          }
+        },
+        {
+          "id": "blkpaymentwebhook",
+          "type": "Webhook",
+          "options": {
+            "webhook": {
+              "url": "{{backend_base_url}}/bot/v1/orders/{{orderId}}/payments",
+              "method": "POST",
+              "headers": [
+                {
+                  "id": "hdrauthpayment",
+                  "key": "Authorization",
+                  "value": "Bearer {{backend_token}}"
+                },
+                {
+                  "id": "hdrctpayment",
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "id": "hdridempotencypayment",
+                  "key": "Idempotency-Key",
+                  "value": "{{paymentIdempotencyKey}}"
+                }
+              ],
+              "body": "{\n  \"providerKey\": \"mercado_pago\"\n}"
+            },
+            "isCustomBody": true,
+            "responseVariableMapping": [
+              {
+                "id": "mappaymentid",
+                "bodyPath": "data.paymentId",
+                "variableId": "vpaymentid"
+              },
+              {
+                "id": "mappaymentstatus",
+                "bodyPath": "data.status",
+                "variableId": "vpaymentstatus"
+              },
+              {
+                "id": "mapcheckouturl",
+                "bodyPath": "data.checkoutUrl",
+                "variableId": "vcheckouturl"
+              },
+              {
+                "id": "mappaymentexpires",
+                "bodyPath": "data.expiresAt",
+                "variableId": "vpaymentexpiresat"
+              }
+            ]
+          }
+        },
+        {
+          "id": "blkpaymentcheck",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "itmpaymentmissing",
+              "outgoingEdgeId": "edgepaymenterror",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmppaymentempty",
+                    "variableId": "vpaymentid",
+                    "comparisonOperator": "Is empty"
+                  }
+                ]
+              }
+            }
+          ],
+          "outgoingEdgeId": "edgepaymentstatus"
+        }
+      ]
+    },
+    {
+      "id": "grppaymentstatus",
+      "title": "Estado del Payment",
+      "graphCoordinates": {
+        "x": 5620,
+        "y": 80
+      },
+      "blocks": [
+        {
+          "id": "blkpaymentstatuscondition",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "itmpaymentapproved",
+              "outgoingEdgeId": "edgestatusapproved",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpstatusapproved",
+                    "variableId": "vpaymentstatus",
+                    "comparisonOperator": "Equal to",
+                    "value": "approved"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "itmpaymentpending",
+              "outgoingEdgeId": "edgestatuspending",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpstatuspending",
+                    "variableId": "vpaymentstatus",
+                    "comparisonOperator": "Equal to",
+                    "value": "pending"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "itmpaymentrejected",
+              "outgoingEdgeId": "edgestatusrejected",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpstatusrejected",
+                    "variableId": "vpaymentstatus",
+                    "comparisonOperator": "Equal to",
+                    "value": "rejected"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "itmpaymentcancelled",
+              "outgoingEdgeId": "edgestatuscancelled",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpstatuscancelled",
+                    "variableId": "vpaymentstatus",
+                    "comparisonOperator": "Equal to",
+                    "value": "cancelled"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "itmpaymentexpired",
+              "outgoingEdgeId": "edgestatusexpired",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpstatusexpired",
+                    "variableId": "vpaymentstatus",
+                    "comparisonOperator": "Equal to",
+                    "value": "expired"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "itmpaymentfailed",
+              "outgoingEdgeId": "edgestatusfailed",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpstatusfailed",
+                    "variableId": "vpaymentstatus",
+                    "comparisonOperator": "Equal to",
+                    "value": "failed"
+                  }
+                ]
+              }
+            }
+          ],
+          "outgoingEdgeId": "edgestatuserror"
+        }
+      ]
+    },
+    {
+      "id": "grpcheckoutavailability",
+      "title": "Checkout disponible",
+      "graphCoordinates": {
+        "x": 6000,
+        "y": 0
+      },
+      "blocks": [
+        {
+          "id": "blkcheckoutcondition",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "itmcheckoutmissing",
+              "outgoingEdgeId": "edgecheckouterror",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpcheckoutempty",
+                    "variableId": "vcheckouturl",
+                    "comparisonOperator": "Is empty"
+                  }
+                ]
+              }
+            }
+          ],
+          "outgoingEdgeId": "edgecheckoutready"
+        }
+      ]
+    },
+    {
+      "id": "grpcheckoutready",
+      "title": "Checkout Mercado Pago",
+      "graphCoordinates": {
+        "x": 6380,
+        "y": 0
+      },
+      "blocks": [
+        {
+          "id": "blkcheckouttext",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rtcheckoutready",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "⏳ El pago todavía aparece pendiente.\n\n💳 Tu pago está listo.\n\nPaga aquí:\n{{checkoutUrl}}\n\nCuando termines selecciona \"Ya pagué / Revisar pago\"."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blkcheckoutchoices",
+          "type": "choice input",
+          "items": [
+            {
+              "id": "itmreviewpayment",
+              "content": "Ya pagué / Revisar pago",
+              "outgoingEdgeId": "edgereviewpayment"
+            },
+            {
+              "id": "itmopencheckout",
+              "content": "💳 Abrir enlace de pago",
+              "outgoingEdgeId": "edgeopencheckout"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "grpcheckoutlink",
+      "title": "Enlace de pago",
+      "graphCoordinates": {
+        "x": 6760,
+        "y": -160
+      },
+      "blocks": [
+        {
+          "id": "blkcheckoutlinktext",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rtcheckoutlink",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Abre este enlace para pagar:\n{{checkoutUrl}}"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blkcheckoutlinkchoices",
+          "type": "choice input",
+          "items": [
+            {
+              "id": "itmlinkreviewpayment",
+              "content": "Ya pagué / Revisar pago",
+              "outgoingEdgeId": "edgelinkreview"
+            },
+            {
+              "id": "itmlinkback",
+              "content": "Volver",
+              "outgoingEdgeId": "edgelinkback"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "grpgetpayment",
+      "title": "Consultar Payment",
+      "graphCoordinates": {
+        "x": 7140,
+        "y": 0
+      },
+      "blocks": [
+        {
+          "id": "blkclearstatusbeforeget",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vpaymentstatus",
+            "expressionToEvaluate": ""
+          }
+        },
+        {
+          "id": "blkgetpaymentwebhook",
+          "type": "Webhook",
+          "options": {
+            "webhook": {
+              "url": "{{backend_base_url}}/bot/v1/payments/{{paymentId}}",
+              "method": "GET",
+              "headers": [
+                {
+                  "id": "hdrauthgetpayment",
+                  "key": "Authorization",
+                  "value": "Bearer {{backend_token}}"
+                }
+              ]
+            },
+            "responseVariableMapping": [
+              {
+                "id": "mapgetpaymentstatus",
+                "bodyPath": "data.status",
+                "variableId": "vpaymentstatus"
+              },
+              {
+                "id": "mapgetcheckouturl",
+                "bodyPath": "data.checkoutUrl",
+                "variableId": "vcheckouturl"
+              },
+              {
+                "id": "mapgetpaymentexpires",
+                "bodyPath": "data.expiresAt",
+                "variableId": "vpaymentexpiresat"
+              }
+            ]
+          },
+          "outgoingEdgeId": "edgegetpaymentstatus"
+        }
+      ]
+    },
+    {
+      "id": "grppaymentrejected",
+      "title": "Pago rechazado",
+      "graphCoordinates": {
+        "x": 6000,
+        "y": 260
+      },
+      "blocks": [
+        {
+          "id": "blkrejectedtext",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rtrejected",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "❌ El pago fue rechazado. No se ha confirmado ningún cobro."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blkrejectedchoices",
+          "type": "choice input",
+          "items": [
+            {
+              "id": "itmretrycheckout",
+              "content": "💳 Volver al pago",
+              "outgoingEdgeId": "edgeretrycheckout"
+            },
+            {
+              "id": "itmrejectedcatalog",
+              "content": "🔄 Elegir otro servicio",
+              "outgoingEdgeId": "edgerejectedcatalog"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "grppaymentterminal",
+      "title": "Pago no confirmado",
+      "graphCoordinates": {
+        "x": 6000,
+        "y": 500
+      },
+      "blocks": [
+        {
+          "id": "blkterminaltext",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rtterminal",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "⚠️ El pago figura como {{paymentStatus}}. No se ha confirmado que el dinero haya sido recibido."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blkterminalchoices",
+          "type": "choice input",
+          "items": [
+            {
+              "id": "itmterminalcatalog",
+              "content": "🔄 Elegir otro servicio",
+              "outgoingEdgeId": "edgeterminalcatalog"
+            },
+            {
+              "id": "itmterminalrestart",
+              "content": "Reiniciar",
+              "outgoingEdgeId": "edgeterminalrestart"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "grppaymentapproved",
+      "title": "Pago confirmado",
+      "graphCoordinates": {
+        "x": 6000,
+        "y": -260
+      },
+      "blocks": [
+        {
+          "id": "blkapprovedtext",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rtapproved",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "✅ Pago confirmado.\nTu pedido quedó registrado correctamente.\n\nLa preparación automática del servicio se conectará en la siguiente etapa."
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "grpgenericerror",
+      "title": "Error seguro",
+      "graphCoordinates": {
+        "x": 4100,
+        "y": 620
+      },
+      "blocks": [
+        {
+          "id": "blkgenericerrortext",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rtgenericerror",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "⚠️ No pudimos completar esta operación en este momento.\nIntenta nuevamente o solicita asistencia."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blkgenericerrorchoice",
+          "type": "choice input",
+          "items": [
+            {
+              "id": "itmerrorrestart",
+              "content": "Reiniciar",
+              "outgoingEdgeId": "edgeerrorrestart"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "grpaiinput",
+      "title": "Cliente habla libremente",
+      "graphCoordinates": {
+        "x": 1440,
+        "y": -500
+      },
+      "blocks": [
+        {
+          "id": "blkaiuserinput",
+          "type": "text input",
+          "options": {
+            "labels": {
+              "placeholder": "Escribe tu mensaje"
+            },
+            "variableId": "vaiusermessage"
+          },
+          "outgoingEdgeId": "edgeaiinputagent"
+        }
+      ]
+    },
+    {
+      "id": "grpaiagent",
+      "title": "Agente vendedor IA",
+      "graphCoordinates": {
+        "x": 1820,
+        "y": -500
+      },
+      "blocks": [
+        {
+          "id": "blkaisalesagent",
+          "type": "openai",
+          "options": {
+            "action": "Generate variables",
+            "model": "gpt-5.4-nano",
+            "prompt": "Eres el agente comercial de atención por WhatsApp de un negocio de servicios para redes sociales.\n\nTu trabajo es conversar como un vendedor humano: entender mensajes breves, incompletos, informales o ambiguos, responder dudas y avanzar naturalmente hacia una venta cuando corresponda.\n\nCONTEXTO ACTUAL DE LA CONVERSACIÓN:\nNombre del cliente: {{customerName}}\nYa saludaste: {{aiHasGreeted}}\nIntención previa: {{aiIntent}}\nPlataforma previa: {{aiPlatform}}\nServicio previo: {{aiService}}\nCantidad previa: {{aiQuantity}}\nURL previa: {{aiUrl}}\n\nMENSAJE ACTUAL:\n{{aiUserMessage}}\n\nREGLAS DE CONVERSACIÓN:\n- El cliente NO tiene que escribir una frase completa.\n- Son mensajes perfectamente normales: \"hola\", \"precios\", \"seguidores\", \"quiero comprar\", \"son reales?\", \"cómo funciona?\", \"insta\", \"likes\", \"necesito precios para insta y tiktok\".\n- Conserva el contexto anterior cuando el mensaje actual sea una continuación.\n- Si el cliente cambia claramente de producto o plataforma, actualiza el contexto.\n- Pregunta solamente lo necesario; evita interrogatorios.\n- Haz una sola pregunta principal por respuesta cuando falte información.\n- No muestres menús numerados salvo que otra parte del sistema lo solicite.\n- No inventes productos, precios, descuentos, pagos aprobados ni estados de pedidos.\n- Nunca afirmes que un pago está aprobado por lo que diga el cliente.\n- Cuando el cliente pida precio, identifica primero plataforma, servicio y cantidad cuando sea necesario. El precio lo obtendrá el backend.\n- Si ya tienes suficiente información para buscar precio o preparar compra, no inventes el valor: indica brevemente que revisarás la opción disponible.\n- Si el usuario solo tiene una pregunta, respóndela sin intentar forzar una compra.\n- Si pide una persona, una prueba gratuita o existe una situación que requiere revisión humana, usa human_handoff.\n\nINFORMACIÓN COMERCIAL:\n- Hay servicios para Instagram, Facebook, YouTube y TikTok.\n- Según la plataforma pueden existir seguidores, likes, visualizaciones, comentarios y visualizaciones LIVE.\n- Los seguidores corresponden a perfiles reales, pero no se garantiza que interactúen con el contenido.\n- No se venden bots como propuesta comercial.\n- Los servicios no tienen segmentación geográfica garantizada; pueden incluir perfiles internacionales o latinoamericanos.\n- Normalmente el servicio puede comenzar entre 0 y 45 minutos y, según demanda, puede tardar varias horas en comenzar.\n- El perfil, página, publicación o contenido correspondiente debe estar público para poder procesar el servicio.\n- Los likes pueden distribuirse entre varias URLs cuando el producto contratado lo permita.\n- Los comentarios pueden ser personalizados; el cliente puede proporcionar los textos.\n- Cuando corresponda existe soporte por caídas y refill según las condiciones aplicables del servicio.\n- Una solicitud de prueba gratuita debe derivarse a una persona.\n\nINTENCIONES PERMITIDAS:\ngreeting\nbusiness_info\nfaq\nproduct_interest\nprice_request\nbuy_product\ncompare_products\npayment_methods\npayment_status\norder_status\nhuman_handoff\nunknown\n\nACCIONES PERMITIDAS:\ncontinue\nshow_prices\nprepare_purchase\nshow_payment_methods\nshow_payment_status\nshow_order_status\nhuman_handoff\n\nNORMALIZACIÓN:\n- aiPlatform: usa instagram, facebook, youtube, tiktok. Si hay varias, sepáralas por coma. Si no hay ninguna y tampoco existe contexto previo válido, usa unknown.\n- aiService: usa followers, likes, views, comments, live_views. Si hay varios, sepáralos por coma. Si no hay ninguno y tampoco existe contexto previo válido, usa unknown.\n- aiQuantity: número entero. Conserva la cantidad previa si continúa hablando del mismo producto. Si no existe cantidad conocida usa 0.\n- aiUrl: conserva una URL previa válida cuando siga siendo relevante. Si no existe usa unknown.\n\nRESPUESTA:\n- Escribe español natural y apropiado para WhatsApp.\n- Sé cordial y comercial, pero no robótico.\n- Normalmente usa entre 1 y 4 frases cortas.\n- No repitas saludos en cada mensaje.\n- Si aiHasGreeted está vacío, puedes saludar naturalmente cuando tenga sentido.\n- No digas al cliente los nombres de variables, intenciones ni acciones internas.\n\nREGLAS PARA EJECUTAR ACCIONES COMERCIALES:\n- Usa continue si todavía falta información para realizar una acción comercial.\n- \"quiero comprar\" por sí solo NO es suficiente: pregunta qué servicio/plataforma necesita.\n- \"seguidores\", \"likes\", \"views\" o similares por sí solos NO son suficientes.\n- Usa show_prices SOLO cuando exista exactamente UNA plataforma, UN servicio y una cantidad mayor que 0.\n- Usa prepare_purchase SOLO cuando exista exactamente UNA plataforma, UN servicio y una cantidad mayor que 0 y el cliente manifieste intención de comprar.\n- Si hay varias plataformas o servicios, no ejecutes todavía una cotización individual. Conversa para aclarar o comparar.\n- Para preguntas FAQ, información del negocio, saludos o dudas generales usa continue.\n- Nunca inventes un producto porque falte información.\n- Nunca inventes un precio.\n\nREGLAS BOT-002 PRECIOS V2:\n- show_prices: úsalo cuando el cliente pide precios y ya conoces exactamente una plataforma y un servicio.\n- Para show_prices la cantidad NO es obligatoria. Si el cliente no indicó cantidad, aiQuantity debe ser 0.\n- Si pide un precio para una cantidad concreta, conserva esa cantidad.\n- prepare_purchase: úsalo solo cuando conoces exactamente una plataforma, un servicio, una cantidad mayor que 0 y existe intención explícita de comprar.\n- Nunca inventes productos, paquetes, cantidades ni precios.\n- Si solo conoces la plataforma, pregunta naturalmente qué servicio necesita.\n- Si solo conoces el servicio pero no la plataforma, pregunta la plataforma.\n- Después de mostrar precios, si el cliente responde por ejemplo \"quiero el de 2000\", conserva la plataforma y servicio anteriores, establece aiQuantity=2000 y usa prepare_purchase.",
+            "variablesToExtract": [
+              {
+                "type": "string",
+                "variableId": "vaireply",
+                "description": "Respuesta final que el agente vendedor enviará al cliente por WhatsApp."
+              },
+              {
+                "type": "string",
+                "variableId": "vaiintent",
+                "description": "Intención actual completa usando exclusivamente una de las intenciones permitidas."
+              },
+              {
+                "type": "string",
+                "variableId": "vaiplatform",
+                "description": "Plataforma actual normalizada. Puede contener varias separadas por coma o unknown."
+              },
+              {
+                "type": "string",
+                "variableId": "vaiservice",
+                "description": "Servicio actual normalizado. Puede contener varios separados por coma o unknown."
+              },
+              {
+                "type": "number",
+                "variableId": "vaiquantity",
+                "description": "Cantidad actual solicitada. Conserva contexto relevante. Usa 0 si aún no se conoce."
+              },
+              {
+                "type": "string",
+                "variableId": "vaiurl",
+                "description": "URL proporcionada por el cliente y todavía relevante, o unknown."
+              },
+              {
+                "type": "string",
+                "variableId": "vaiaction",
+                "description": "Siguiente acción usando exclusivamente una de las acciones permitidas."
+              }
+            ],
+            "credentialsId": "cmsxja7zb000l1fqfbhqii2hh"
+          },
+          "outgoingEdgeId": "edgeaiagentresponse"
+        }
+      ]
+    },
+    {
+      "id": "grpairesponse",
+      "title": "Responder al cliente",
+      "graphCoordinates": {
+        "x": 2200,
+        "y": -500
+      },
+      "blocks": [
+        {
+          "id": "blkaireplytext",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rtaireply",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "{{aiReply}}"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blkmarkaigreeted",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vaihasgreeted",
+            "isUnsafe": false,
+            "expressionToEvaluate": "yes"
+          },
+          "outgoingEdgeId": "edgeaiactionrouter"
+        }
+      ]
+    },
+    {
+      "id": "grpaiactionrouter",
+      "title": "Router acción IA",
+      "graphCoordinates": {
+        "x": 2580,
+        "y": -500
+      },
+      "blocks": [
+        {
+          "id": "blkaiactioncondition",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "itmaishowprices",
+              "outgoingEdgeId": "edgeaishowprices",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpaishowprices",
+                    "variableId": "vaiaction",
+                    "comparisonOperator": "Equal to",
+                    "value": "show_prices"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "itmaipreparepurchase",
+              "outgoingEdgeId": "edgeaipreparepurchase",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpaipreparepurchase",
+                    "variableId": "vaiaction",
+                    "comparisonOperator": "Equal to",
+                    "value": "prepare_purchase"
+                  }
+                ]
+              }
+            }
+          ],
+          "outgoingEdgeId": "edgeaicontinue"
+        }
+      ]
+    },
+    {
+      "id": "grpaicategoriesfetch",
+      "title": "Buscar plataforma en catálogo",
+      "graphCoordinates": {
+        "x": 2960,
+        "y": -700
+      },
+      "blocks": [
+        {
+          "id": "blkaicategorieswebhook",
+          "type": "Webhook",
+          "options": {
+            "responseVariableMapping": [
+              {
+                "id": "mapaicategoriescatalog",
+                "variableId": "vaicategoriescatalog",
+                "bodyPath": "data"
+              }
+            ],
+            "webhook": {
+              "headers": [
+                {
+                  "id": "hdrauthaicategories",
+                  "key": "Authorization",
+                  "value": "Bearer {{backend_token}}"
+                }
+              ],
+              "method": "GET",
+              "url": "{{backend_base_url}}/bot/v1/categories?limit=100&offset=0"
+            }
+          }
+        },
+        {
+          "id": "blkaicategoriescheck",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "itmaicategoriesempty",
+              "outgoingEdgeId": "edgeaicategoriesempty",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpaicategoriesempty",
+                    "variableId": "vaicategoriescatalog",
+                    "comparisonOperator": "Is empty"
+                  }
+                ]
+              }
+            }
+          ],
+          "outgoingEdgeId": "edgeaicategoriesmatcher"
+        }
+      ]
+    },
+    {
+      "id": "grpaicategorymatcher",
+      "title": "IA identifica plataforma",
+      "graphCoordinates": {
+        "x": 3340,
+        "y": -700
+      },
+      "blocks": [
+        {
+          "id": "blkaicategorymatcher",
+          "type": "openai",
+          "options": {
+            "action": "Generate variables",
+            "model": "gpt-5.4-nano",
+            "prompt": "Selecciona EXACTAMENTE la categoría comercial que corresponde a lo que busca el cliente.\n\nPLATAFORMA:\n{{aiPlatform}}\n\nSERVICIO:\n{{aiService}}\n\nCATEGORÍAS REALES DEL NEGOCIO:\n{{aiCategoriesCatalog}}\n\nREGLAS:\n- Las categorías reales pueden tener nombres como \"Instagram - Seguidores\", \"Instagram - Likes\", etc.\n- Usa la plataforma y el servicio juntos.\n- followers = seguidores\n- likes = likes o me gusta\n- views = visualizaciones, vistas o reproducciones\n- comments = comentarios\n- live_views = live, espectadores live o visualizaciones live\n- Devuelve exactamente el campo name de UNA categoría existente.\n- No inventes categorías.\n- No inventes IDs.\n- No modifiques el nombre.\n- Si ninguna categoría corresponde claramente, devuelve NO_MATCH.",
+            "variablesToExtract": [
+              {
+                "type": "string",
+                "variableId": "vaicategoryname",
+                "description": "Nombre EXACTO de una categoría existente del catálogo o NO_MATCH."
+              }
+            ],
+            "credentialsId": "cmsxja7zb000l1fqfbhqii2hh"
+          },
+          "outgoingEdgeId": "edgeaicategoryrouter"
+        }
+      ]
+    },
+    {
+      "id": "grpaicategorynomatch",
+      "title": "Plataforma no disponible",
+      "graphCoordinates": {
+        "x": 4100,
+        "y": 40
+      },
+      "blocks": [
+        {
+          "id": "blkaicategorynomatchtext",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rtaicategorynomatch",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Por ahora no encontré esa plataforma configurada en nuestro catálogo. Si quieres, dime qué servicio estás buscando y revisamos otra opción."
+                  }
+                ]
+              }
+            ]
+          },
+          "outgoingEdgeId": "edgeaicategorynomatchloop"
+        }
+      ]
+    },
+    {
+      "id": "grpaicategoryresolve",
+      "title": "Resolver categoría real",
+      "graphCoordinates": {
+        "x": 3720,
+        "y": -700
+      },
+      "blocks": [
+        {
+          "id": "blkairesolvecategoryid",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vselectedcategoryid",
+            "isUnsafe": false,
+            "isCode": true,
+            "expressionToEvaluate": "const list = {{aiCategoriesCatalog}};\nconst wanted = String({{aiCategoryName}} ?? \"\").trim().toLowerCase();\nif (!Array.isArray(list) || wanted === \"no_match\") return \"\";\nconst found = list.find(item =>\n  String(item?.name ?? \"\").trim().toLowerCase() === wanted\n);\nreturn found?.categoryId ?? \"\";"
+          }
+        },
+        {
+          "id": "blkaicategoryresolvecheck",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "itmaicategoryresolvenomatch",
+              "outgoingEdgeId": "edgeaicategorynomatch",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpaicategoryresolvenomatch",
+                    "variableId": "vselectedcategoryid",
+                    "comparisonOperator": "Is empty"
+                  }
+                ]
+              }
+            }
+          ],
+          "outgoingEdgeId": "edgeaicategoryproducts"
+        }
+      ]
+    },
+    {
+      "id": "grpaiproductresolve",
+      "title": "Resolver paquete real",
+      "graphCoordinates": {
+        "x": 4100,
+        "y": -400
+      },
+      "blocks": [
+        {
+          "id": "blkaiclearselectedproduct",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vselectedproductid",
+            "expressionToEvaluate": ""
+          }
+        },
+        {
+          "id": "blkaiselectproductid",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vselectedproductid",
+            "expressionToEvaluate": "const list = {{aiProductsCatalog}};\nconst qty = Number({{aiQuantity}});\n\nif (!Array.isArray(list) || !Number.isInteger(qty) || qty <= 0) {\n  return \"\";\n}\n\nconst matches = list.filter((item) => {\n  const min = Number(item?.minQuantity);\n  const max = Number(item?.maxQuantity);\n\n  if (!Number.isInteger(min) || !Number.isInteger(max)) {\n    return false;\n  }\n\n  return qty >= min && qty <= max;\n});\n\nreturn matches.length === 1\n  ? String(matches[0].productId ?? \"\")\n  : \"\";"
+          }
+        },
+        {
+          "id": "blkaiselectproductname",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vselectedproductname",
+            "expressionToEvaluate": "const list = {{aiProductsCatalog}};\nconst id = String({{selectedProductId}} ?? \"\");\n\nif (!Array.isArray(list) || !id) return \"\";\n\nconst product = list.find(\n  item => String(item?.productId ?? \"\") === id\n);\n\nreturn String(product?.name ?? \"\");"
+          }
+        },
+        {
+          "id": "blkaisetquantity",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vquantity",
+            "expressionToEvaluate": "Number({{aiQuantity}})"
+          }
+        },
+        {
+          "id": "blkaiproductresolvecheck",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "itmaiproductnomatch",
+              "outgoingEdgeId": "edgeaiproductnomatch",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpaiproductnomatch",
+                    "variableId": "vselectedproductid",
+                    "comparisonOperator": "Is empty"
+                  }
+                ]
+              }
+            }
+          ],
+          "outgoingEdgeId": "edgeaiproductquote"
+        }
+      ]
+    },
+    {
+      "id": "grpaiproductnomatch",
+      "title": "Paquete no disponible",
+      "graphCoordinates": {
+        "x": 4480,
+        "y": -40
+      },
+      "blocks": [
+        {
+          "id": "blkaiproductnomatchtext",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rtaiproductnomatch",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "No encontré un paquete exacto para esa cantidad. Dime qué cantidad buscas y te ayudo con las opciones disponibles."
+                  }
+                ]
+              }
+            ]
+          },
+          "outgoingEdgeId": "edgeaiproductnomatchloop"
+        }
+      ]
+    },
+    {
+      "id": "grpaiquotemode",
+      "title": "Precio o compra",
+      "graphCoordinates": {
+        "x": 4100,
+        "y": -180
+      },
+      "blocks": [
+        {
+          "id": "blkaquotemodecondition",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "itmaiquoteshowprice",
+              "outgoingEdgeId": "edgeaiquoteshowprice",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpaiquoteshowprice",
+                    "variableId": "vaiaction",
+                    "comparisonOperator": "Equal to",
+                    "value": "show_prices"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "itmaiquotepurchase",
+              "outgoingEdgeId": "edgeaiquotepurchase",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpaiquotepurchase",
+                    "variableId": "vaiaction",
+                    "comparisonOperator": "Equal to",
+                    "value": "prepare_purchase"
+                  }
+                ]
+              }
+            }
+          ],
+          "outgoingEdgeId": "edgeaiquotecontinue"
+        }
+      ]
+    },
+    {
+      "id": "grpaiquoteprice",
+      "title": "Mostrar precio y seguir conversando",
+      "graphCoordinates": {
+        "x": 4480,
+        "y": -300
+      },
+      "blocks": [
+        {
+          "id": "blkaipricereply",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "rtaipricereply",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "👌 Para {{quoteQuantity}} {{quoteProductName}} el valor es ${{quoteTotal}} {{quoteCurrency}}.\n\nSi quieres comprarlo, dime y seguimos con el pedido."
+                  }
+                ]
+              }
+            ]
+          },
+          "outgoingEdgeId": "edgeaipriceloop"
+        }
+      ]
+    },
+    {
+      "id": "grpaipricerouter",
+      "title": "IA - Resolver consulta de precios",
+      "graphCoordinates": {
+        "x": 2100,
+        "y": 100
+      },
+      "blocks": [
+        {
+          "id": "blkaineedspricelist",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vaineedspricelist",
+            "isUnsafe": false,
+            "expressionToEvaluate": "String(\"{{aiAction}}\").trim().toLowerCase() === \"show_prices\" && !(Number(\"{{aiQuantity}}\") > 0) ? \"yes\" : \"no\""
+          }
+        },
+        {
+          "id": "blkaipriceroutercondition",
+          "type": "Condition",
+          "outgoingEdgeId": "edgeaipriceexact",
+          "items": [
+            {
+              "id": "itmaipricelist",
+              "outgoingEdgeId": "edgeaipricelist",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmpaipricelist",
+                    "variableId": "vaineedspricelist",
+                    "comparisonOperator": "Equal to",
+                    "value": "yes"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "grpaipackagesfetch",
+      "title": "IA - Consultar paquetes reales",
+      "graphCoordinates": {
+        "x": 2450,
+        "y": -250
+      },
+      "blocks": [
+        {
+          "id": "blkclearcatalogpackages",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vaicatalogpackages",
+            "isUnsafe": false,
+            "expressionToEvaluate": "[]"
+          }
+        },
+        {
+          "id": "blkaipackageswebhook",
+          "type": "Webhook",
+          "outgoingEdgeId": "edgeaipackagesformat",
+          "options": {
+            "responseVariableMapping": [
+              {
+                "id": "mapaicatalogpackages",
+                "variableId": "vaicatalogpackages",
+                "bodyPath": "data.packages"
+              }
+            ],
+            "webhook": {
+              "method": "GET",
+              "url": "{{backend_base_url}}/bot/v1/catalog/packages?categoryId={{selectedCategoryId}}",
+              "headers": [
+                {
+                  "id": "hdraipackagesauth",
+                  "key": "Authorization",
+                  "value": "Bearer {{backend_token}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "grpaipackagesformat",
+      "title": "IA - Preparar lista de precios",
+      "graphCoordinates": {
+        "x": 2800,
+        "y": -250
+      },
+      "blocks": [
+        {
+          "id": "blkaipricelistformat",
+          "type": "Set variable",
+          "outgoingEdgeId": "edgeaipricelistshow",
+          "options": {
+            "variableId": "vaipricelisttext",
+            "isUnsafe": false,
+            "expressionToEvaluate": "(() => {\n  const list = {{aiCatalogPackages}};\n\n  const money = (value) =>\n    String(Math.trunc(Number(value) || 0))\n      .replace(/\\B(?=(\\d{3})+(?!\\d))/g, \".\");\n\n  if (!Array.isArray(list) || list.length === 0) {\n    return \"Por ahora no encuentro paquetes activos para esa opción.\";\n  }\n\n  return list\n    .sort((a, b) =>\n      Number(a.quantity) - Number(b.quantity)\n    )\n    .map((p) =>\n      \"• \" +\n      p.name +\n      \": $\" +\n      money(p.price) +\n      \" \" +\n      (p.currency || \"CLP\")\n    )\n    .join(\"\\n\");\n})()"
+          }
+        }
+      ]
+    },
+    {
+      "id": "grpaipricelistshow",
+      "title": "IA - Mostrar lista de precios",
+      "graphCoordinates": {
+        "x": 3150,
+        "y": -250
+      },
+      "blocks": [
+        {
+          "id": "blkaipricelistshow",
+          "type": "text",
+          "outgoingEdgeId": "edgeaipricelistloop",
+          "content": {
+            "richText": [
+              {
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Claro 👌 Estas son las opciones disponibles:\n\n{{aiPriceListText}}\n\n¿Cuál te interesa?"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "edgestartentry",
+      "from": {
+        "eventId": "evtcommercev1start"
+      },
+      "to": {
+        "groupId": "grpentrycontext"
+      }
+    },
+    {
+      "id": "edgeentryviewer",
+      "from": {
+        "blockId": "blkentrycondition",
+        "itemId": "itmentryviewer"
+      },
+      "to": {
+        "groupId": "grpvieweridentity"
+      }
+    },
+    {
+      "id": "edgeentryevolution",
+      "from": {
+        "blockId": "blkentrycondition"
+      },
+      "to": {
+        "groupId": "grpnormalizeevolution"
+      }
+    },
+    {
+      "id": "edgeviewercustomer",
+      "from": {
+        "blockId": "blkviewerphoneinput"
+      },
+      "to": {
+        "groupId": "grpcustomerresolve"
+      }
+    },
+    {
+      "id": "edgeevolutioncustomer",
+      "from": {
+        "blockId": "blknormalizephone"
+      },
+      "to": {
+        "groupId": "grpcustomerresolve"
+      }
+    },
+    {
+      "id": "edgecustomererror",
+      "from": {
+        "blockId": "blkcustomercheck",
+        "itemId": "itmcustomermissing"
+      },
+      "to": {
+        "groupId": "grpgenericerror"
+      }
+    },
+    {
+      "id": "edgecustomerproducts",
+      "from": {
+        "blockId": "blkcustomercheck"
+      },
+      "to": {
+        "groupId": "grpaiinput"
+      }
+    },
+    {
+      "id": "edgeproductserror",
+      "from": {
+        "blockId": "blkproductscheck",
+        "itemId": "itmproductsnone"
+      },
+      "to": {
+        "groupId": "grpgenericerror"
+      }
+    },
+    {
+      "id": "edgeproductsmenu",
+      "from": {
+        "blockId": "blkproductscheck"
+      },
+      "to": {
+        "groupId": "grpproductmenu"
+      }
+    },
+    {
+      "id": "edgemenuselection",
+      "from": {
+        "blockId": "blkproductselectioninput"
+      },
+      "to": {
+        "groupId": "grpselectionrouter"
+      }
+    },
+    {
+      "id": "edgeselect1",
+      "from": {
+        "blockId": "blkselectioncondition",
+        "itemId": "itmselection1"
+      },
+      "to": {
+        "groupId": "grpselectproduct1"
+      }
+    },
+    {
+      "id": "edgeselect2",
+      "from": {
+        "blockId": "blkselectioncondition",
+        "itemId": "itmselection2"
+      },
+      "to": {
+        "groupId": "grpselectproduct2"
+      }
+    },
+    {
+      "id": "edgeselect3",
+      "from": {
+        "blockId": "blkselectioncondition",
+        "itemId": "itmselection3"
+      },
+      "to": {
+        "groupId": "grpselectproduct3"
+      }
+    },
+    {
+      "id": "edgeselect4",
+      "from": {
+        "blockId": "blkselectioncondition",
+        "itemId": "itmselection4"
+      },
+      "to": {
+        "groupId": "grpselectproduct4"
+      }
+    },
+    {
+      "id": "edgeselect5",
+      "from": {
+        "blockId": "blkselectioncondition",
+        "itemId": "itmselection5"
+      },
+      "to": {
+        "groupId": "grpselectproduct5"
+      }
+    },
+    {
+      "id": "edgeselectioninvalid",
+      "from": {
+        "blockId": "blkselectioncondition"
+      },
+      "to": {
+        "groupId": "grpinvalidselection"
+      }
+    },
+    {
+      "id": "edgeselect1check",
+      "from": {
+        "blockId": "blkselect1name"
+      },
+      "to": {
+        "groupId": "grpselectedcheck"
+      }
+    },
+    {
+      "id": "edgeselect2check",
+      "from": {
+        "blockId": "blkselect2name"
+      },
+      "to": {
+        "groupId": "grpselectedcheck"
+      }
+    },
+    {
+      "id": "edgeselect3check",
+      "from": {
+        "blockId": "blkselect3name"
+      },
+      "to": {
+        "groupId": "grpselectedcheck"
+      }
+    },
+    {
+      "id": "edgeselect4check",
+      "from": {
+        "blockId": "blkselect4name"
+      },
+      "to": {
+        "groupId": "grpselectedcheck"
+      }
+    },
+    {
+      "id": "edgeselect5check",
+      "from": {
+        "blockId": "blkselect5name"
+      },
+      "to": {
+        "groupId": "grpselectedcheck"
+      }
+    },
+    {
+      "id": "edgeselectedunavailable",
+      "from": {
+        "blockId": "blkselectedcondition",
+        "itemId": "itmselectedempty"
+      },
+      "to": {
+        "groupId": "grpproductunavailable"
+      }
+    },
+    {
+      "id": "edgeselectedquantity",
+      "from": {
+        "blockId": "blkselectedcondition"
+      },
+      "to": {
+        "groupId": "grpquantity"
+      }
+    },
+    {
+      "id": "edgeunavailablemenu",
+      "from": {
+        "blockId": "blkunavailabletext"
+      },
+      "to": {
+        "groupId": "grpproductmenu"
+      }
+    },
+    {
+      "id": "edgeinvalidselectionmenu",
+      "from": {
+        "blockId": "blkinvalidselectiontext"
+      },
+      "to": {
+        "groupId": "grpproductmenu"
+      }
+    },
+    {
+      "id": "edgequantityinvalid",
+      "from": {
+        "blockId": "blkquantitycondition",
+        "itemId": "itmquantityinvalid"
+      },
+      "to": {
+        "groupId": "grpinvalidquantity"
+      }
+    },
+    {
+      "id": "edgequantityquote",
+      "from": {
+        "blockId": "blkquantitycondition"
+      },
+      "to": {
+        "groupId": "grpcreatequote"
+      }
+    },
+    {
+      "id": "edgeinvalidquantityretry",
+      "from": {
+        "blockId": "blkinvalidquantitytext"
+      },
+      "to": {
+        "groupId": "grpquantity"
+      }
+    },
+    {
+      "id": "edgequoteerror",
+      "from": {
+        "blockId": "blkquotecheck",
+        "itemId": "itmquotemissing"
+      },
+      "to": {
+        "groupId": "grpgenericerror"
+      }
+    },
+    {
+      "id": "edgequotesummary",
+      "from": {
+        "blockId": "blkquotecheck"
+      },
+      "to": {
+        "groupId": "grpaiquotemode"
+      }
+    },
+    {
+      "id": "edgeconfirmorder",
+      "from": {
+        "blockId": "blkquoteconfirmation",
+        "itemId": "itmconfirmorder"
+      },
+      "to": {
+        "groupId": "grpcreateorder"
+      }
+    },
+    {
+      "id": "edgechooseagain",
+      "from": {
+        "blockId": "blkquoteconfirmation",
+        "itemId": "itmchooseagain"
+      },
+      "to": {
+        "groupId": "grpaiinput"
+      }
+    },
+    {
+      "id": "edgeordererror",
+      "from": {
+        "blockId": "blkordercheck",
+        "itemId": "itmordermissing"
+      },
+      "to": {
+        "groupId": "grpgenericerror"
+      }
+    },
+    {
+      "id": "edgeorderpayment",
+      "from": {
+        "blockId": "blkordercheck"
+      },
+      "to": {
+        "groupId": "grpcreatepayment"
+      }
+    },
+    {
+      "id": "edgepaymenterror",
+      "from": {
+        "blockId": "blkpaymentcheck",
+        "itemId": "itmpaymentmissing"
+      },
+      "to": {
+        "groupId": "grpgenericerror"
+      }
+    },
+    {
+      "id": "edgepaymentstatus",
+      "from": {
+        "blockId": "blkpaymentcheck"
+      },
+      "to": {
+        "groupId": "grppaymentstatus"
+      }
+    },
+    {
+      "id": "edgestatusapproved",
+      "from": {
+        "blockId": "blkpaymentstatuscondition",
+        "itemId": "itmpaymentapproved"
+      },
+      "to": {
+        "groupId": "grppaymentapproved"
+      }
+    },
+    {
+      "id": "edgestatuspending",
+      "from": {
+        "blockId": "blkpaymentstatuscondition",
+        "itemId": "itmpaymentpending"
+      },
+      "to": {
+        "groupId": "grpcheckoutavailability"
+      }
+    },
+    {
+      "id": "edgestatusrejected",
+      "from": {
+        "blockId": "blkpaymentstatuscondition",
+        "itemId": "itmpaymentrejected"
+      },
+      "to": {
+        "groupId": "grppaymentrejected"
+      }
+    },
+    {
+      "id": "edgestatuscancelled",
+      "from": {
+        "blockId": "blkpaymentstatuscondition",
+        "itemId": "itmpaymentcancelled"
+      },
+      "to": {
+        "groupId": "grppaymentterminal"
+      }
+    },
+    {
+      "id": "edgestatusexpired",
+      "from": {
+        "blockId": "blkpaymentstatuscondition",
+        "itemId": "itmpaymentexpired"
+      },
+      "to": {
+        "groupId": "grppaymentterminal"
+      }
+    },
+    {
+      "id": "edgestatusfailed",
+      "from": {
+        "blockId": "blkpaymentstatuscondition",
+        "itemId": "itmpaymentfailed"
+      },
+      "to": {
+        "groupId": "grppaymentterminal"
+      }
+    },
+    {
+      "id": "edgestatuserror",
+      "from": {
+        "blockId": "blkpaymentstatuscondition"
+      },
+      "to": {
+        "groupId": "grpgenericerror"
+      }
+    },
+    {
+      "id": "edgecheckouterror",
+      "from": {
+        "blockId": "blkcheckoutcondition",
+        "itemId": "itmcheckoutmissing"
+      },
+      "to": {
+        "groupId": "grpgenericerror"
+      }
+    },
+    {
+      "id": "edgecheckoutready",
+      "from": {
+        "blockId": "blkcheckoutcondition"
+      },
+      "to": {
+        "groupId": "grpcheckoutready"
+      }
+    },
+    {
+      "id": "edgereviewpayment",
+      "from": {
+        "blockId": "blkcheckoutchoices",
+        "itemId": "itmreviewpayment"
+      },
+      "to": {
+        "groupId": "grpgetpayment"
+      }
+    },
+    {
+      "id": "edgeopencheckout",
+      "from": {
+        "blockId": "blkcheckoutchoices",
+        "itemId": "itmopencheckout"
+      },
+      "to": {
+        "groupId": "grpcheckoutlink"
+      }
+    },
+    {
+      "id": "edgelinkreview",
+      "from": {
+        "blockId": "blkcheckoutlinkchoices",
+        "itemId": "itmlinkreviewpayment"
+      },
+      "to": {
+        "groupId": "grpgetpayment"
+      }
+    },
+    {
+      "id": "edgelinkback",
+      "from": {
+        "blockId": "blkcheckoutlinkchoices",
+        "itemId": "itmlinkback"
+      },
+      "to": {
+        "groupId": "grpcheckoutready"
+      }
+    },
+    {
+      "id": "edgegetpaymentstatus",
+      "from": {
+        "blockId": "blkgetpaymentwebhook"
+      },
+      "to": {
+        "groupId": "grppaymentstatus"
+      }
+    },
+    {
+      "id": "edgeretrycheckout",
+      "from": {
+        "blockId": "blkrejectedchoices",
+        "itemId": "itmretrycheckout"
+      },
+      "to": {
+        "groupId": "grpcheckoutavailability"
+      }
+    },
+    {
+      "id": "edgerejectedcatalog",
+      "from": {
+        "blockId": "blkrejectedchoices",
+        "itemId": "itmrejectedcatalog"
+      },
+      "to": {
+        "groupId": "grpproductsfetch"
+      }
+    },
+    {
+      "id": "edgeterminalcatalog",
+      "from": {
+        "blockId": "blkterminalchoices",
+        "itemId": "itmterminalcatalog"
+      },
+      "to": {
+        "groupId": "grpproductsfetch"
+      }
+    },
+    {
+      "id": "edgeterminalrestart",
+      "from": {
+        "blockId": "blkterminalchoices",
+        "itemId": "itmterminalrestart"
+      },
+      "to": {
+        "groupId": "grpentrycontext"
+      }
+    },
+    {
+      "id": "edgeerrorrestart",
+      "from": {
+        "blockId": "blkgenericerrorchoice",
+        "itemId": "itmerrorrestart"
+      },
+      "to": {
+        "groupId": "grpentrycontext"
+      }
+    },
+    {
+      "id": "edgeaiinputagent",
+      "from": {
+        "blockId": "blkaiuserinput"
+      },
+      "to": {
+        "groupId": "grpaiagent"
+      }
+    },
+    {
+      "id": "edgeaiagentresponse",
+      "from": {
+        "blockId": "blkaisalesagent"
+      },
+      "to": {
+        "groupId": "grpairesponse"
+      }
+    },
+    {
+      "id": "edgeaiactionrouter",
+      "from": {
+        "blockId": "blkmarkaigreeted"
+      },
+      "to": {
+        "groupId": "grpaiactionrouter"
+      }
+    },
+    {
+      "id": "edgeaishowprices",
+      "from": {
+        "blockId": "blkaiactioncondition",
+        "itemId": "itmaishowprices"
+      },
+      "to": {
+        "groupId": "grpaicategoriesfetch"
+      }
+    },
+    {
+      "id": "edgeaipreparepurchase",
+      "from": {
+        "blockId": "blkaiactioncondition",
+        "itemId": "itmaipreparepurchase"
+      },
+      "to": {
+        "groupId": "grpaicategoriesfetch"
+      }
+    },
+    {
+      "id": "edgeaicontinue",
+      "from": {
+        "blockId": "blkaiactioncondition"
+      },
+      "to": {
+        "groupId": "grpaiinput"
+      }
+    },
+    {
+      "id": "edgeaicategoriesmatcher",
+      "from": {
+        "blockId": "blkaicategoriescheck"
+      },
+      "to": {
+        "groupId": "grpaicategorymatcher"
+      }
+    },
+    {
+      "id": "edgeaicategoriesempty",
+      "from": {
+        "blockId": "blkaicategoriescheck",
+        "itemId": "itmaicategoriesempty"
+      },
+      "to": {
+        "groupId": "grpaicategorynomatch"
+      }
+    },
+    {
+      "id": "edgeaicategorynomatchloop",
+      "from": {
+        "blockId": "blkaicategorynomatchtext"
+      },
+      "to": {
+        "groupId": "grpaiinput"
+      }
+    },
+    {
+      "id": "edgeaicategoryrouter",
+      "from": {
+        "blockId": "blkaicategorymatcher"
+      },
+      "to": {
+        "groupId": "grpaicategoryresolve"
+      }
+    },
+    {
+      "id": "edgeaicategorynomatch",
+      "from": {
+        "blockId": "blkaicategoryresolvecheck",
+        "itemId": "itmaicategoryresolvenomatch"
+      },
+      "to": {
+        "groupId": "grpaicategorynomatch"
+      }
+    },
+    {
+      "id": "edgeaicategoryproducts",
+      "from": {
+        "blockId": "blkaicategoryresolvecheck"
+      },
+      "to": {
+        "groupId": "grpaipricerouter"
+      }
+    },
+    {
+      "id": "edgeaiproductresolve",
+      "from": {
+        "blockId": "blkproductscheck"
+      },
+      "to": {
+        "groupId": "grpaiproductresolve"
+      }
+    },
+    {
+      "id": "edgeaiproductnomatch",
+      "from": {
+        "blockId": "blkaiproductresolvecheck",
+        "itemId": "itmaiproductnomatch"
+      },
+      "to": {
+        "groupId": "grpaiproductnomatch"
+      }
+    },
+    {
+      "id": "edgeaiproductquote",
+      "from": {
+        "blockId": "blkaiproductresolvecheck"
+      },
+      "to": {
+        "groupId": "grpcreatequote"
+      }
+    },
+    {
+      "id": "edgeaiproductnomatchloop",
+      "from": {
+        "blockId": "blkaiproductnomatchtext"
+      },
+      "to": {
+        "groupId": "grpaiinput"
+      }
+    },
+    {
+      "id": "edgeaiquoteshowprice",
+      "from": {
+        "blockId": "blkaquotemodecondition",
+        "itemId": "itmaiquoteshowprice"
+      },
+      "to": {
+        "groupId": "grpaiquoteprice"
+      }
+    },
+    {
+      "id": "edgeaiquotepurchase",
+      "from": {
+        "blockId": "blkaquotemodecondition",
+        "itemId": "itmaiquotepurchase"
+      },
+      "to": {
+        "groupId": "grpquotesummary"
+      }
+    },
+    {
+      "id": "edgeaiquotecontinue",
+      "from": {
+        "blockId": "blkaquotemodecondition"
+      },
+      "to": {
+        "groupId": "grpaiinput"
+      }
+    },
+    {
+      "id": "edgeaipriceloop",
+      "from": {
+        "blockId": "blkaipricereply"
+      },
+      "to": {
+        "groupId": "grpaiinput"
+      }
+    },
+    {
+      "id": "edgeaipricelist",
+      "from": {
+        "blockId": "blkaipriceroutercondition",
+        "itemId": "itmaipricelist"
+      },
+      "to": {
+        "groupId": "grpaipackagesfetch"
+      }
+    },
+    {
+      "id": "edgeaipriceexact",
+      "from": {
+        "blockId": "blkaipriceroutercondition"
+      },
+      "to": {
+        "groupId": "grpproductsfetch"
+      }
+    },
+    {
+      "id": "edgeaipackagesformat",
+      "from": {
+        "blockId": "blkaipackageswebhook"
+      },
+      "to": {
+        "groupId": "grpaipackagesformat"
+      }
+    },
+    {
+      "id": "edgeaipricelistshow",
+      "from": {
+        "blockId": "blkaipricelistformat"
+      },
+      "to": {
+        "groupId": "grpaipricelistshow"
+      }
+    },
+    {
+      "id": "edgeaipricelistloop",
+      "from": {
+        "blockId": "blkaipricelistshow"
+      },
+      "to": {
+        "groupId": "grpaiinput"
+      }
+    }
+  ],
+  "variables": [
+    {
+      "id": "vremotejid",
+      "name": "remoteJid",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vpushname",
+      "name": "pushName",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vinstancename",
+      "name": "instanceName",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vownerjid",
+      "name": "ownerJid",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vserverurl",
+      "name": "serverUrl",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vwhatsappnumber",
+      "name": "whatsappNumber",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vbackendbaseurl",
+      "name": "backend_base_url",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vbackendtoken",
+      "name": "backend_token",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vcustomerid",
+      "name": "customerId",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vcustomername",
+      "name": "customerName",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproduct1id",
+      "name": "product1Id",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproduct1name",
+      "name": "product1Name",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproduct1min",
+      "name": "product1Min",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproduct1max",
+      "name": "product1Max",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproduct2id",
+      "name": "product2Id",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproduct2name",
+      "name": "product2Name",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproduct2min",
+      "name": "product2Min",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproduct2max",
+      "name": "product2Max",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproduct3id",
+      "name": "product3Id",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproduct3name",
+      "name": "product3Name",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproduct3min",
+      "name": "product3Min",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproduct3max",
+      "name": "product3Max",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproduct4id",
+      "name": "product4Id",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproduct4name",
+      "name": "product4Name",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproduct4min",
+      "name": "product4Min",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproduct4max",
+      "name": "product4Max",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproduct5id",
+      "name": "product5Id",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproduct5name",
+      "name": "product5Name",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproduct5min",
+      "name": "product5Min",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproduct5max",
+      "name": "product5Max",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vproductselection",
+      "name": "productSelection",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vselectedproductid",
+      "name": "selectedProductId",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vselectedproductname",
+      "name": "selectedProductName",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vquantityinput",
+      "name": "quantityInput",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vquantity",
+      "name": "quantity",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vquoteid",
+      "name": "quoteId",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vquoteproductname",
+      "name": "quoteProductName",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vquotequantity",
+      "name": "quoteQuantity",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vquotecurrency",
+      "name": "quoteCurrency",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vquotetotal",
+      "name": "quoteTotal",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vquotestatus",
+      "name": "quoteStatus",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vorderid",
+      "name": "orderId",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vorderstatus",
+      "name": "orderStatus",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vorderitemid",
+      "name": "orderItemId",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vordertotal",
+      "name": "orderTotal",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vpaymentid",
+      "name": "paymentId",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vpaymentstatus",
+      "name": "paymentStatus",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vcheckouturl",
+      "name": "checkoutUrl",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vpaymentexpiresat",
+      "name": "paymentExpiresAt",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vpaymentidempotencykey",
+      "name": "paymentIdempotencyKey",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vaiusermessage",
+      "name": "aiUserMessage",
+      "isSessionVariable": false
+    },
+    {
+      "id": "vaireply",
+      "name": "aiReply",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vaiintent",
+      "name": "aiIntent",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vaiplatform",
+      "name": "aiPlatform",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vaiservice",
+      "name": "aiService",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vaiquantity",
+      "name": "aiQuantity",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vaiurl",
+      "name": "aiUrl",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vaiaction",
+      "name": "aiAction",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vaihasgreeted",
+      "name": "aiHasGreeted",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vaicategoryslot",
+      "name": "aiCategorySlot",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vselectedcategoryid",
+      "name": "selectedCategoryId",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vcategory1id",
+      "name": "category1Id",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vcategory1name",
+      "name": "category1Name",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vcategory2id",
+      "name": "category2Id",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vcategory2name",
+      "name": "category2Name",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vcategory3id",
+      "name": "category3Id",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vcategory3name",
+      "name": "category3Name",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vcategory4id",
+      "name": "category4Id",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vcategory4name",
+      "name": "category4Name",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vcategory5id",
+      "name": "category5Id",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vcategory5name",
+      "name": "category5Name",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vaicategoriescatalog",
+      "name": "aiCategoriesCatalog",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vaicategoryname",
+      "name": "aiCategoryName",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vaiproductscatalog",
+      "name": "aiProductsCatalog",
+      "isSessionVariable": true
+    },
+    {
+      "id": "vaineedspricelist",
+      "name": "aiNeedsPriceList",
+      "isSessionVariable": false
+    },
+    {
+      "id": "vaicatalogpackages",
+      "name": "aiCatalogPackages",
+      "isSessionVariable": false
+    },
+    {
+      "id": "vaipricelisttext",
+      "name": "aiPriceListText",
+      "isSessionVariable": false
+    }
+  ],
+  "theme": {},
+  "selectedThemeTemplateId": null,
+  "settings": {},
+  "createdAt": "2026-08-19T00:00:00.000Z",
+  "updatedAt": "2026-08-19T00:00:00.000Z",
+  "icon": null,
+  "folderId": null,
+  "publicId": null,
+  "customDomain": null,
+  "workspaceId": "cmske6ll700001fqf7yll9l1r",
+  "resultsTablePreferences": null,
+  "isArchived": false,
+  "isClosed": false,
+  "whatsAppCredentialsId": null,
+  "riskLevel": null,
+  "spaceId": null
+}

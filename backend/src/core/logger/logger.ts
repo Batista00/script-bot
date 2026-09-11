@@ -7,7 +7,7 @@ export function createLoggerOptions(logLevel: Env["LOG_LEVEL"]): {
   return {
     level: logLevel,
     redact: {
-      paths: ["req.headers.authorization", "req.headers.cookie"],
+      paths: ["req.headers.authorization", "req.headers.cookie", "req.headers['x-telegram-bot-api-secret-token']", "req.body"],
       censor: "[Redacted]",
     },
   };

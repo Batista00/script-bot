@@ -121,6 +121,8 @@ Payment approved + Order paid
 
 El webhook identifica la integración por UUID, exige que siga activa y que su provider sea exactamente `mercado_pago`. La notificación recibida solo aporta el identificador a consultar: estado y datos financieros provienen de la consulta server-to-server. Estados externos no soportados se registran como advertencia y no inventan transiciones locales.
 
+La configuración inicial de Mercado Pago se conserva `inactive` con Public Key y Access Token cifrados mientras el panel expone la URL de webhook derivada del UUID. Solo después de registrar esa URL, guardar la firma secreta emitida por Mercado Pago y activar explícitamente la integración puede Payments resolverla. Las URL de retorno son opcionales como conjunto y no participan en la aprobación.
+
 Integrations Core separa `config` no secreta de credenciales cifradas con AES-256-GCM. La clave maestra proviene exclusivamente del entorno y el ciphertext se autentica con el contexto Business/provider. Las APIs públicas nunca descifran ni serializan credenciales; el acceso descifrado existe solo como contrato interno para adapters.
 
 ## Catálogo de proveedores
@@ -201,7 +203,11 @@ MachineAuthContext { credentialId, businessId, credentialName }
 
 El token machine contiene al menos 256 bits aleatorios y solo se devuelve al crearlo; PostgreSQL guarda hash y prefijo. La administración de estas credenciales continúa bajo sesión humana `owner/admin`. Una cookie no autentica el Gateway y un Bearer machine no autoriza rutas administrativas.
 
-Bot Gateway no tiene repositories ni SQL: orquesta Customers, Categories, Products, Pricing, Quotes, Orders, Payments y Fulfillments. Todas las llamadas reciben el `businessId` del `MachineAuthContext`, nunca del cliente. Sus DTOs excluyen provider rates, referencias externas, credenciales, hashes, idempotency keys e inputs sensibles de fulfillment. Las reglas críticas —pago confirmado por provider y dispatch exclusivo desde Order `paid`— permanecen en sus respectivos servicios Core.
+Bot Gateway no tiene repositories ni SQL: orquesta Customers, Categories, Products, Pricing, Quotes, Orders, Payments y Fulfillments. Todas las llamadas reciben el `businessId` del `MachineAuthContext`, nunca del cliente. Sus DTOs excluyen provider rates, IDs de servicio externos, credenciales, hashes, idempotency keys e inputs sensibles de fulfillment. El DTO de entrega expone únicamente `providerOrderReference`, la referencia segura que puede comunicarse al comprador después del despacho; no permite elegirla ni reutilizarla para ejecutar una compra. Las reglas críticas —pago confirmado por provider y dispatch exclusivo desde Order `paid`— permanecen en sus respectivos servicios Core.
+
+## Ventas multicanal y automatizaciones opcionales
+
+`modules/sales` conserva conversación, selección comercial, traspasos humanos y datos de entrega previos al pago; reutiliza el intérprete estructurado de `ai-orchestrator` para convertir lenguaje natural en términos de búsqueda, pero consulta catálogo, precios y estado exclusivamente en PostgreSQL mediante los servicios existentes. Una atención humana pausa la sesión, genera una alerta durable de Telegram y permite registrar su resultado antes de reanudar el bot; el historial queda aislado por Business. `modules/payment-reviews` gestiona comprobantes cifrados y decisiones humanas; `modules/automation` reconcilia Orders y distribuye trabajos durables. Telegram vive en su adapter. Evolution, Typebot, n8n y OpenAI nunca son autoridades financieras. Detalle en [sales-automation.md](sales-automation.md).
 
 ## Equipo, membresías y estado del negocio
 

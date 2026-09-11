@@ -1,5 +1,6 @@
 import type { DatabaseExecutor } from "../../core/database/database.js";
 import type { ProductInputField } from "./product-inputs.js";
+import type { ProductDelivery } from "./product-delivery.js";
 
 export const productTypes = ["service", "product"] as const;
 export const productStatuses = ["active", "inactive"] as const;
@@ -8,6 +9,7 @@ export type ProductType = (typeof productTypes)[number];
 export type ProductStatus = (typeof productStatuses)[number];
 
 export interface Product {
+  deliveryConfig?: ProductDelivery | null;
   id: string;
   businessId: string;
   categoryId: string | null;
@@ -24,6 +26,7 @@ export interface Product {
 }
 
 export interface CreateProductInput {
+  deliveryConfig?: ProductDelivery | null;
   categoryId?: string | null;
   name: string;
   description?: string | null;
@@ -35,6 +38,7 @@ export interface CreateProductInput {
 }
 
 export interface UpdateProductInput {
+  deliveryConfig?: ProductDelivery | null;
   categoryId?: string | null;
   name?: string;
   description?: string | null;
@@ -52,7 +56,7 @@ export interface ProductListOptions {
   status?: ProductStatus;
   type?: ProductType;
   categoryId?: string;
-  /** Case-insensitive partial match on the commercial name. */
+  /** Case-insensitive partial match on the commercial name or SKU. */
   search?: string;
 }
 
@@ -66,6 +70,7 @@ export interface ProductListQuery {
 }
 
 export interface ProductPersistenceInput {
+  deliveryConfig?: ProductDelivery | null;
   categoryId: string | null;
   name: string;
   description: string | null;

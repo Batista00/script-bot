@@ -22,6 +22,15 @@ const integrationId = "499aa88d-a044-4a60-b0c0-e463acfe4ac2";
 const categoryId = "c1a400ce-5084-4d9e-ab13-ad9399f4ba92";
 const now = "2026-08-20T12:00:00.000Z";
 
+test("unsupported service may be imported inactive but never as a sellable product",async()=>{
+  const context=setup({orderCapabilities:{supported:false,required:[],optional:[]}});
+  // The public setup contract is exercised below through the same service used by existing tests.
+  const candidate=providerService();
+  await assert.rejects(()=>context.service.import(businessA,input(candidate.id)),{code:"PROVIDER_SERVICE_NOT_SUPPORTED"});
+  const imported=await context.service.import(businessA,{...input(candidate.id),status:"inactive"});
+  assert.equal(imported.product.status,"inactive");
+});
+
 type FailureStage = "product" | "pricing" | "mapping" | undefined;
 interface State {
   products: Product[]; prices: ProductPrice[]; mappings: ProductProviderMapping[];
@@ -35,6 +44,7 @@ function providerService(overrides: Partial<ProviderService> = {}): ProviderServ
     name: "Proveedor seguidores", category: "Instagram", serviceType: "Default",
     rate: "0.15", rateCurrency: null, minQuantity: 100, maxQuantity: 10_000,
     metadata: {}, providerStatus: "active", lastSyncedAt: now,
+    orderCapabilities: {supported:true,required:[],optional:[]},
     createdAt: now, updatedAt: now, ...overrides,
   };
 }

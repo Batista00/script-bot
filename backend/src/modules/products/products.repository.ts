@@ -24,6 +24,7 @@ interface ProductRow extends QueryResultRow {
   min_quantity: number | null;
   max_quantity: number | null;
   required_inputs: ProductInputField[];
+  delivery_config: Product["deliveryConfig"];
   status: ProductStatus;
   created_at: Date | string;
   updated_at: Date | string;
@@ -35,7 +36,7 @@ interface PostgreSqlError {
 }
 
 const productColumns = `id, business_id, category_id, name, description, type, sku,
-  min_quantity, max_quantity, required_inputs, status, created_at, updated_at`;
+  min_quantity, max_quantity, required_inputs, delivery_config, status, created_at, updated_at`;
 
 function toIsoString(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
@@ -53,6 +54,7 @@ function mapProduct(row: ProductRow): Product {
     minQuantity: row.min_quantity,
     maxQuantity: row.max_quantity,
     requiredInputs: row.required_inputs,
+    deliveryConfig: row.delivery_config ?? null,
     status: row.status,
     createdAt: toIsoString(row.created_at),
     updatedAt: toIsoString(row.updated_at),
@@ -79,9 +81,9 @@ export class PostgresProductsRepository implements ProductsRepository {
       const result = await executor.query<ProductRow>(
         `INSERT INTO products (
            business_id, category_id, name, description, type, sku,
-           min_quantity, max_quantity, required_inputs, status
+           min_quantity, max_quantity, required_inputs, status, delivery_config
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          RETURNING ${productColumns}`,
         [
           businessId,
@@ -94,6 +96,7 @@ export class PostgresProductsRepository implements ProductsRepository {
           input.maxQuantity,
           JSON.stringify(input.requiredInputs ?? []),
           input.status,
+          input.deliveryConfig ? JSON.stringify(input.deliveryConfig) : null,
         ],
       );
       const row = result.rows[0];
@@ -106,7 +109,7 @@ export class PostgresProductsRepository implements ProductsRepository {
   }
 
   async list(businessId: string, options: ProductListOptions): Promise<Product[]> {
-    const search = options.search?.replace(/[\\%_]/g, "\\$&");
+    const search = options.search?.trim().replace(/[\\%_]/g, "\\$&");
     const result = await this.db.query<ProductRow>(
       `SELECT ${productColumns}
        FROM products
@@ -114,7 +117,7 @@ export class PostgresProductsRepository implements ProductsRepository {
          AND ($2::catalog_status IS NULL OR status = $2)
          AND ($3::product_type IS NULL OR type = $3)
          AND ($4::uuid IS NULL OR category_id = $4)
-         AND ($5::text IS NULL OR name ILIKE $5)
+         AND ($5::text IS NULL OR name ILIKE $5 OR sku ILIKE $5)
        ORDER BY created_at DESC, id DESC
        LIMIT $6 OFFSET $7`,
       [
@@ -122,7 +125,7 @@ export class PostgresProductsRepository implements ProductsRepository {
         options.status ?? null,
         options.type ?? null,
         options.categoryId ?? null,
-        search === undefined ? null : `%${search}%`,
+        search === undefined || search.length === 0 ? null : `%${search}%`,
         options.limit,
         options.offset,
       ],
@@ -174,6 +177,7 @@ export class PostgresProductsRepository implements ProductsRepository {
              max_quantity = $9,
              required_inputs = $10,
              status = $11,
+             delivery_config = $12,
              updated_at = now()
          WHERE business_id = $1 AND id = $2
          RETURNING ${productColumns}`,
@@ -189,6 +193,7 @@ export class PostgresProductsRepository implements ProductsRepository {
           input.maxQuantity,
           JSON.stringify(input.requiredInputs ?? []),
           input.status,
+          input.deliveryConfig ? JSON.stringify(input.deliveryConfig) : null,
         ],
       );
       return result.rows[0] ? mapProduct(result.rows[0]) : null;

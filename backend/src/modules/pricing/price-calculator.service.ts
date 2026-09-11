@@ -46,6 +46,7 @@ export class PriceCalculatorService {
     if (price.pricingType === "fixed") {
       if (price.fixedPrice === null) throw new Error("Invalid fixed price persisted");
       return {
+        ...(product.deliveryConfig?.kind==="physical"?{deliveryConfig:product.deliveryConfig}:{}),
         productId,
         productName: product.name,
         pricingType: "fixed",
@@ -56,6 +57,7 @@ export class PriceCalculatorService {
     }
     if (price.unitPrice === null) throw new Error("Invalid unit price persisted");
     return {
+      ...(product.deliveryConfig?.kind==="physical"?{deliveryConfig:product.deliveryConfig}:{}),
       productId,
       productName: product.name,
       pricingType: "unit",

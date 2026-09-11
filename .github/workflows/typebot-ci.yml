@@ -38,4 +38,4 @@ jobs:
         run: node typebot/validate-typebot.mjs
 
       - name: Run validator tests
-        run: node --test typebot/validate-typebot.test.mjs
+        run: node --test typebot/validate-typebot.test.mjs typebot/ai-commerce-importables.test.mjs

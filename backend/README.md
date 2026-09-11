@@ -12,6 +12,19 @@ Incluye Payments Core independiente de proveedores y el adaptador inicial de Mer
 
 ## Desarrollo local
 
+Las conversaciones de venta abandonadas vuelven al inicio tras una hora de inactividad,
+en el siguiente tick de automatización. Se conserva el historial y la referencia del pedido.
+No se cierran conversaciones pausadas para atención humana, con comprobantes pendientes
+de revisión/información ni pedidos pagados en preparación. Los pagos iniciados siguen
+reconciliándose: cerrar la conversación no cancela un enlace de pago ni un pedido.
+
+El catálogo admite dos niveles: categoría principal y subcategoría, siempre dentro del
+mismo negocio. En Categorías, dejar «Categoría padre» vacía crea una principal. No se
+permiten ciclos ni un tercer nivel. El bot presenta categorías activas con productos
+activos y precios; conserva la navegación entre turnos. Los listados se entregan completos
+por página de hasta 100 productos, con aviso explícito cuando hay más. Typebot conserva
+el listado autorizado aunque el modelo intente resumirlo.
+
 ```bash
 cp .env.example .env
 pnpm install
@@ -142,14 +155,18 @@ El POST genera un token opaco `bw_...`, almacena únicamente su hash SHA-256 y d
 
 El Bot Gateway se publica bajo `/bot/v1/*`. `businessId` siempre se deriva de la credencial Bearer activa y nunca se acepta en paths o bodies del bot. Expone Customer Resolve, catálogo comercial activo, Quotes, Orders, Checkout de Payments y Fulfillments mediante DTOs que no incluyen costes de proveedor, credenciales ni campos internos.
 
-Contrato conceptual para una futura conexión Typebot:
+Contrato de la conexión Typebot/n8n:
 
 ```http
 Authorization: Bearer <BOT_BACKEND_TOKEN>
 Content-Type: application/json
 ```
 
-El token deberá inyectarse posteriormente como secreto de ejecución; no debe incluirse en templates ni exports JSON de Typebot. Esta etapa no modifica ni configura Typebot.
+El token machine permanece en credenciales n8n; no se incluye en templates ni exports JSON de Typebot. El flujo nuevo usa tokens temporales acotados a una conversación. Ver [flujos importables](../flows/CONFIGURACION.md).
+
+El catálogo también ofrece `GET /bot/v1/catalog/packages?categoryId=<uuid>` para servicios configurados como paquetes de cantidad fija. El precio expuesto es siempre el precio retail activo del negocio; nunca se publica el coste del proveedor.
+
+`POST /bot/v1/assistant/message` clasifica mensajes con Machine Auth y Structured Outputs. El mismo intérprete se reutiliza en la conversación de ventas para buscar por plataforma, servicio y términos libres dentro del catálogo activo del Business. La integración es opcional: usa `OPENAI_API_KEY`, `OPENAI_MODEL` y `OPENAI_TIMEOUT_MS`; si no hay clave, los comandos determinísticos siguen funcionando. La IA sólo interpreta intención y entidades, y no define precios, aprueba pagos ni ejecuta pedidos.
 
 ## Customers
 
@@ -240,7 +257,7 @@ El listado global admite `limit`, `offset` y `status`; está aislado por Busines
 
 El retry explícito `POST /businesses/:businessId/fulfillments/:fulfillmentId/retry` está limitado a `owner` y `admin` y únicamente acepta Fulfillments `failed`. Como SMM Raja no documenta una idempotency key para `action=add`, un timeout o una respuesta imposible de interpretar después del POST produce `submission_unknown`: no existe retry automático y ese estado tampoco admite retry manual, porque podría duplicar la compra externa.
 
-`action=status` persiste el estado externo sanitizado y métricas válidas. Un estado desconocido no inventa una transición local. `Completed` finaliza el Order cuando todos sus Fulfillments terminaron; `Partial` o `Cancelled` lo dejan `failed` para atención operativa. No hay polling, workers ni dispatch automático en esta etapa.
+`action=status` persiste el estado externo sanitizado y métricas válidas. Un estado desconocido no inventa una transición local. `Completed` finaliza el Order cuando todos sus Fulfillments terminaron; `Partial` o `Cancelled` lo dejan `failed` para atención operativa. El módulo opcional de ventas automatiza seguimiento y dispatch únicamente si el negocio lo habilita y ejecuta su worker autenticado.
 
 ## Pricing y Quotes
 
@@ -286,13 +303,16 @@ Mercado Pago se configura como una integración activa del negocio con:
     "failureUrl": "https://commerce.example.com/payment/failure"
   },
   "credentials": {
+    "publicKey": "public-key-entregada-por-mercado-pago",
     "accessToken": "valor-entregado-por-mercado-pago",
     "webhookSecret": "firma-secreta-del-webhook"
   }
 }
 ```
 
-`accessToken` y `webhookSecret` quedan cifrados por Integrations Core. Las tres back URLs son opcionales, pero se envían juntas cuando están todas configuradas. `PUBLIC_API_BASE_URL` debe ser la base pública HTTPS del backend, sin secretos; se utiliza para construir `POST /webhooks/mercado-pago/:integrationId`. Fuera de tests no se admite HTTP.
+El alta desde el panel ocurre en dos pasos. Primero exige `publicKey` y `accessToken`, crea la integración `inactive` y muestra la URL generada `POST /webhooks/mercado-pago/:integrationId`. Después de registrar esa URL para el evento Pagos en Mercado Pago Developers, se reingresan ambas credenciales junto con el `webhookSecret` generado por Mercado Pago y se activa la integración. Ningún pago puede usarla mientras permanezca inactiva o incompleta.
+
+`publicKey`, `accessToken` y `webhookSecret` quedan cifrados por Integrations Core y nunca se devuelven por HTTP. El adapter normaliza un prefijo `Bearer` pegado por error y agrega exactamente un único esquema al llamar a Mercado Pago. Las tres back URLs son opcionales si todavía no existe una página de resultado, pero deben configurarse juntas y solo se envían cuando están completas. `PUBLIC_API_BASE_URL` debe ser la base pública HTTPS del backend, sin secretos; fuera de tests no se admite HTTP.
 
 El webhook es público porque Mercado Pago no posee una sesión del sistema, pero exige la firma HMAC de Mercado Pago. El body no aprueba pagos: el backend consulta `GET /v1/payments/:id` con el token interno y valida negocio, provider, referencia local, monto y moneda antes de aplicar una transición. Solo `approved` confirmado paga el Order en la misma transacción; los redirects del navegador nunca determinan aprobación. Refunds y chargebacks no se implementan en esta etapa.
 
@@ -307,7 +327,7 @@ GET   /businesses/:businessId/integrations/:integrationId
 PATCH /businesses/:businessId/integrations/:integrationId
 ```
 
-Solo `owner` y `admin` pueden administrar integraciones. Los accesos internos por Business/provider y por ID exacto entregan configuración y credenciales descifradas únicamente a adapters; no están publicados como endpoints. Mercado Pago, el catálogo SMM Raja y el canal WhatsApp/Evolution usan este contrato. La integración de Evolution valida el webhook público con `x-webhook-secret` y expone las conversaciones por HTTP (ver `docs/operations.md`).
+Solo `owner` y `admin` pueden administrar integraciones. Los accesos internos por Business/provider y por ID exacto entregan configuración y credenciales descifradas únicamente a adapters; no están publicados como endpoints. Mercado Pago, el catálogo SMM Raja, Telegram y el ejecutor de automatizaciones usan este contrato. La integración de Evolution valida el webhook público con `x-webhook-secret` y expone las conversaciones por HTTP (ver `docs/operations.md`); los workflows n8n versionados en `flows/` complementan la operación.
 
 ## Worker, jobs y operación
 
@@ -329,6 +349,28 @@ Superficie humana: `GET /businesses/:businessId/jobs` y `POST /businesses/:busin
 `POST /webhooks/evolution/:integrationId` (público, header `x-webhook-secret`) normaliza el mensaje entrante (`remoteJid`, texto o media), resuelve o crea el customer y guarda la conversación y el mensaje de forma idempotente por id de mensaje. Devuelve el contexto normalizado para que el orquestador continúe en Typebot.
 
 Salida y operación: `POST /businesses/:businessId/conversations/:conversationId/messages` (envía vía Evolution y persiste el resultado, incluso si falla), `GET /businesses/:businessId/conversations`, `GET .../conversations/:conversationId/messages` y `PATCH .../conversations/:conversationId` para derivación humana. Los DTO omiten el identificador de hilo y nunca exponen credenciales. La integración usa `providerKey: evolution` con `config { baseUrl, instance }` y `credentials { apiKey, webhookSecret }`.
+
+## Ventas conversacionales y revisión humana
+
+Carrito de varios productos en un pedido/pago, descripciones y entrega física/digital: [configuración y operación](docs/product-delivery-and-cart.md).
+
+La migración `000015` agrega sesiones comerciales, inbox durable, checkouts con datos de entrega, revisión cifrada de comprobantes, revisores Telegram y cola de notificaciones. No se activa ninguna automatización al migrar.
+
+En el panel **Ventas por WhatsApp**, owner/admin controla la recepción, pausa conversaciones, vincula su usuario Telegram, registra el resultado de una atención humana, registra entregas manuales de pedidos pagados y recupera trabajos fallidos. La identidad, bienvenida y políticas visibles allí son respuestas de respaldo del backend; el prompt conversacional principal continúa versionado en Typebot. Configuración, secretos y clientes se aíslan por negocio.
+
+- Machine API: `POST /bot/v1/sales/sessions` y `/bot/v1/sales/inbox`.
+- Token temporal de conversación: `POST /conversation/v1/message`, `/evidence`, `/evidence/analysis`.
+- Runner independiente: `POST /automation/v1/:integrationId/tick`, `/inbox/claim`, `/inbox/ack`, `/notifications/claim`, `/notifications/ack`.
+- Telegram: `POST /webhooks/telegram/:integrationId`, con header secreto y revisor humano autorizado.
+- Administración: `/businesses/:businessId/sales-automation` y sus subrutas protegidas; no hay una ruta pública de aprobación por IA.
+
+El cliente puede describir el servicio en lenguaje natural; OpenAI propone términos y el backend busca sólo productos activos, precios retail y categorías del Business. La opción elegida, cantidad y datos de entrega se validan antes de ofrecer pago. Frases como «quiero los 1.000», «sí, están bien» o «transferencia bancaria» avanzan por el mismo flujo determinístico. Las acciones financieras continúan en Payments/Orders: una transferencia requiere verificación humana del abono y referencia bancaria; Mercado Pago conserva su verificación server-to-server. Después del despacho, el aviso al cliente puede incluir la referencia segura del pedido externo, nunca credenciales, rate o ID técnico del servicio.
+
+Cuando el cliente solicita una persona, el backend pausa la sesión y encola la alerta de Telegram. El operador atiende en el mismo WhatsApp y puede registrar en el panel el resultado (`venta finalizada`, `no concretada`, `seguimiento` u `otro`) con una nota; reanudar el bot es una decisión explícita. Los últimos veinte resultados se conservan dentro del estado business-scoped de la sesión.
+
+Los tests de ventas (`pnpm test:sales`) forman parte de `pnpm test`. PostgreSQL continúa serializado con `--test-concurrency=1`; sin `TEST_DATABASE_URL` se informa skip. Las pruebas no envían WhatsApp/Telegram ni compran servicios.
+
+Consultar [configuración e importación](../flows/CONFIGURACION.md), [operación y límites](../flows/OPERACION.md) y [arquitectura de ventas](docs/sales-automation.md). Los exports apuntan a Evolution 2.3.4 y formato Typebot 6.1; falta verificar su importación en las versiones reales del VPS, incluida n8n.
 
 ## Docker Compose
 

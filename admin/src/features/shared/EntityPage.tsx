@@ -11,12 +11,15 @@ export interface FormField {
   name: string; label: string; kind?: "text" | "email" | "number" | "textarea" | "select" | "json";
   required?: boolean; nullable?: boolean; options?: Array<{ value: string; label: string }>;
   editOnly?: boolean;
+  render?: (value: unknown) => ReactNode;
 }
 export interface Column<T> { label: string; value: (record: T) => ReactNode }
 
 interface EntityPageProps<T extends { id: string; status?: string }> {
   resource: string; title: string; description: string; empty: string;
   scopeKey?: string;
+  searchable?: boolean;
+  editExtra?: (record:T) => ReactNode;
   columns: Column<T>[]; fields: FormField[]; readOnly?: boolean;
   writeRoles?: readonly Role[];
   list: (businessId: string, query: Record<string, string | number>) => Promise<T[]>;
@@ -40,9 +43,10 @@ export function EntityPage<T extends { id: string; status?: string }>(props: Ent
   const business = useBusiness(); const client = useQueryClient(); const toast = useToast();
   const [offset, setOffset] = useState(0); const [editing, setEditing] = useState<T | "new" | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [search,setSearch]=useState("");
   const canWrite = (props.writeRoles ?? ["owner", "admin"]).includes(business.role);
-  const key = businessQueryKey(props.resource, business.id, props.scopeKey ?? "all", { offset });
-  const query = useQuery({ queryKey: key, queryFn: () => props.list(business.id, { limit: 25, offset }) });
+  const key = businessQueryKey(props.resource, business.id, props.scopeKey ?? "all", { offset,search });
+  const query = useQuery({ queryKey: key, queryFn: () => props.list(business.id, { limit: 25, offset,...(search.trim()?{search:search.trim()}:{}) }) });
   const mutation = useMutation({ mutationFn: async (payload: Record<string, unknown>) => editing === "new" ? props.create(business.id, payload) : props.update(business.id, (editing as T).id, payload), onSuccess: async () => { setEditing(null); await client.invalidateQueries({ queryKey: [props.resource, business.id] }); toast("Cambios guardados."); } });
   const removeMutation = useMutation({
     mutationFn: (record: T) => props.remove!(business.id, record.id),
@@ -67,9 +71,11 @@ export function EntityPage<T extends { id: string; status?: string }>(props: Ent
   }
   return <><PageHeader title={props.title} description={props.description} action={canWrite && !props.readOnly ? <Button onClick={() => setEditing("new")}>Crear</Button> : undefined} />
     {removeMutation.isError && <div className="alert error">{errorMessage(removeMutation.error)}</div>}
+    {props.searchable&&<Field label="Buscar por nombre o SKU" value={search} maxLength={160} onChange={e=>{setSearch(e.target.value);setOffset(0);}} />}
     {query.isLoading ? <Spinner /> : query.isError ? <div className="alert error">{errorMessage(query.error)}</div> : !query.data?.length ? <EmptyState title={props.empty} action={canWrite && !props.readOnly ? <Button onClick={() => setEditing("new")}>Crear</Button> : undefined} /> : <div className="table-card"><div className="table-scroll"><table><thead><tr>{props.columns.map((column) => <th key={column.label}>{column.label}</th>)}{canWrite && !props.readOnly && <th>Acciones</th>}</tr></thead><tbody>{query.data.map((record) => <tr key={record.id}>{props.columns.map((column) => <td key={column.label}>{column.value(record)}</td>)}{canWrite && !props.readOnly && <td><div className="form-actions"><Button className="secondary small" onClick={() => setEditing(record)}>Editar</Button>{props.remove && <Button className="danger small" disabled={removeMutation.isPending} onClick={() => remove(record)}>Eliminar</Button>}</div></td>}</tr>)}</tbody></table></div><Pagination offset={offset} limit={25} count={query.data.length} onChange={setOffset} /></div>}
     {editing && <Modal title={editing === "new" ? `Crear ${props.title.toLowerCase()}` : `Editar ${props.title.toLowerCase()}`} onClose={() => { setFormError(null); setEditing(null); }}><form onSubmit={submit}>{props.fields.filter((field) => editing !== "new" || !field.editOnly).map((field) => {
       const rawValue = editing === "new" ? "" : (editing as Record<string, unknown>)[field.name];
+      if (field.render) return <div key={field.name}>{field.render(rawValue)}</div>;
       const value = field.kind === "json" && rawValue !== ""
         ? JSON.stringify(rawValue ?? [], null, 2)
         : String(rawValue ?? "");
@@ -77,7 +83,7 @@ export function EntityPage<T extends { id: string; status?: string }>(props: Ent
       if (field.kind === "json") return <TextAreaField key={field.name} label={field.label} name={field.name} defaultValue={value} required={field.required} />;
       if (field.kind === "select") return <SelectField key={field.name} label={field.label} name={field.name} defaultValue={value} required={field.required}>{field.nullable && <option value="">Sin asignar</option>}{field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</SelectField>;
       return <Field key={field.name} label={field.label} name={field.name} type={field.kind ?? "text"} defaultValue={value} required={field.required} />;
-    })}{formError && <div className="alert error">{formError}</div>}{mutation.isError && <div className="alert error">{errorMessage(mutation.error)}</div>}<div className="form-actions"><Button className="secondary" type="button" onClick={() => { setFormError(null); setEditing(null); }}>Cancelar</Button><Button type="submit" disabled={mutation.isPending}>Guardar</Button></div></form></Modal>}
+    })}{formError && <div className="alert error">{formError}</div>}{mutation.isError && <div className="alert error">{errorMessage(mutation.error)}</div>}<div className="form-actions"><Button className="secondary" type="button" onClick={() => { setFormError(null); setEditing(null); }}>Cancelar</Button><Button type="submit" disabled={mutation.isPending}>Guardar</Button></div></form>{editing !== "new" && props.editExtra?.(editing)}</Modal>}
   </>;
 }
 

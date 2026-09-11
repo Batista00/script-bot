@@ -30,6 +30,7 @@ export interface OrderItem {
 }
 
 export interface Order {
+  delivery?: import("../products/physical-delivery.js").PhysicalDelivery | null;
   id: string;
   businessId: string;
   customerId: string;
@@ -69,6 +70,8 @@ export interface OrderListQuery {
 }
 
 export interface OrderQuoteSnapshot {
+  items?: import("../quotes/quote-cart.js").QuoteItem[];
+  delivery?: import("../products/physical-delivery.js").PhysicalDelivery | null;
   id: string;
   businessId: string;
   customerId: string | null;
@@ -89,6 +92,7 @@ export interface OrderCustomer {
 }
 
 export interface OrderPersistenceInput {
+  delivery?: import("../products/physical-delivery.js").PhysicalDelivery | null;
   customerId: string;
   quoteId: string;
   currency: string;

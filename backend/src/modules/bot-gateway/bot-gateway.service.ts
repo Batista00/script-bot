@@ -22,6 +22,7 @@ import type { Product } from "../products/products.types.js";
 import type { QuotesService } from "../quotes/quotes.service.js";
 import type { Quote } from "../quotes/quotes.types.js";
 import type {
+  BotCatalogPackagesDto,
   BotCategoryDto,
   BotCreateOrderInput,
   BotCreateQuoteInput,
@@ -77,10 +78,83 @@ export class BotGatewayService {
     })).filter((value) => value.status === "active").map((value) => this.productDto(value));
   }
 
+  async listCatalogPackages(
+    businessId: string,
+    categoryId: string,
+  ): Promise<BotCatalogPackagesDto> {
+    const products = await this.listProducts(businessId, {
+      categoryId,
+      type: "service",
+      limit: "100",
+      offset: "0",
+    });
+
+    const packages = [];
+
+    for (const product of products) {
+      if (
+        product.minQuantity === null ||
+        product.maxQuantity === null ||
+        product.minQuantity !== product.maxQuantity
+      ) {
+        continue;
+      }
+
+      const quantity = product.minQuantity;
+      const prices = await this.listPrices(
+        businessId,
+        product.productId,
+        { limit: "100", offset: "0" },
+      );
+      const applicable = prices.find((price) =>
+        (price.minQuantity === null || price.minQuantity <= quantity) &&
+        (price.maxQuantity === null || price.maxQuantity >= quantity)
+      );
+
+      if (!applicable) continue;
+
+      let price: number | null = null;
+
+      if (
+        applicable.pricingType === "fixed" &&
+        applicable.fixedPrice !== null
+      ) {
+        price = applicable.fixedPrice;
+      }
+
+      if (
+        applicable.pricingType === "unit" &&
+        applicable.unitPrice !== null
+      ) {
+        const total = BigInt(applicable.unitPrice) * BigInt(quantity);
+        if (total <= BigInt(Number.MAX_SAFE_INTEGER)) {
+          price = Number(total);
+        }
+      }
+
+      if (price === null) continue;
+
+      packages.push({
+        productId: product.productId,
+        name: product.name,
+        quantity,
+        currency: applicable.currency,
+        price,
+      });
+    }
+
+    packages.sort((a, b) => a.quantity - b.quantity);
+
+    return { categoryId, packages };
+  }
+
   async getProduct(businessId: string, productId: string) {
     const product = await this.products.getById(businessId, productId);
     if (product.status !== "active") throw new AppError("Product not found", 404, "PRODUCT_NOT_FOUND");
     return this.productDto(product);
+  }
+  async cancelUnpaidOrder(businessId:string,orderId:string) {
+    return this.orderDto(await this.orders.cancel(businessId,orderId));
   }
 
   async listPrices(
@@ -96,7 +170,7 @@ export class BotGatewayService {
       .map((value) => this.priceDto(value));
   }
 
-  async createQuote(businessId: string, input: BotCreateQuoteInput) {
+  async createQuote(businessId: string, input: BotCreateQuoteInput,manualShipping?:import("../products/physical-delivery.js").ManualShippingQuote) {
     let currency = input.currency;
     if (this.businesses) {
       const business = await this.businesses.findById(businessId);
@@ -107,7 +181,7 @@ export class BotGatewayService {
       currency = business.currency;
     }
     if (!currency) throw new AppError("Quote currency is required", 400, "INVALID_CURRENCY");
-    return this.quoteDto(await this.quotes.create(businessId, { ...input, currency }));
+    return this.quoteDto(await this.quotes.create(businessId, { ...input, currency },manualShipping));
   }
 
   async createOrder(businessId: string, input: BotCreateOrderInput) {
@@ -145,8 +219,9 @@ export class BotGatewayService {
     businessId: string,
     orderId: string,
     input: BotDispatchFulfillmentInput,
+    expectedProviderServiceId?: string,
   ) {
-    return this.fulfillmentDto(await this.fulfillments.dispatch(businessId, orderId, input));
+    return this.fulfillmentDto(await this.fulfillments.dispatch(businessId, orderId, input, expectedProviderServiceId));
   }
 
   async listFulfillments(businessId: string, orderId: string) {
@@ -246,6 +321,7 @@ export class BotGatewayService {
       description: value.description, type: value.type, sku: value.sku,
       minQuantity: value.minQuantity, maxQuantity: value.maxQuantity,
       requiredInputs: value.requiredInputs ?? [],
+      deliveryConfig: value.deliveryConfig ?? null,
     };
   }
   private priceDto(value: ProductPrice): BotPriceDto {
@@ -257,6 +333,8 @@ export class BotGatewayService {
   }
   private quoteDto(value: Quote): BotQuoteDto {
     return {
+      ...(value.items?{items:value.items}:{}),
+      ...(value.delivery?{delivery:value.delivery}:{}),
       quoteId: value.id, customerId: value.customerId, productId: value.productId,
       productName: value.productName, quantity: value.quantity, currency: value.currency,
       unitPrice: value.unitPrice, totalPrice: value.totalPrice, status: value.status,
@@ -265,6 +343,7 @@ export class BotGatewayService {
   }
   private orderDto(value: Order): BotOrderDto {
     return {
+      ...(value.delivery?{delivery:value.delivery}:{}),
       orderId: value.id, customerId: value.customerId, quoteId: value.quoteId,
       status: value.status, currency: value.currency, subtotal: value.subtotal,
       total: value.total,
@@ -285,7 +364,8 @@ export class BotGatewayService {
   private fulfillmentDto(value: Fulfillment | FulfillmentListItem): BotFulfillmentDto {
     return {
       fulfillmentId: value.id, orderId: value.orderId, orderItemId: value.orderItemId,
-      productId: value.productId, status: value.status, submittedAt: value.submittedAt,
+      productId: value.productId, providerOrderReference: value.providerOrderId,
+      status: value.status, submittedAt: value.submittedAt,
       lastStatusSyncedAt: value.lastStatusSyncedAt, completedAt: value.completedAt,
     };
   }

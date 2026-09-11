@@ -34,10 +34,11 @@ export class CategoriesService {
 
   async create(businessId: string, input: CreateCategoryInput): Promise<Category> {
     const name = normalizeName(input.name);
+    await this.validateParent(businessId,input.parentId);
     if (await this.repository.findByName(businessId, name)) throw conflictError();
 
     try {
-      return await this.repository.create(businessId, { name, status: "active" });
+      return await this.repository.create(businessId, { name, status: "active", parentId: input.parentId ?? null });
     } catch (error) {
       if (error instanceof CategoryNameConflictError) throw conflictError();
       throw error;
@@ -59,7 +60,7 @@ export class CategoriesService {
     categoryId: string,
     input: UpdateCategoryInput,
   ): Promise<Category> {
-    if (input.name === undefined && input.status === undefined) {
+    if (input.name === undefined && input.status === undefined && input.parentId === undefined) {
       throw new AppError(
         "At least one category field must be provided",
         400,
@@ -73,17 +74,25 @@ export class CategoriesService {
     const existing = await this.getById(businessId, categoryId);
     const name = input.name === undefined ? existing.name : normalizeName(input.name);
     const status = input.status ?? existing.status;
+    const parentId=input.parentId===undefined ? existing.parentId ?? null : input.parentId;
+    await this.validateParent(businessId,parentId,categoryId);
     if (await this.repository.findByName(businessId, name, categoryId)) {
       throw conflictError();
     }
 
     try {
-      const category = await this.repository.update(businessId, categoryId, { name, status });
+      const category = await this.repository.update(businessId, categoryId, { name, status, parentId });
       if (!category) throw new AppError("Category not found", 404, "CATEGORY_NOT_FOUND");
       return category;
     } catch (error) {
       if (error instanceof CategoryNameConflictError) throw conflictError();
       throw error;
     }
+  }
+  private async validateParent(businessId:string,parentId:string|null|undefined,categoryId?:string) {
+    if (!parentId) return;
+    const parent=await this.repository.findById(businessId,parentId);
+    if (!parent || parent.id===categoryId || parent.parentId)
+      throw new AppError("Seleccione una categoría principal del mismo negocio",400,"INVALID_CATEGORY_PARENT");
   }
 }

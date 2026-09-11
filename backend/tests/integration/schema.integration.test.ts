@@ -9,6 +9,7 @@ const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
 const expectedTables = [
   "auth_sessions",
+  "automation_notifications",
   "business_integrations",
   "business_payment_methods",
   "business_api_credentials",
@@ -19,16 +20,27 @@ const expectedTables = [
   "conversation_messages",
   "conversations",
   "customers",
+  "digital_order_deliveries",
   "fulfillments",
   "order_items",
   "orders",
   "payments",
+  "payment_reviewers",
+  "payment_reviews",
   "product_prices",
+  "product_digital_assets",
   "provider_catalog_states",
   "product_provider_mappings",
   "products",
   "provider_services",
   "quotes",
+  "sales_checkouts",
+  "sales_inbox",
+  "sales_manual_deliveries",
+  "sales_messages",
+  "sales_session_tokens",
+  "sales_sessions",
+  "sales_settings",
   "users",
 ] as const;
 
@@ -48,7 +60,10 @@ const expectedConstraints = new Map([
   ["order_items_order_business_fk", "f"],
   ["orders_quote_business_fk", "f"],
   ["orders_quote_id_unique", "u"],
-  ["orders_totals_equal", "c"],
+  ["orders_totals_include_delivery", "c"],
+  ["quotes_items_valid", "c"],
+  ["orders_delivery_valid", "c"],
+  ["quotes_delivery_valid", "c"],
   ["payments_order_business_fk", "f"],
   ["payments_payment_method_business_fk", "f"],
   ["payments_approved_at_valid", "c"],
@@ -98,7 +113,7 @@ test(
     const migrationResult = await db.query<{ count: number }>(
       "SELECT count(*)::integer AS count FROM pgmigrations",
     );
-    assert.equal(migrationResult.rows[0]?.count, 20);
+    assert.equal(migrationResult.rows[0]?.count, 26);
 
     const tableResult = await db.query<{ table_name: string }>(
       `SELECT table_name

@@ -6,6 +6,7 @@ import type { JobStatus } from "../jobs/jobs.types.js";
 import type { PaymentStatus } from "../payments/payments.types.js";
 import type { ProductType } from "../products/products.types.js";
 import type { ProductInputField } from "../products/product-inputs.js";
+import type { ProductDelivery } from "../products/product-delivery.js";
 import type { CreateQuoteInput, QuoteStatus } from "../quotes/quotes.types.js";
 
 export type BotResolveCustomerInput = CreateCustomerInput;
@@ -25,6 +26,24 @@ export interface BotProductListQuery extends BotListQuery {
   categoryId?: string;
   type?: ProductType;
 }
+
+export interface BotCatalogPackagesQuery {
+  categoryId: string;
+}
+
+export interface BotCatalogPackageDto {
+  productId: string;
+  name: string;
+  quantity: number;
+  currency: string;
+  price: number;
+}
+
+export interface BotCatalogPackagesDto {
+  categoryId: string;
+  packages: BotCatalogPackageDto[];
+}
+
 export interface BotIdempotencyHeaders { "idempotency-key"?: string }
 
 export interface BotCustomerDto {
@@ -36,6 +55,7 @@ export interface BotCustomerDto {
 }
 export interface BotCategoryDto { categoryId: string; name: string }
 export interface BotProductDto {
+  deliveryConfig?: ProductDelivery | null;
   productId: string;
   categoryId: string | null;
   name: string;
@@ -57,6 +77,8 @@ export interface BotPriceDto {
   maxQuantity: number | null;
 }
 export interface BotQuoteDto {
+  items?: import("../quotes/quote-cart.js").QuoteItem[];
+  delivery?: import("../products/physical-delivery.js").PhysicalDelivery | null;
   quoteId: string;
   customerId: string | null;
   productId: string;
@@ -78,6 +100,7 @@ export interface BotOrderItemDto {
   fulfillmentInput?: JsonObject;
 }
 export interface BotOrderDto {
+  delivery?: import("../products/physical-delivery.js").PhysicalDelivery | null;
   orderId: string;
   customerId: string;
   quoteId: string;
@@ -132,6 +155,7 @@ export interface BotFulfillmentDto {
   orderId: string;
   orderItemId: string;
   productId: string;
+  providerOrderReference: string | null;
   status: FulfillmentStatus;
   submittedAt: string | null;
   lastStatusSyncedAt: string | null;

@@ -2,6 +2,8 @@
 
 Importa `bot-whatsap-commerce-v1.json` en Typebot 6.1. El template usa únicamente bloques `text`, `text input`, `choice input`, `Set variable`, `Condition` y `Webhook` (HTTP request) observados en los laboratorios locales del proyecto. El bot es determinístico: nunca calcula precios, nunca inventa productos y nunca aprueba pagos. Solo muestra lo que responde el backend.
 
+`bot-whatsap-ai-commerce-v1.json` es la variante ampliada recuperada del despliegue: añade clasificación asistida, catálogo por categorías y listas de paquetes con precios retail mediante `/bot/v1/catalog/packages`. `bot-whatsap-ai-commerce-v1.before-prices.json` es un punto de referencia anterior y no debe publicarse como flujo definitivo.
+
 ## Configuración requerida
 
 - `backend_base_url`: URL pública base del backend, sin barra final. No es secreta y debe configurarse al desplegar.
@@ -92,11 +94,12 @@ Reglas específicas de fulfillments: solo se permite `GET {{backend_base_url}}/b
 
 El módulo no lee archivos ni imprime nada al importarse. Exporta `validateTypebotDocument(document)` para un objeto ya parseado, `validateTypebotTemplate(raw)` para un string JSON y `validateTypebotSemantics(blocks)` para las reglas semánticas de los bloques. La lectura del archivo, la validación y el mensaje `Typebot template valid` solo ocurren al ejecutar el archivo directamente.
 
-## Fuera de alcance
+## Alcance del template base
 
 - Evolution no está desplegado ni configurado en este repositorio.
 - El mecanismo seguro de provisionamiento del token en Typebot self-hosted queda pendiente del deployment.
-- No hay OpenAI, polling automático, workers, queues ni frontend.
-- El bot no llama dispatch ni sync de Fulfillment, no conoce ids, costes ni inputs internos de proveedores.
+- El template base no usa OpenAI, polling automático, workers, queues ni frontend. La variante `ai-commerce` sí contiene bloques OpenAI y requiere seleccionar una credencial en Typebot después de importarla.
+- Typebot no llama Fulfillment ni conoce IDs, costes o inputs internos de proveedores.
 - El bot no aprueba pagos: la confirmación bancaria es humana y el estado del pago solo se refleja desde el backend.
+- Un pago aprobado solo muestra confirmación. La preparación automática del servicio se conectará en una etapa posterior.
 - No hay notificaciones proactivas: el cliente debe consultar el estado desde el menú.

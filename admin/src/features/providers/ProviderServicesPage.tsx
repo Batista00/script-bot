@@ -13,6 +13,7 @@ import type {
   ProviderOrderField, ProviderService,
 } from "../../lib/api/types";
 import { useBusiness } from "../businesses/business-context";
+import { ProductDeliveryFields } from "../catalog/ProductDeliveryFields";
 
 function optionalString(data: FormData, name: string): string | null {
   const value = String(data.get(name) ?? "").trim();
@@ -48,6 +49,31 @@ export function CapabilityBadges({ service }: { service: ProviderService }) {
     <CapabilityBadge label="Recarga" value={service.supportsRefill} />
     <CapabilityBadge label="Cancelación" value={service.supportsCancel} />
   </div>;
+}
+
+function metadataText(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "boolean") return value ? "Sí" : "No";
+  return null;
+}
+
+export function providerOperationalFacts(service: ProviderService): Array<{ label: string; value: string }> {
+  const extra = typeof service.metadata.extra_parameter === "object" && service.metadata.extra_parameter !== null &&
+    !Array.isArray(service.metadata.extra_parameter) ? service.metadata.extra_parameter as Record<string, unknown> : {};
+  const candidates: Array<[string, unknown]> = [
+    ["Inicio estimado", extra.start_time ?? service.metadata.start_time],
+    ["Velocidad", extra.speed ?? service.metadata.speed],
+    ["Fiabilidad", extra.reliability ?? service.metadata.reliability],
+    ["Tasa de bajas", extra.drop_rate ?? service.metadata.drop_rate],
+    ["Reposición", service.metadata.refill],
+    ["Cancelación", service.metadata.cancel],
+    ["Suscripción", service.metadata.subscription],
+  ];
+  return candidates.flatMap(([label, value]) => {
+    const text = metadataText(value);
+    return text === null ? [] : [{ label, value: text }];
+  });
 }
 
 const inputCopy: Record<string, { label: string; helpText: string | null }> = {
@@ -106,13 +132,14 @@ export function providerImportPayload(
   data: FormData,
   requiredInputs?: ProductInputField[],
 ): ImportProviderProductInput {
+  const deliveryConfig = data.get("deliveryConfig") ? JSON.parse(String(data.get("deliveryConfig"))) as ImportProviderProductInput["deliveryConfig"] : undefined;
   return {
     providerServiceId,
     name: String(data.get("name") ?? "").trim(),
     description: optionalString(data, "description"),
     categoryId: optionalString(data, "categoryId"),
     sku: optionalString(data, "sku"),
-    type: String(data.get("type")) as ImportProviderProductInput["type"],
+    type: deliveryConfig ? deliveryConfig.kind==="service"?"service":"product" : String(data.get("type")) as ImportProviderProductInput["type"],
     minQuantity: optionalNumber(data, "minQuantity"),
     maxQuantity: optionalNumber(data, "maxQuantity"),
     currency: String(data.get("currency") ?? "").trim().toUpperCase(),
@@ -120,6 +147,7 @@ export function providerImportPayload(
     retailPrice: Number(data.get("retailPrice")),
     status: String(data.get("status")) as ImportProviderProductInput["status"],
     ...(requiredInputs === undefined ? {} : { requiredInputs }),
+    ...(deliveryConfig === undefined ? {} : {deliveryConfig}),
   };
 }
 
@@ -136,6 +164,7 @@ export function ProviderServicesPage() {
   const [serviceType, setServiceType] = useState("");
   const [mappingStatus, setMappingStatus] = useState("");
   const [selected, setSelected] = useState<ProviderService | null>(null);
+  const [details, setDetails] = useState<ProviderService | null>(null);
   const [requiredInputs, setRequiredInputs] = useState<ProductInputField[]>([]);
   const [importValidationError, setImportValidationError] = useState<string | null>(null);
   const [connectionResult, setConnectionResult] = useState<ProviderConnectionTestResult | null>(null);
@@ -215,8 +244,8 @@ export function ProviderServicesPage() {
 
   return <>
     <PageHeader
-      title="Servicios de proveedor"
-      description="Catálogo técnico separado de Products y retail pricing."
+      title="Catálogo de proveedores"
+      description="Consulta costos y capacidades técnicas; importa únicamente lo que cada negocio quiera vender."
       action={<><Button className="secondary" onClick={() => {
         void client.invalidateQueries({ queryKey: ["provider-services", business.id] });
         void client.invalidateQueries({ queryKey: ["provider-catalog-state", business.id] });
@@ -269,9 +298,9 @@ export function ProviderServicesPage() {
       ? <div className="alert error">{errorMessage(services.error)}</div>
       : !services.data?.length ? <EmptyState title="No hay servicios sincronizados." />
       : <div className="table-card"><div className="table-scroll"><table>
-          <thead><tr><th>Proveedor</th><th>ID externo</th><th>Nombre</th><th>Categoría / tipo</th>
-            <th>Rate</th><th>Min / max</th><th>Estado</th><th>Capacidades</th><th>Products</th><th>Último sync</th>
-            {canWrite && <th>Acciones</th>}</tr></thead>
+          <thead><tr><th>Proveedor</th><th>ID servicio</th><th>Nombre</th><th>Categoría / tipo</th>
+            <th>Costo proveedor</th><th>Mín / máx</th><th>Estado</th><th>Capacidades</th><th>Importaciones</th><th>Última sync</th>
+            <th>Acciones</th></tr></thead>
           <tbody>{services.data.map((item) => <tr key={item.id}>
             <td>{item.providerKey}</td><td><code>{item.externalServiceId}</code></td>
             <td>{item.name}</td><td>{item.category || "—"} / {item.serviceType || "—"}</td>
@@ -281,14 +310,28 @@ export function ProviderServicesPage() {
             <td><CapabilityBadges service={item} /></td>
             <td>{item.mappingCount}</td>
             <td>{new Date(item.lastSyncedAt).toLocaleString()}</td>
-            {canWrite && <td><Button className="secondary small" disabled={item.providerStatus !== "active"}
-              onClick={() => {
-                setImportValidationError(null);
-                setRequiredInputs(commercialInputsFromProvider(item.orderCapabilities.required));
-                setSelected(item);
-              }}>Importar</Button></td>}
+            <td><div className="table-actions"><Button className="secondary small" onClick={() => setDetails(item)}>Ver detalles</Button>
+              {canWrite && <Button className="secondary small" disabled={item.providerStatus !== "active"} onClick={() => {
+                 setImportValidationError(null);
+                 setRequiredInputs(commercialInputsFromProvider(item.orderCapabilities.required));
+                 setSelected(item);
+              }}>{item.mappingCount > 0 ? "Crear otra variante" : "Importar"}</Button>}</div></td>
           </tr>)}</tbody>
         </table></div><Pagination offset={offset} limit={25} count={services.data.length} onChange={setOffset} /></div>}
+
+    {details && <Modal title="Detalle del servicio del proveedor" onClose={() => setDetails(null)}>
+      <dl className="detail-grid">
+        <div><dt>ID de servicio</dt><dd>{details.externalServiceId}</dd></div>
+        <div><dt>Proveedor</dt><dd>{details.providerKey}</dd></div>
+        <div><dt>Categoría</dt><dd>{details.category ?? "—"}</dd></div>
+        <div><dt>Tipo técnico</dt><dd>{details.serviceType ?? "—"}</dd></div>
+        <div><dt>Costo mayorista</dt><dd>{details.rate ?? "—"} {details.rateCurrency ?? ""}</dd></div>
+        <div><dt>Límites</dt><dd>{details.minQuantity ?? "—"} – {details.maxQuantity ?? "—"}</dd></div>
+        {providerOperationalFacts(details).map(fact => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}
+      </dl>
+      {providerDescription(details) && <><h3>Descripción del proveedor</h3><p className="provider-description">{providerDescription(details)}</p></>}
+      <div className="alert">Esta información es interna. El cliente verá únicamente el nombre, la descripción y el precio configurados en Productos.</div>
+    </Modal>}
 
     {selected && <Modal title="Importar a Catálogo → Productos" onClose={() => {
       setImportValidationError(null); setSelected(null);
@@ -300,6 +343,7 @@ export function ProviderServicesPage() {
       <div className="filter-bar">
         <div><strong>Capacidades del proveedor</strong><CapabilityBadges service={selected} /></div>
       </div>
+      {selected.mappingCount > 0 && <div className="alert warning">Este servicio ya está vinculado a {selected.mappingCount} producto(s). Continúa solamente si crearás otro paquete o variante comercial.</div>}
       {!selected.orderCapabilities.supported && <div className="alert error">
         El tipo técnico <strong>{selected.serviceType ?? "desconocido"}</strong> no tiene un contrato de pedido oficial verificado. Puedes importarlo inactivo, pero no despacharlo todavía.
       </div>}
@@ -325,10 +369,12 @@ export function ProviderServicesPage() {
           defaultValue={selected.serviceType?.toLowerCase().includes("package") ? "fixed" : "unit"} required>
           <option value="unit">Por unidad</option><option value="fixed">Fijo</option>
         </SelectField>
-        <Field label="Precio retail (entero en unidad mínima)" name="retailPrice" type="number" min="1" required />
-        <SelectField label="Estado inicial" name="status" defaultValue="active" required>
-          <option value="active">Activo</option><option value="inactive">Inactivo</option>
+        <Field label="Precio retail (entero en unidad mínima)" name="retailPrice" type="number" min="1" required
+          hint={`Monto que pagará el cliente en ${business.currency}. No se calcula automáticamente desde el costo del proveedor.`} />
+          <SelectField label="Estado inicial" name="status" defaultValue={selected.orderCapabilities.supported ? "active" : "inactive"} required>
+            <option value="active" disabled={!selected.orderCapabilities.supported}>Activo</option><option value="inactive">Inactivo</option>
         </SelectField>
+        <ProductDeliveryFields />
         <h3>Datos que entregará el cliente</h3>
         {requiredInputs.length === 0 ? <div className="alert">Este tipo no tiene campos comerciales verificados.</div>
           : requiredInputs.map((input, index) => <div className="filter-bar" key={input.key}>

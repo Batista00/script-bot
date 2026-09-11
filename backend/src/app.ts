@@ -1,6 +1,9 @@
 import Fastify, { type FastifyInstance } from "fastify";
 
 import { type Env, resolveTrustProxy } from "./config/env.js";
+import { AiOrchestratorService } from "./modules/ai-orchestrator/ai-orchestrator.service.js";
+import { aiOrchestratorRoutes } from "./modules/ai-orchestrator/ai-orchestrator.routes.js";
+import { OpenAiResponsesClient } from "./modules/ai-orchestrator/openai-responses.client.js";
 import { databasePlugin } from "./core/database/database.plugin.js";
 import { registerErrorHandler } from "./core/errors/error-handler.js";
 import { createLoggerOptions } from "./core/logger/logger.js";
@@ -84,6 +87,7 @@ import { PostgresWhatsappRepository } from "./modules/whatsapp/whatsapp.reposito
 import { whatsappRoutes } from "./modules/whatsapp/whatsapp.routes.js";
 import { WhatsappService } from "./modules/whatsapp/whatsapp.service.js";
 import { WhatsappWebhookService } from "./modules/whatsapp/whatsapp.webhook.service.js";
+import { registerSalesAutomation } from "./modules/sales/sales.plugin.js";
 
 export async function buildApp(config: Env): Promise<FastifyInstance> {
   const app = Fastify({
@@ -183,6 +187,14 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   );
   const apiCredentialsRepository = new PostgresApiCredentialsRepository(app.db);
   const apiCredentialsService = new ApiCredentialsService(apiCredentialsRepository);
+  const machineAuthService = new MachineAuthService(apiCredentialsRepository);
+
+  const aiInterpreter = new OpenAiResponsesClient({
+    apiKey: config.OPENAI_API_KEY,
+    model: config.OPENAI_MODEL ?? "gpt-5.4-nano",
+    timeoutMs: config.OPENAI_TIMEOUT_MS ?? 10_000,
+  });
+  const aiOrchestratorService = new AiOrchestratorService(aiInterpreter);
   const categoriesRepository = new PostgresCategoriesRepository(app.db);
   const customersRepository = new PostgresCustomersRepository(app.db);
   const productsRepository = new PostgresProductsRepository(app.db);
@@ -244,8 +256,13 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   await app.register(botGatewayRoutes, {
     prefix: "/bot/v1",
     service: botGatewayService,
-    machineAuth: new MachineAuthService(apiCredentialsRepository),
+    machineAuth: machineAuthService,
     rateLimit: botRateLimit,
+  });
+  await app.register(aiOrchestratorRoutes, {
+    prefix: "/bot/v1/assistant",
+    service: aiOrchestratorService,
+    machineAuth: machineAuthService,
   });
   await app.register(customersRoutes);
   await app.register(whatsappRoutes, {
@@ -266,6 +283,8 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
   await app.register(paymentsRoutes, { service: paymentsService });
   await app.register(paymentMethodsRoutes, { service: paymentMethodsService });
   await app.register(jobsRoutes, { service: jobsService });
+  await registerSalesAutomation(app, config, botGatewayService, integrationsService, paymentsService,
+    new ProviderFulfillmentRegistry([new SmmRajaFulfillmentAdapter(integrationsService, smmRajaClient)]));
 
   return app;
 }

@@ -76,6 +76,7 @@ export const integrationsApi = {
   update: (businessId: string, id: string, body: unknown) => apiRequest<Integration>(businessPath(businessId, `integrations/${id}`), { method: "PATCH", body }),
 };
 export const providerApi = {
+  get: (businessId:string,id:string) => apiRequest<ProviderService>(businessPath(businessId,`provider-services/${id}`)),
   list: (businessId: string, query: Params = {}) => apiRequest<ProviderService[]>(businessPath(businessId, "provider-services"), { query }),
   sync: (businessId: string, integrationId: string) => apiRequest<ProviderCatalogSyncResult>(businessPath(businessId, `integrations/${integrationId}/provider-services/sync`), { method: "POST" }),
   state: (businessId: string, integrationId: string) => apiRequest<ProviderCatalogState | null>(businessPath(businessId, `integrations/${integrationId}/provider-catalog/state`)),

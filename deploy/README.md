@@ -426,7 +426,7 @@ curl -fsS https://api.pablete.xyz/health
 curl -fsS http://127.0.0.1:BACKEND_HOST_PORT/health/ready
 ```
 
-`backend` aplica las migraciones pendientes al arrancar (`node-pg-migrate up`) antes de escuchar. Las migraciones nuevas `000015`–`000018` (estado de membership, `job_queue`, estados de fulfillment/pago) y posteriores son aditivas: crean tablas, columnas, enums/valores y constraints nuevos, y no reescriben datos existentes. `backend-worker` **no** ejecuta migraciones en ningún caso: dos runners concurrentes de `node-pg-migrate` sobre la misma base se pisan, y el orden correcto es que el API migre y el worker consuma. Si el worker arranca mientras la base todavía no está migrada, registra el error del ciclo y reintenta; no es motivo para reiniciar el API.
+`backend` aplica las migraciones pendientes al arrancar (`node-pg-migrate up`) antes de escuchar. Las migraciones nuevas `000021`–`000026` (estado de membership, `job_queue`, estados de fulfillment/pago, capacidades de proveedor y conversaciones) son aditivas: crean tablas, columnas, enums/valores y constraints nuevos, y no reescriben datos existentes. `backend-worker` **no** ejecuta migraciones en ningún caso: dos runners concurrentes de `node-pg-migrate` sobre la misma base se pisan, y el orden correcto es que el API migre y el worker consuma. Si el worker arranca mientras la base todavía no está migrada, registra el error del ciclo y reintenta; no es motivo para reiniciar el API.
 
 Revisar después de cada actualización:
 

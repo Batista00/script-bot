@@ -133,7 +133,7 @@ export interface FulfillmentsRepository {
     fulfillmentId: string,
     executor: DatabaseExecutor,
   ): Promise<Fulfillment | null>;
-  listByOrder(businessId: string, orderId: string): Promise<Fulfillment[]>;
+  listByOrder(businessId: string, orderId: string, executor?:DatabaseExecutor): Promise<Fulfillment[]>;
   list(businessId: string, options: FulfillmentListOptions): Promise<Fulfillment[]>;
   markSubmitting(
     businessId: string,

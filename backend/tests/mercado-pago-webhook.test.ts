@@ -38,7 +38,7 @@ class FakeWebhookIntegrationLookup {
     businessId: paymentBusinessA,
     providerKey: "mercado_pago",
     config: {},
-    credentials: { accessToken: "access-token", webhookSecret },
+    credentials: { publicKey: "public-key", accessToken: "access-token", webhookSecret },
   };
 
   async getActiveIntegrationById(): Promise<ActiveIntegration | null> {
