@@ -218,6 +218,7 @@ export class ConversationService {
     state: ConversationState,
     message: string,
     options: {
+      view?: string;
       title?: string;
       description?: string;
       footer?: string;
@@ -242,6 +243,7 @@ export class ConversationService {
     }
     return {
       state,
+      view: (options.view ?? state) as ConversationTurnResponse["view"],
       message,
       renderedMessage,
       expect: options.expect ?? (hasButtons ? "button" : "text"),
@@ -270,9 +272,18 @@ export class ConversationService {
     const text = isButton ? (input.buttonId ? (input.text?.trim() ?? "") : "") : (input.text?.trim() ?? "");
 
     // Navegación transversal: siempre disponible y siempre determinista.
-    if (buttonId === "navigation.home") return this.renderMainMenu(businessId, session);
-    if (buttonId === "navigation.back") return this.goBack(businessId, session);
-    if (buttonId === "navigation.next") return this.nextPage(businessId, session);
+    if (buttonId === "navigation.retry") {
+      const again = await this.renderCurrentView(businessId, session);
+      return { ...again, view: "NAVIGATION" };
+    }
+    if (buttonId.startsWith("navigation.")) {
+      const destination = buttonId === "navigation.home"
+        ? await this.renderMainMenu(businessId, session)
+        : buttonId === "navigation.back"
+          ? await this.goBack(businessId, session)
+          : await this.nextPage(businessId, session);
+      return { ...destination, view: "NAVIGATION" };
+    }
 
     if (buttonId.startsWith("menu.")) return this.handleMenu(businessId, session, buttonId);
     if (buttonId.startsWith("help.")) return this.handleHelp(businessId, session, buttonId);
@@ -325,9 +336,10 @@ export class ConversationService {
     switch (buttonId) {
       case "help.faq":
         await this.persist(session, "FAQ", session.payload);
-        return this.response("FAQ", COPY.faq, { expect: "text" });
+        return this.response("FAQ", COPY.faq, { view: "FAQ", expect: "text" });
       case "help.payment_info":
         return this.response("SUPPORT", COPY.paymentInfo, {
+          view: "SUPPORT",
           title: "Información de pago",
           description: COPY.paymentInfo,
           replies: [
@@ -339,6 +351,7 @@ export class ConversationService {
       case "help.human":
         await this.persist(session, "HUMAN_HANDOFF", session.payload, { handoff: true });
         return this.response("HUMAN_HANDOFF", COPY.handoff, {
+          view: "HUMAN_HANDOFF",
           title: "Atención humana",
           description: COPY.handoff,
           replies: [{ id: "menu.buy", label: "Comprar servicios" }, { id: "navigation.home", label: "Menú" }],
@@ -643,6 +656,7 @@ export class ConversationService {
       await this.persist(session, "COLLECTING_REQUIRED_INPUT", payload);
       const message = field.type === "url" ? COPY.invalidUrl : COPY.invalidValue;
       return this.response("COLLECTING_REQUIRED_INPUT", message, {
+        view: "REQUIRED_INPUT_ERROR",
         title: "Revisemos ese dato",
         description: message,
         expect: "text",
@@ -846,6 +860,7 @@ export class ConversationService {
       const nextPayload: ConversationPayload = { ...payload, paymentId: payment.id };
       await this.persist(session, "PAYMENT_PENDING", nextPayload);
       return this.response("PAYMENT_PENDING", detail.join("\n"), {
+        view: "BANK_TRANSFER",
         title: "Transferencia bancaria",
         description: detail.join("\n"),
         replies: [
@@ -866,6 +881,7 @@ export class ConversationService {
     const message = `Tu pedido está listo para pagar ✅\n\nTotal: ${amount}\n\nPuedes pagar de forma segura con Mercado Pago.`;
     if (payment.checkoutUrl) {
       return this.response("PAYMENT_PENDING", message, {
+        view: "MERCADO_PAGO",
         title: "Pago con Mercado Pago",
         description: message,
         replies: [{ id: "order.refresh", label: "Ya pagué" }, { id: "navigation.home", label: "Menú" }],
@@ -901,6 +917,7 @@ export class ConversationService {
     const text = "Recibimos tu archivo 🙌 El equipo lo revisará y te confirmamos por aquí.";
     await this.persist(session, "PAYMENT_PENDING", session.payload);
     return this.response("PAYMENT_PENDING", text, {
+      view: "RECEIPT",
       title: "Comprobante recibido",
       description: `${text}\n\n${media.slice(0, 120)}`,
       replies: [{ id: "order.refresh", label: "Ver estado" }, { id: "navigation.home", label: "Menú" }],
@@ -980,6 +997,70 @@ export class ConversationService {
         { id: "navigation.home", label: "Menú" },
       ],
     });
+  }
+
+  /** Re-presenta la etapa actual sin avanzar: soporte del botón Reintentar. */
+  private async renderCurrentView(
+    businessId: string,
+    session: ConversationSession,
+  ): Promise<ConversationTurnResponse> {
+    const payload = session.payload;
+    switch (session.state) {
+      case "CATEGORY_SELECTION":
+        return this.openParentCategories(businessId, session, session.page);
+      case "SUBCATEGORY_SELECTION":
+        return payload.categoryId
+          ? this.renderChildCategories(
+              businessId, session, payload.categoryId, payload.categoryName ?? "",
+              payload.categoryPath ?? [], session.page,
+            )
+          : this.openParentCategories(businessId, session, 0);
+      case "PRODUCT_SELECTION":
+        return payload.categoryId
+          ? this.renderProducts(
+              businessId, session, payload.categoryId, payload.categoryName ?? "",
+              payload.categoryPath ?? [], session.page,
+            )
+          : this.openParentCategories(businessId, session, 0);
+      case "QUANTITY_SELECTION":
+        return payload.productId
+          ? this.openProduct(businessId, session, payload.productId)
+          : this.openParentCategories(businessId, session, 0);
+      case "COLLECTING_REQUIRED_INPUT": {
+        const product = payload.productId
+          ? await this.deps.repository.findProduct(businessId, payload.productId)
+          : null;
+        const field = product?.requiredInputs.find((candidate) => candidate.key === payload.currentFieldKey);
+        return this.response("COLLECTING_REQUIRED_INPUT", field?.label ?? "Envíame el dato solicitado", {
+          title: "Necesito un dato",
+          description: field?.label ?? "Envíame el dato solicitado",
+          expect: "text",
+        });
+      }
+      case "REVIEW":
+        return this.renderReview(businessId, session, payload);
+      case "PAYMENT_METHOD_SELECTION":
+        return this.renderPaymentMethods(businessId, session, payload);
+      case "PAYMENT_PENDING":
+        return payload.paymentId && payload.orderId
+          ? this.renderPaymentMethods(businessId, session, payload)
+          : this.renderMainMenu(businessId, session);
+      case "ORDER_STATUS":
+        return this.openOrders(businessId, session, session.page);
+      case "FAQ":
+        return this.response("FAQ", COPY.faq, { view: "FAQ", expect: "text" });
+      case "SUPPORT":
+        return this.renderHelpMenu(businessId, session);
+      case "HUMAN_HANDOFF":
+        return this.response("HUMAN_HANDOFF", COPY.handoff, {
+          view: "HUMAN_HANDOFF",
+          title: "Atención humana",
+          description: COPY.handoff,
+          replies: [{ id: "menu.buy", label: "Comprar servicios" }, { id: "navigation.home", label: "Menú" }],
+        });
+      default:
+        return this.renderMainMenu(businessId, session);
+    }
   }
 
   private async goBack(
@@ -1093,6 +1174,7 @@ export class ConversationService {
   ): Promise<ConversationTurnResponse> {
     await this.persist(session, state, session.payload);
     return this.response(state, COPY.technical, {
+      view: "ERROR",
       title: "Un momento",
       description: COPY.technical,
       replies: [

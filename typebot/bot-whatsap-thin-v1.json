@@ -1,6 +1,6 @@
 {
- "id": "cmthintypebot000001",
- "name": "BW - Conversacion WhatsApp (delgado)",
+ "id": "cmtbwsalesarch0001",
+ "name": "BW - Ventas WhatsApp (arquitectura conversacional)",
  "version": "6.1",
  "publicId": null,
  "workspaceId": "cmske6ll700001fqf7yll9l1r",
@@ -15,14 +15,14 @@
  "riskLevel": null,
  "resultsTablePreferences": null,
  "spaceId": null,
- "createdAt": "2026-09-11T00:00:00.000Z",
- "updatedAt": "2026-09-11T00:00:00.000Z",
+ "createdAt": "2026-09-12T00:00:00.000Z",
+ "updatedAt": "2026-09-12T00:00:00.000Z",
  "theme": {},
  "settings": {},
  "events": [
   {
-   "id": "evtthinstart",
-   "outgoingEdgeId": "edgethinstart",
+   "id": "evtstart",
+   "outgoingEdgeId": "edgestart",
    "graphCoordinates": {
     "x": 0,
     "y": 0
@@ -57,6 +57,11 @@
    "isSessionVariable": true
   },
   {
+   "id": "vview",
+   "name": "view",
+   "isSessionVariable": true
+  },
+  {
    "id": "vrenderedmessage",
    "name": "renderedMessage",
    "isSessionVariable": true
@@ -64,10 +69,10 @@
  ],
  "groups": [
   {
-   "id": "grpturn",
-   "title": "00 - Turno conversacional",
+   "id": "grp00",
+   "title": "00 - Bootstrap / Contexto y Router",
    "graphCoordinates": {
-    "x": 300,
+    "x": 0,
     "y": 0
    },
    "blocks": [
@@ -82,7 +87,7 @@
      }
     },
     {
-     "id": "blkturnwebhook",
+     "id": "blkrouterwebhook",
      "type": "Webhook",
      "options": {
       "webhook": {
@@ -90,12 +95,12 @@
        "method": "POST",
        "headers": [
         {
-         "id": "hdrthin",
+         "id": "hdrrouter",
          "key": "Authorization",
          "value": "Bearer {{backend_token}}"
         },
         {
-         "id": "hdrthin2",
+         "id": "hdrrouterct",
          "key": "Content-Type",
          "value": "application/json"
         }
@@ -105,7 +110,12 @@
       "isCustomBody": true,
       "responseVariableMapping": [
        {
-        "id": "mapthin",
+        "id": "mapview",
+        "bodyPath": "data.view",
+        "variableId": "vview"
+       },
+       {
+        "id": "maprender",
         "bodyPath": "data.renderedMessage",
         "variableId": "vrenderedmessage"
        }
@@ -113,12 +123,1180 @@
      }
     },
     {
-     "id": "blkshow",
+     "id": "blkroutercondition",
+     "type": "Condition",
+     "items": [
+      {
+       "id": "itmviewwelcome",
+       "content": {
+        "comparisons": [
+         {
+          "id": "c1",
+          "variableId": "vview",
+          "comparisonOperator": "Equal to",
+          "value": "WELCOME"
+         }
+        ]
+       },
+       "outgoingEdgeId": "edgewelcome"
+      },
+      {
+       "id": "itmviewmenu",
+       "content": {
+        "comparisons": [
+         {
+          "id": "c2",
+          "variableId": "vview",
+          "comparisonOperator": "Equal to",
+          "value": "MAIN_MENU"
+         }
+        ]
+       },
+       "outgoingEdgeId": "edgemenu"
+      },
+      {
+       "id": "itmviewcatalog",
+       "content": {
+        "comparisons": [
+         {
+          "id": "c3",
+          "variableId": "vview",
+          "comparisonOperator": "Equal to",
+          "value": "CATALOG"
+         }
+        ]
+       },
+       "outgoingEdgeId": "edgecatalog"
+      },
+      {
+       "id": "itmviewcat",
+       "content": {
+        "comparisons": [
+         {
+          "id": "c4",
+          "variableId": "vview",
+          "comparisonOperator": "Equal to",
+          "value": "CATEGORY_SELECTION"
+         }
+        ]
+       },
+       "outgoingEdgeId": "edgecat"
+      },
+      {
+       "id": "itmviewsubcat",
+       "content": {
+        "comparisons": [
+         {
+          "id": "c5",
+          "variableId": "vview",
+          "comparisonOperator": "Equal to",
+          "value": "SUBCATEGORY_SELECTION"
+         }
+        ]
+       },
+       "outgoingEdgeId": "edgesubcat"
+      },
+      {
+       "id": "itmviewproduct",
+       "content": {
+        "comparisons": [
+         {
+          "id": "c6",
+          "variableId": "vview",
+          "comparisonOperator": "Equal to",
+          "value": "PRODUCT_SELECTION"
+         }
+        ]
+       },
+       "outgoingEdgeId": "edgeproduct"
+      },
+      {
+       "id": "itmviewqty",
+       "content": {
+        "comparisons": [
+         {
+          "id": "c7",
+          "variableId": "vview",
+          "comparisonOperator": "Equal to",
+          "value": "QUANTITY_SELECTION"
+         }
+        ]
+       },
+       "outgoingEdgeId": "edgeqty"
+      },
+      {
+       "id": "itmviewrequired",
+       "content": {
+        "comparisons": [
+         {
+          "id": "c8",
+          "variableId": "vview",
+          "comparisonOperator": "Equal to",
+          "value": "REQUIRED_INPUT"
+         }
+        ]
+       },
+       "outgoingEdgeId": "edgerequired"
+      },
+      {
+       "id": "itmviewrequirederr",
+       "content": {
+        "comparisons": [
+         {
+          "id": "c9",
+          "variableId": "vview",
+          "comparisonOperator": "Equal to",
+          "value": "REQUIRED_INPUT_ERROR"
+         }
+        ]
+       },
+       "outgoingEdgeId": "edgerequirederr"
+      },
+      {
+       "id": "itmviewreview",
+       "content": {
+        "comparisons": [
+         {
+          "id": "c10",
+          "variableId": "vview",
+          "comparisonOperator": "Equal to",
+          "value": "REVIEW"
+         }
+        ]
+       },
+       "outgoingEdgeId": "edgereview"
+      },
+      {
+       "id": "itmviewpms",
+       "content": {
+        "comparisons": [
+         {
+          "id": "c11",
+          "variableId": "vview",
+          "comparisonOperator": "Equal to",
+          "value": "PAYMENT_METHOD_SELECTION"
+         }
+        ]
+       },
+       "outgoingEdgeId": "edgeconfirm"
+      },
+      {
+       "id": "itmviewmp",
+       "content": {
+        "comparisons": [
+         {
+          "id": "c12",
+          "variableId": "vview",
+          "comparisonOperator": "Equal to",
+          "value": "MERCADO_PAGO"
+         }
+        ]
+       },
+       "outgoingEdgeId": "edgemp"
+      },
+      {
+       "id": "itmviewbank",
+       "content": {
+        "comparisons": [
+         {
+          "id": "c13",
+          "variableId": "vview",
+          "comparisonOperator": "Equal to",
+          "value": "BANK_TRANSFER"
+         }
+        ]
+       },
+       "outgoingEdgeId": "edgebank"
+      },
+      {
+       "id": "itmviewreceipt",
+       "content": {
+        "comparisons": [
+         {
+          "id": "c14",
+          "variableId": "vview",
+          "comparisonOperator": "Equal to",
+          "value": "RECEIPT"
+         }
+        ]
+       },
+       "outgoingEdgeId": "edgereceipt"
+      },
+      {
+       "id": "itmvieworder",
+       "content": {
+        "comparisons": [
+         {
+          "id": "c15",
+          "variableId": "vview",
+          "comparisonOperator": "Equal to",
+          "value": "ORDER_STATUS"
+         }
+        ]
+       },
+       "outgoingEdgeId": "edgeorder"
+      },
+      {
+       "id": "itmviewfaq",
+       "content": {
+        "comparisons": [
+         {
+          "id": "c16",
+          "variableId": "vview",
+          "comparisonOperator": "Equal to",
+          "value": "FAQ"
+         }
+        ]
+       },
+       "outgoingEdgeId": "edgefaq"
+      },
+      {
+       "id": "itmviewsupport",
+       "content": {
+        "comparisons": [
+         {
+          "id": "c17",
+          "variableId": "vview",
+          "comparisonOperator": "Equal to",
+          "value": "SUPPORT"
+         }
+        ]
+       },
+       "outgoingEdgeId": "edgesupport"
+      },
+      {
+       "id": "itmviewhuman",
+       "content": {
+        "comparisons": [
+         {
+          "id": "c18",
+          "variableId": "vview",
+          "comparisonOperator": "Equal to",
+          "value": "HUMAN_HANDOFF"
+         }
+        ]
+       },
+       "outgoingEdgeId": "edgehuman"
+      },
+      {
+       "id": "itmviewnav",
+       "content": {
+        "comparisons": [
+         {
+          "id": "c19",
+          "variableId": "vview",
+          "comparisonOperator": "Equal to",
+          "value": "NAVIGATION"
+         }
+        ]
+       },
+       "outgoingEdgeId": "edgenav"
+      },
+      {
+       "id": "itmviewpending",
+       "content": {
+        "comparisons": [
+         {
+          "id": "c20",
+          "variableId": "vview",
+          "comparisonOperator": "Equal to",
+          "value": "PAYMENT_PENDING"
+         }
+        ]
+       },
+       "outgoingEdgeId": "edgeresume"
+      }
+     ],
+     "outgoingEdgeId": "edgeerrors"
+    }
+   ],
+   "outgoingEdgeId": "edgerouter"
+  },
+  {
+   "id": "grp01",
+   "title": "01 - Bienvenida",
+   "graphCoordinates": {
+    "x": 400,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkhdrgrp01",
      "type": "text",
      "content": {
       "richText": [
        {
-        "id": "rtthin",
+        "id": "rtblkhdrgrp01",
+        "type": "p",
+        "children": [
+         {
+          "text": "👋 ¡Bienvenido! Te acompaño en tu compra."
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blkviewgrp01",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkviewgrp01",
+        "type": "p",
+        "children": [
+         {
+          "text": "{{renderedMessage}}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grp02",
+   "title": "02 - Menú principal",
+   "graphCoordinates": {
+    "x": 800,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkhdrgrp02",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkhdrgrp02",
+        "type": "p",
+        "children": [
+         {
+          "text": "🏠 Menú principal"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blkviewgrp02",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkviewgrp02",
+        "type": "p",
+        "children": [
+         {
+          "text": "{{renderedMessage}}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grp03",
+   "title": "03 - Navegación de catálogo",
+   "graphCoordinates": {
+    "x": 1200,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkhdrgrp03",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkhdrgrp03",
+        "type": "p",
+        "children": [
+         {
+          "text": "🛍️ Catálogo"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blkviewgrp03",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkviewgrp03",
+        "type": "p",
+        "children": [
+         {
+          "text": "{{renderedMessage}}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grp04",
+   "title": "04 - Categorías padre",
+   "graphCoordinates": {
+    "x": 1600,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkhdrgrp04",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkhdrgrp04",
+        "type": "p",
+        "children": [
+         {
+          "text": "Elige la red o el servicio que quieres potenciar 👇"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blkviewgrp04",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkviewgrp04",
+        "type": "p",
+        "children": [
+         {
+          "text": "{{renderedMessage}}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grp05",
+   "title": "05 - Subcategorías",
+   "graphCoordinates": {
+    "x": 2000,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkhdrgrp05",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkhdrgrp05",
+        "type": "p",
+        "children": [
+         {
+          "text": "Un paso más: elige la opción 👇"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blkviewgrp05",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkviewgrp05",
+        "type": "p",
+        "children": [
+         {
+          "text": "{{renderedMessage}}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grp06",
+   "title": "06 - Selección de producto",
+   "graphCoordinates": {
+    "x": 2400,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkhdrgrp06",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkhdrgrp06",
+        "type": "p",
+        "children": [
+         {
+          "text": "Elige tu paquete 👇"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blkviewgrp06",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkviewgrp06",
+        "type": "p",
+        "children": [
+         {
+          "text": "{{renderedMessage}}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grp07",
+   "title": "07 - Selección de cantidad / paquete",
+   "graphCoordinates": {
+    "x": 2800,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkhdrgrp07",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkhdrgrp07",
+        "type": "p",
+        "children": [
+         {
+          "text": "Elige la cantidad 👇"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blkviewgrp07",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkviewgrp07",
+        "type": "p",
+        "children": [
+         {
+          "text": "{{renderedMessage}}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grp08",
+   "title": "08 - Captura de datos requeridos",
+   "graphCoordinates": {
+    "x": 3200,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkhdrgrp08",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkhdrgrp08",
+        "type": "p",
+        "children": [
+         {
+          "text": "✍️ Necesito un dato para continuar"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blkviewgrp08",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkviewgrp08",
+        "type": "p",
+        "children": [
+         {
+          "text": "{{renderedMessage}}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grp09",
+   "title": "09 - Resumen de compra",
+   "graphCoordinates": {
+    "x": 3600,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkhdrgrp09",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkhdrgrp09",
+        "type": "p",
+        "children": [
+         {
+          "text": "🧾 Revisa tu compra"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blknotegrp09",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblknotegrp09",
+        "type": "p",
+        "children": [
+         {
+          "text": "Confirma solo si todo está correcto."
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blkviewgrp09",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkviewgrp09",
+        "type": "p",
+        "children": [
+         {
+          "text": "{{renderedMessage}}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grp10",
+   "title": "10 - Confirmación del pedido",
+   "graphCoordinates": {
+    "x": 4000,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkhdrgrp10",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkhdrgrp10",
+        "type": "p",
+        "children": [
+         {
+          "text": "✅ Pedido confirmado"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blknotegrp10",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblknotegrp10",
+        "type": "p",
+        "children": [
+         {
+          "text": "Elige cómo quieres pagar 👇"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blkviewgrp10",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkviewgrp10",
+        "type": "p",
+        "children": [
+         {
+          "text": "{{renderedMessage}}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grp11",
+   "title": "11 - Métodos de pago",
+   "graphCoordinates": {
+    "x": 4400,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkhdrgrp11",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkhdrgrp11",
+        "type": "p",
+        "children": [
+         {
+          "text": "💳 Formas de pago"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blkviewgrp11",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkviewgrp11",
+        "type": "p",
+        "children": [
+         {
+          "text": "{{renderedMessage}}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grp12",
+   "title": "12 - Mercado Pago",
+   "graphCoordinates": {
+    "x": 4800,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkhdrgrp12",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkhdrgrp12",
+        "type": "p",
+        "children": [
+         {
+          "text": "🔒 Pago seguro con Mercado Pago"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blkviewgrp12",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkviewgrp12",
+        "type": "p",
+        "children": [
+         {
+          "text": "{{renderedMessage}}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grp13",
+   "title": "13 - Transferencia bancaria",
+   "graphCoordinates": {
+    "x": 5200,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkhdrgrp13",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkhdrgrp13",
+        "type": "p",
+        "children": [
+         {
+          "text": "🏦 Transferencia bancaria"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blkviewgrp13",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkviewgrp13",
+        "type": "p",
+        "children": [
+         {
+          "text": "{{renderedMessage}}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grp14",
+   "title": "14 - Comprobante",
+   "graphCoordinates": {
+    "x": 5600,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkhdrgrp14",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkhdrgrp14",
+        "type": "p",
+        "children": [
+         {
+          "text": "📎 Comprobante"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blkviewgrp14",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkviewgrp14",
+        "type": "p",
+        "children": [
+         {
+          "text": "{{renderedMessage}}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grp15",
+   "title": "15 - Estado del pedido",
+   "graphCoordinates": {
+    "x": 6000,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkhdrgrp15",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkhdrgrp15",
+        "type": "p",
+        "children": [
+         {
+          "text": "📦 Tu pedido"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blkviewgrp15",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkviewgrp15",
+        "type": "p",
+        "children": [
+         {
+          "text": "{{renderedMessage}}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grp16",
+   "title": "16 - Preguntas frecuentes / OpenAI",
+   "graphCoordinates": {
+    "x": 6400,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkhdrgrp16",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkhdrgrp16",
+        "type": "p",
+        "children": [
+         {
+          "text": "💬 Preguntas frecuentes"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blkviewgrp16",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkviewgrp16",
+        "type": "p",
+        "children": [
+         {
+          "text": "{{renderedMessage}}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grp17",
+   "title": "17 - Soporte humano",
+   "graphCoordinates": {
+    "x": 6800,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkhdrgrp17",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkhdrgrp17",
+        "type": "p",
+        "children": [
+         {
+          "text": "🙋 Soporte humano"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blkviewgrp17",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkviewgrp17",
+        "type": "p",
+        "children": [
+         {
+          "text": "{{renderedMessage}}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grp18",
+   "title": "18 - Navegación Volver / Menú",
+   "graphCoordinates": {
+    "x": 7200,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkhdrgrp18",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkhdrgrp18",
+        "type": "p",
+        "children": [
+         {
+          "text": "↩️ Navegación"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blkviewgrp18",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkviewgrp18",
+        "type": "p",
+        "children": [
+         {
+          "text": "{{renderedMessage}}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grp19",
+   "title": "19 - Errores y recuperación",
+   "graphCoordinates": {
+    "x": 7600,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkerrortext",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkerrortext",
+        "type": "p",
+        "children": [
+         {
+          "text": "No pude cargar esa información en este momento.\n\n[buttons]\n[title]Un momento[description]Puedes reintentar o pedir ayuda.[footer]Estamos contigo\n[reply]\ndisplayText: Reintentar\nid: navigation.retry\n[reply]\ndisplayText: Hablar con alguien\nid: help.human\n[reply]\ndisplayText: Menú\nid: navigation.home"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grp20",
+   "title": "20 - Reanudación de sesión",
+   "graphCoordinates": {
+    "x": 8000,
+    "y": 0
+   },
+   "blocks": [
+    {
+     "id": "blkhdrgrp20",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkhdrgrp20",
+        "type": "p",
+        "children": [
+         {
+          "text": "🔄 Retomamos donde quedaste"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "id": "blkviewgrp20",
+     "type": "text",
+     "content": {
+      "richText": [
+       {
+        "id": "rtblkviewgrp20",
         "type": "p",
         "children": [
          {
@@ -134,12 +1312,211 @@
  ],
  "edges": [
   {
-   "id": "edgethinstart",
+   "id": "edgestart",
    "from": {
-    "eventId": "evtthinstart"
+    "eventId": "evtstart"
    },
    "to": {
-    "groupId": "grpturn"
+    "groupId": "grp00"
+   }
+  },
+  {
+   "id": "edgerouter",
+   "from": {
+    "blockId": "blkturninput"
+   },
+   "to": {
+    "groupId": "grp00",
+    "blockId": "blkrouterwebhook"
+   }
+  },
+  {
+   "id": "edgewelcome",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp01"
+   }
+  },
+  {
+   "id": "edgemenu",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp02"
+   }
+  },
+  {
+   "id": "edgecatalog",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp03"
+   }
+  },
+  {
+   "id": "edgecat",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp04"
+   }
+  },
+  {
+   "id": "edgesubcat",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp05"
+   }
+  },
+  {
+   "id": "edgeproduct",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp06"
+   }
+  },
+  {
+   "id": "edgeqty",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp07"
+   }
+  },
+  {
+   "id": "edgerequired",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp08"
+   }
+  },
+  {
+   "id": "edgerequirederr",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp08"
+   }
+  },
+  {
+   "id": "edgereview",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp09"
+   }
+  },
+  {
+   "id": "edgeconfirm",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp10"
+   }
+  },
+  {
+   "id": "edgemp",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp12"
+   }
+  },
+  {
+   "id": "edgebank",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp13"
+   }
+  },
+  {
+   "id": "edgereceipt",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp14"
+   }
+  },
+  {
+   "id": "edgeorder",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp15"
+   }
+  },
+  {
+   "id": "edgefaq",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp16"
+   }
+  },
+  {
+   "id": "edgesupport",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp17"
+   }
+  },
+  {
+   "id": "edgehuman",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp17"
+   }
+  },
+  {
+   "id": "edgenav",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp18"
+   }
+  },
+  {
+   "id": "edgeresume",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp20"
+   }
+  },
+  {
+   "id": "edgeerrors",
+   "from": {
+    "blockId": "blkroutercondition"
+   },
+   "to": {
+    "groupId": "grp19"
    }
   }
  ]

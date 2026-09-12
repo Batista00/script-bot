@@ -65,6 +65,11 @@ export interface ConversationPayload {
 
 export interface ConversationTurnResponse {
   state: ConversationState;
+  /**
+   * Experiencia que Typebot debe presentar. Es solo presentación: el backend
+   * sigue siendo el dueño del estado y de las reglas comerciales.
+   */
+  view: ConversationView;
   /** Texto humano, sin markup. */
   message: string;
   /** Texto final listo para WhatsApp (con markup de botones si aplica). */
@@ -73,6 +78,31 @@ export interface ConversationTurnResponse {
 }
 
 export type ConversationStoredTurn = ConversationTurnResponse;
+
+export const conversationViews = [
+  "WELCOME",
+  "MAIN_MENU",
+  "CATALOG",
+  "CATEGORY_SELECTION",
+  "SUBCATEGORY_SELECTION",
+  "PRODUCT_SELECTION",
+  "QUANTITY_SELECTION",
+  "REQUIRED_INPUT",
+  "REQUIRED_INPUT_ERROR",
+  "REVIEW",
+  "PAYMENT_METHOD_SELECTION",
+  "MERCADO_PAGO",
+  "BANK_TRANSFER",
+  "RECEIPT",
+  "ORDER_STATUS",
+  "FAQ",
+  "SUPPORT",
+  "HUMAN_HANDOFF",
+  "NAVIGATION",
+  "ERROR",
+] as const;
+
+export type ConversationView = (typeof conversationViews)[number];
 
 export interface CategoryNode {
   id: string;

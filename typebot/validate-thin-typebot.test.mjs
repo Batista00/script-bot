@@ -14,6 +14,14 @@ test("the productive thin flow is valid", () => {
 test("the thin flow has no commercial logic, variables or prices", () => {
   const blocks = template.groups.flatMap((group) => group.blocks ?? []);
   assert.equal(blocks.filter((block) => block.type === "Set variable").length, 0);
+  // El router puede enrutar, pero nunca decidir sobre datos comerciales.
+  for (const block of blocks.filter((candidate) => candidate.type === "Condition")) {
+    for (const item of block.items ?? []) {
+      for (const comparison of item.content?.comparisons ?? []) {
+        assert.equal(comparison.variableId, "vview");
+      }
+    }
+  }
   assert.equal(blocks.filter((block) => block.type === "choice input").length, 0);
   const serialized = JSON.stringify(template);
   for (const forbidden of ["product1", "paymentMethod1", "selectedInput1", "fulfillmentInput", "quantityValid"]) {
@@ -68,5 +76,5 @@ test("validator rejects a second conversational entry point or n8n", () => {
 });
 
 test("loadThinFlow reads the productive artifact", () => {
-  assert.equal(loadThinFlow().name.includes("delgado"), true);
+  assert.equal(loadThinFlow().name.includes("arquitectura conversacional"), true);
 });

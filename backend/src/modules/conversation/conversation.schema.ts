@@ -30,9 +30,10 @@ const errorResponseSchema = {
 const turnResponse = {
   type: "object",
   additionalProperties: false,
-  required: ["state", "message", "renderedMessage", "expect"],
+  required: ["state", "view", "message", "renderedMessage", "expect"],
   properties: {
     state: { type: "string" },
+    view: { type: "string" },
     message: { type: "string" },
     renderedMessage: { type: "string" },
     expect: { type: "string", enum: ["button", "text", "media", "none"] },

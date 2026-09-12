@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_FLOW = resolve(here, "bot-whatsap-thin-v1.json");
 
-const ALLOWED_BLOCKS = new Set(["text", "text input", "choice input", "Webhook"]);
+const ALLOWED_BLOCKS = new Set(["text", "text input", "choice input", "Webhook", "Condition"]);
 const FORBIDDEN = [
   [/product\d/i, "product arrays (product1, product2...)"],
   [/paymentMethod\d/i, "payment arrays (paymentMethod1...)"],
@@ -67,6 +67,39 @@ export function validateThinTypebot(flow) {
   }
   const setVariables = blocks.filter((block) => block.type === "Set variable");
   if (setVariables.length > 0) fail("the thin flow must not set variables");
+
+  // El router puede usar Condition, pero SOLO para elegir la experiencia a
+  // presentar: cualquier comparación sobre datos comerciales es lógica de negocio
+  // y pertenece al backend.
+  for (const block of blocks) {
+    if (block.type !== "Condition") continue;
+    const comparisons = (block.items ?? []).flatMap((item) => item.content?.comparisons ?? []);
+    if (comparisons.length === 0) fail(`condition ${block.id} has no comparisons`);
+    for (const comparison of comparisons) {
+      if (comparison.variableId !== "vview") {
+        fail(`condition ${block.id} decides on ${comparison.variableId}; the router may only route by view`);
+      }
+    }
+  }
+
+  // Arquitectura conversacional: el flujo debe estar organizado en módulos de
+  // experiencia reconocibles, no en un único adaptador.
+  const titles = flow.groups.map((group) => group.title ?? "");
+  const requiredDomains = [
+    "Bootstrap", "Bienvenida", "Menú principal", "Catálogo", "Categorías padre",
+    "Subcategorías", "producto", "cantidad", "datos requeridos", "Resumen",
+    "Confirmación", "Métodos de pago", "Mercado Pago", "Transferencia",
+    "Comprobante", "Estado del pedido", "Preguntas frecuentes", "Soporte humano",
+    "Navegación", "Errores", "Reanudación",
+  ];
+  for (const domain of requiredDomains) {
+    if (!titles.some((title) => title.toLowerCase().includes(domain.toLowerCase()))) {
+      fail(`the conversational architecture is missing the "${domain}" module`);
+    }
+  }
+  if (flow.groups.length < requiredDomains.length) {
+    fail(`expected at least ${requiredDomains.length} experience modules, found ${flow.groups.length}`);
+  }
   return true;
 }
 
