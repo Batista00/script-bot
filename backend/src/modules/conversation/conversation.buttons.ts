@@ -104,9 +104,14 @@ export function renderWhatsAppButtons(input: WhatsAppButtonsInput): string {
     seen.add(button.id);
   }
 
+  // Evolution delimita la descripción con el inicio de `[footer]`: si no se
+  // emite, descarta el texto y el cliente sólo recibe el título. Por eso el
+  // footer se emite SIEMPRE, aunque vaya vacío.
   const footer = sanitizeText(input.footer ?? "", MAX_FOOTER);
-  const lines: string[] = ["[buttons]", `[title]${title}`, "", `[description]${description}`, ""];
-  if (footer.length > 0) lines.push(`[footer]${footer}`, "");
+  const lines: string[] = [
+    "[buttons]", `[title]${title}`, "", `[description]${description}`, "",
+    `[footer]${footer}`, "",
+  ];
 
   for (const button of replies) {
     lines.push("[reply]", `displayText: ${button.label}`, `id: ${button.id}`, "");
