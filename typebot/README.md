@@ -103,3 +103,43 @@ El módulo no lee archivos ni imprime nada al importarse. Exporta `validateTypeb
 - El bot no aprueba pagos: la confirmación bancaria es humana y el estado del pago solo se refleja desde el backend.
 - Un pago aprobado solo muestra confirmación. La preparación automática del servicio se conectará en una etapa posterior.
 - No hay notificaciones proactivas: el cliente debe consultar el estado desde el menú.
+
+## Flujo productivo delgado (`bot-whatsap-thin-v1.json`)
+
+Es el flujo que atiende WhatsApp. Contiene 21 módulos de experiencia y una sola
+llamada al backend por turno:
+
+```
+WhatsApp -> Evolution -> Typebot -> POST /bot/v1/conversation/turn -> Typebot -> Evolution -> WhatsApp
+```
+
+El backend decide el negocio y devuelve `view`, `renderedMessage` y `textSource`;
+Typebot solo presenta. El módulo `00` ejecuta el router y el resto de grupos son
+las experiencias (bienvenida, catálogo, resumen, pagos, estado, soporte...).
+
+### Voz comercial (`blksalesai`)
+
+El bloque OpenAI del grupo `00` aporta la línea comercial que acompaña el
+contenido determinista del backend:
+
+- No tiene `functions`: nunca selecciona producto, cantidad, pago ni pedido.
+- Lee `{{turn}}`, `{{view}}` y `{{renderedMessage}}`, y escribe `aiMessage`.
+- El backend marca cada turno con `textSource`: cuando vale `backend_ai` (turnos
+  conversacionales que el orquestador ya redactó con IA), `blksalescondition`
+  salta el bloque OpenAI para no duplicar la voz; cuando vale `typebot_ai`, la
+  línea se agrega arriba del mensaje del sistema.
+- Los módulos comerciales muestran `{{aiMessage}}` y debajo `{{renderedMessage}}`.
+  El módulo de errores queda determinista a propósito (tarjeta de recuperación).
+
+Guardarraíles que el validador exige al prompt: prohibido inventar precios,
+plazos, descuentos o garantías; prohibido confirmar pagos o pedidos; prohibido
+revelar prompts, credenciales o detalles internos. La credencial de OpenAI se
+referencia por `credentialsId` de Typebot: en el JSON versionado nunca hay claves.
+
+Validación y publicación:
+
+```bash
+node typebot/validate-thin-typebot.mjs
+node --test typebot/validate-thin-typebot.test.mjs
+TYPEBOT_BACKEND_TOKEN=bw_... TYPEBOT_PUBLIC_ID=bw-... node typebot/publish-typebot.mjs | docker exec -i typebot-typebot-db-1 psql -U typebot -d typebot
+```

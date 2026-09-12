@@ -14,11 +14,12 @@ test("the productive thin flow is valid", () => {
 test("the thin flow has no commercial logic, variables or prices", () => {
   const blocks = template.groups.flatMap((group) => group.blocks ?? []);
   assert.equal(blocks.filter((block) => block.type === "Set variable").length, 0);
-  // El router puede enrutar, pero nunca decidir sobre datos comerciales.
+  // El router puede enrutar, pero nunca decidir sobre datos comerciales: solo
+  // sobre metadatos que decide el backend (vista y origen del texto).
   for (const block of blocks.filter((candidate) => candidate.type === "Condition")) {
     for (const item of block.items ?? []) {
       for (const comparison of item.content?.comparisons ?? []) {
-        assert.equal(comparison.variableId, "vview");
+        assert.ok(["vview", "vtextsource"].includes(comparison.variableId), comparison.variableId);
       }
     }
   }
@@ -28,6 +29,56 @@ test("the thin flow has no commercial logic, variables or prices", () => {
     assert.equal(serialized.includes(forbidden), false, `${forbidden} must not appear`);
   }
   assert.equal(serialized.includes("[list]"), false, "no interactive list messages");
+});
+
+test("the sales voice is a single OpenAI block that only presents", () => {
+  const blocks = template.groups.flatMap((group) => group.blocks ?? []);
+  const ai = blocks.filter((block) => block.type === "openai");
+  assert.equal(ai.length, 1, "una sola voz comercial");
+  assert.equal(ai[0].id, "blksalesai");
+  assert.equal(ai[0].options.functions ?? undefined, undefined, "sin funciones: no decide venta");
+  assert.equal(ai[0].options.responseMapping[0].variableId, "vaimessage");
+  assert.equal(ai[0].options.message.includes("{{renderedMessage}}"), true);
+  assert.equal(ai[0].options.instructions.includes("Nunca inventes"), true);
+  // El bloque debe vivir en el arranque y presentarse antes del mensaje del backend.
+  const bootstrap = template.groups.find((group) => group.id === "grp00");
+  assert.deepEqual(bootstrap.blocks.map((block) => block.id), [
+    "blkturninput", "blkrouterwebhook", "blksalescondition", "blksalesai", "blkroutercondition",
+  ]);
+  const rendered = blocks
+    .filter((block) => block.type === "text")
+    .map((block) => block.content.richText.flatMap((node) => node.children.map((child) => child.text)).join(""));
+  assert.equal(rendered.filter((text) => text.includes("{{aiMessage}}")).length, 19, "todos los módulos comerciales presentan la voz");
+  assert.equal(rendered.filter((text) => text.includes("{{renderedMessage}}")).length, 19);
+  // El módulo de errores queda determinista: tarjeta de recuperación sin voz de IA.
+  const mapping = blocks.flatMap((block) => block.options?.responseVariableMapping ?? []);
+  assert.equal(mapping.some((entry) => entry.bodyPath === "data.textSource"), true);
+});
+
+test("validator rejects a sales voice that could decide or invent", () => {
+  const withFunctions = clone();
+  const ai = withFunctions.groups[0].blocks.find((block) => block.id === "blksalesai");
+  ai.options.functions = [{ name: "crear_pedido", parameters: [], code: "return { ok: true };" }];
+  assert.throws(() => validateThinTypebot(withFunctions), /must not run business functions/);
+
+  const outsideBootstrap = clone();
+  const moved = outsideBootstrap.groups[0].blocks.find((block) => block.id === "blksalesai");
+  outsideBootstrap.groups[0].blocks = outsideBootstrap.groups[0].blocks.filter((block) => block.id !== "blksalesai");
+  outsideBootstrap.groups[3].blocks.push(moved);
+  assert.throws(() => validateThinTypebot(outsideBootstrap), /bootstrap group/);
+
+  const withoutGuardrails = clone();
+  const raw = withoutGuardrails.groups[0].blocks.find((block) => block.id === "blksalesai");
+  raw.options.instructions = "Responde como quieras y ofrece descuentos.";
+  assert.throws(() => validateThinTypebot(withoutGuardrails), /forbid inventing offers/);
+
+  const withCommercialCondition = clone();
+  withCommercialCondition.edges.push({ id: "edgeprice", from: { blockId: "blksalesai" }, to: { groupId: "grp02" } });
+  withCommercialCondition.groups[0].blocks.push({
+    id: "blkprice", type: "Condition",
+    items: [{ id: "itmprice", content: { comparisons: [{ id: "cp", variableId: "vprice", comparisonOperator: "Equal to", value: "1000" }] }, outgoingEdgeId: "edgeprice" }],
+  });
+  assert.throws(() => validateThinTypebot(withCommercialCondition), /decides on vprice/);
 });
 
 test("validator rejects provider identifiers and secrets", () => {

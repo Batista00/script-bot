@@ -30,7 +30,7 @@ const errorResponseSchema = {
 const turnResponse = {
   type: "object",
   additionalProperties: false,
-  required: ["state", "view", "message", "renderedMessage", "expect"],
+  required: ["state", "view", "message", "renderedMessage", "expect", "textSource"],
   properties: {
     state: { type: "string" },
     view: { type: "string" },
@@ -38,6 +38,7 @@ const turnResponse = {
     renderedMessage: { type: "string" },
     buttonPayload: { type: "string" },
     expect: { type: "string", enum: ["button", "text", "media", "none"] },
+    textSource: { type: "string", enum: ["backend_ai", "typebot_ai"] },
   },
 } as const;
 

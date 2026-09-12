@@ -246,6 +246,7 @@ export class ConversationService {
       replies?: Array<{ id: string; label: string }>;
       urlButtons?: Array<{ url: string; label: string }>;
       expect?: ConversationTurnResponse["expect"];
+      aiComposed?: boolean;
     } = {},
   ): ConversationTurnResponse {
     const replies = options.replies ?? [];
@@ -276,6 +277,7 @@ export class ConversationService {
       ...(buttonPayload === undefined ? {} : { buttonPayload }),
       ...(hasButtons ? { lastOptions: offered } : {}),
       expect: options.expect ?? (hasButtons ? "button" : "text"),
+      textSource: options.aiComposed === true ? "backend_ai" : "typebot_ai",
     };
   }
 
@@ -1177,6 +1179,7 @@ export class ConversationService {
   ): Promise<ConversationTurnResponse> {
     const fallback: string = session.state === "WELCOME" ? COPY.welcomeFallback : COPY.needButtons;
     let message: string = fallback;
+    let usedAi = false;
     if (this.deps.ai && text.length > 0) {
       try {
         const answer = await this.deps.ai.reply({
@@ -1186,7 +1189,10 @@ export class ConversationService {
           conversationId: session.id,
           context: { state: session.state, productName: session.payload.productName },
         });
-        if (answer && answer.message.trim().length > 0) message = answer.message.trim();
+        if (answer && answer.message.trim().length > 0) {
+          message = answer.message.trim();
+          usedAi = true;
+        }
       } catch {
         message = fallback;
       }
@@ -1201,6 +1207,7 @@ export class ConversationService {
         { id: state === "FAQ" ? "help.faq" : "help.human", label: state === "FAQ" ? "Otra pregunta" : "Hablar con alguien" },
         { id: "navigation.home", label: "Menú" },
       ],
+      aiComposed: usedAi,
     });
   }
 

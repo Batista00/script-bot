@@ -291,6 +291,19 @@ test("FAQ conversa con IA y no inicia una venta", async () => {
   assert.match(answer.buttonPayload ?? "", /id: menu\.buy/);
 });
 
+test("textSource: solo marca como IA del backend los turnos que él ya redactó", async () => {
+  const calls = { quotes: 0, orders: 0, payments: 0, ai: 0 };
+  const { service } = setup(calls);
+  // Turno conversacional: la IA del backend redacta y Typebot no suma otra voz.
+  const conversational = await turn(service, { messageId: "ai1", text: "hola, ¿tienen seguidores?" });
+  assert.equal(calls.ai, 1);
+  assert.equal(conversational.textSource, "backend_ai");
+  // Turno determinista (botón): aquí Typebot sí puede aportar la línea comercial.
+  const deterministic = await turn(service, { messageId: "ai2", buttonId: "menu.buy" });
+  assert.equal(deterministic.textSource, "typebot_ai");
+  assert.equal(calls.ai, 1, "los botones nunca llaman a la IA");
+});
+
 test("renderer de botones: formato Evolution, límite real y sin ids inseguros", () => {
   const markup = renderWhatsAppButtons({
     title: "Selecciona una categoría",

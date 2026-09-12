@@ -12,7 +12,16 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_FLOW = resolve(here, "bot-whatsap-thin-v1.json");
 
-const ALLOWED_BLOCKS = new Set(["text", "text input", "choice input", "Webhook", "Condition"]);
+const ALLOWED_BLOCKS = new Set(["text", "text input", "choice input", "Webhook", "Condition", "openai"]);
+const AI_BLOCK_ID = "blksalesai";
+const AI_VARIABLE = "vaimessage";
+const TEXT_SOURCE_VARIABLE = "vtextsource";
+/**
+ * Variables sobre las que el flujo puede ramificar. Las dos las decide el
+ * backend: `vview` es la experiencia a presentar y `vtextsource` dice si el
+ * propio backend ya redactó el texto con IA (para no duplicar la voz).
+ */
+const ROUTABLE_VARIABLES = new Set(["vview", TEXT_SOURCE_VARIABLE]);
 const FORBIDDEN = [
   [/product\d/i, "product arrays (product1, product2...)"],
   [/paymentMethod\d/i, "payment arrays (paymentMethod1...)"],
@@ -65,6 +74,42 @@ export function validateThinTypebot(flow) {
   if (!renders.some((text) => text.includes("{{renderedMessage}}"))) {
     fail("the flow must display the backend renderedMessage");
   }
+  // La voz comercial vive en un único bloque OpenAI del arranque: presenta y
+  // acompaña, nunca decide (sin funciones) y siempre lee el mensaje del backend.
+  const aiBlocks = blocks.filter((block) => block.type === "openai");
+  if (aiBlocks.length !== 1) {
+    fail(`expected exactly one OpenAI sales voice, found ${aiBlocks.length}`);
+  }
+  const bootstrapIds = new Set((flow.groups.find((group) => group.id === "grp00")?.blocks ?? []).map((block) => block.id));
+  for (const block of aiBlocks) {
+    if (block.id !== AI_BLOCK_ID || !bootstrapIds.has(block.id)) {
+      fail(`the OpenAI sales voice must be ${AI_BLOCK_ID} in the bootstrap group`);
+    }
+    const options = block.options ?? {};
+    if ((options.functions ?? []).length > 0) {
+      fail("the OpenAI sales voice must not run business functions");
+    }
+    const mapping = (options.responseMapping ?? []).map((entry) => entry.variableId);
+    if (!mapping.includes(AI_VARIABLE)) fail(`the OpenAI sales voice must map its answer to ${AI_VARIABLE}`);
+    const instructions = String(options.instructions ?? "");
+    const message = String(options.message ?? "");
+    if (instructions.trim().length === 0) fail("the OpenAI sales voice needs explicit instructions");
+    if (!/nunca inventes/i.test(instructions)) fail("the OpenAI sales voice must forbid inventing offers");
+    if (!/no confirmes|nunca confirmes/i.test(instructions)) fail("the OpenAI sales voice must not confirm payments");
+    if (!message.includes("{{renderedMessage}}")) fail("the OpenAI sales voice must read the backend renderedMessage");
+    if (!message.includes("{{turn}}")) fail("the OpenAI sales voice must read the customer message");
+  }
+  if (!renders.some((text) => text.includes("{{aiMessage}}"))) {
+    fail("the flow must present the sales voice before the backend message");
+  }
+  // El webhook debe recibir el origen del texto para decidir si hay voz de IA.
+  const mapped = blocks.flatMap((block) => block.options?.responseVariableMapping ?? []);
+  if (!mapped.some((entry) => entry.bodyPath === "data.textSource" && entry.variableId === TEXT_SOURCE_VARIABLE)) {
+    fail("the flow must map data.textSource to decide whether to add the sales voice");
+  }
+  if (!mapped.some((entry) => entry.bodyPath === "data.renderedMessage")) {
+    fail("the flow must map data.renderedMessage");
+  }
   const setVariables = blocks.filter((block) => block.type === "Set variable");
   if (setVariables.length > 0) fail("the thin flow must not set variables");
 
@@ -76,8 +121,8 @@ export function validateThinTypebot(flow) {
     const comparisons = (block.items ?? []).flatMap((item) => item.content?.comparisons ?? []);
     if (comparisons.length === 0) fail(`condition ${block.id} has no comparisons`);
     for (const comparison of comparisons) {
-      if (comparison.variableId !== "vview") {
-        fail(`condition ${block.id} decides on ${comparison.variableId}; the router may only route by view`);
+      if (!ROUTABLE_VARIABLES.has(comparison.variableId)) {
+        fail(`condition ${block.id} decides on ${comparison.variableId}; the router may only route by backend metadata`);
       }
     }
   }

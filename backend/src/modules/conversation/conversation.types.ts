@@ -81,9 +81,19 @@ export interface ConversationTurnResponse {
   /** Opciones presentadas en este turno (para resolver la respuesta numérica). */
   lastOptions?: Array<{ id: string; label: string }>;
   expect: ConversationExpectation;
+  /**
+   * Metadato de presentación, no de negocio: quién redactó el texto del turno.
+   * `backend_ai` significa que el orquestador ya conversó con IA, así que Typebot
+   * no debe agregar una segunda voz; `typebot_ai` habilita la línea comercial
+   * que Typebot aporta sobre el contenido determinista.
+   */
+  textSource: ConversationTextSource;
 }
 
 export type ConversationStoredTurn = ConversationTurnResponse;
+
+/** Origen del texto que verá el cliente: decide si Typebot aporta su propia voz. */
+export type ConversationTextSource = "backend_ai" | "typebot_ai";
 
 export const conversationViews = [
   "WELCOME",
