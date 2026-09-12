@@ -142,12 +142,14 @@ export class ConversationService {
     if (remoteJid.length === 0) {
       throw new AppError("remoteJid is required", 400, "CONVERSATION_REMOTE_JID_REQUIRED");
     }
-    const dedupeKey = this.dedupeKeyFor(remoteJid, input);
-    const cached = await this.deps.repository.findTurn(businessId, dedupeKey);
-    if (cached) return cached;
-
     const existing = await this.deps.repository.findSession(businessId, remoteJid);
     const session = existing ?? await this.startSession(businessId, remoteJid);
+
+    // La huella incluye el estado: el mismo texto ("1") en pasos distintos es
+    // una decisión nueva, no un evento duplicado.
+    const dedupeKey = this.dedupeKeyFor(remoteJid, input, session.state);
+    const cached = await this.deps.repository.findTurn(businessId, dedupeKey);
+    if (cached) return cached;
     const response = await this.transition(businessId, session, input);
     if (response.lastOptions && response.lastOptions.length > 0) {
       const current = await this.deps.repository.findSession(businessId, remoteJid);
@@ -169,11 +171,11 @@ export class ConversationService {
    * mutantes conservan además su propia idempotencia (conversión de quote,
    * `Idempotency-Key` de pago).
    */
-  private dedupeKeyFor(remoteJid: string, input: ConversationTurnInput): string {
+  private dedupeKeyFor(remoteJid: string, input: ConversationTurnInput, state: string): string {
     const messageId = input.messageId?.trim();
     if (messageId && messageId.length >= 8) return `msg:${messageId.slice(0, 160)}`;
     const fingerprint = createHash("sha256")
-      .update([remoteJid, input.buttonId ?? "", input.text ?? "", input.media ?? ""].join("\u0000"))
+      .update([remoteJid, state, input.buttonId ?? "", input.text ?? "", input.media ?? ""].join("\u0000"))
       .digest("hex")
       .slice(0, 40);
     return `fp:${fingerprint}`;

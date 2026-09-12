@@ -104,12 +104,19 @@ export class PostgresConversationRepository {
     return toSession(result.rows[0]!);
   }
 
+  /**
+   * Los `messageId` reales de Evolution se deduplican 10 minutos. Las huellas
+   * (cuando Evolution no envía id) solo 20 segundos: un reintento real llega en
+   * segundos, mientras que respuestas legítimas repetidas ("1" dos veces
+   * seguidas en pasos distintos) no deben bloquearse.
+   */
   async findTurn(businessId: string, dedupeKey: string): Promise<ConversationTurnResponse | null> {
+    const window = dedupeKey.startsWith("msg:") ? "10 minutes" : "20 seconds";
     const result = await this.db.query<{ response: ConversationTurnResponse }>(
       `SELECT response FROM conversation_turns
         WHERE business_id = $1 AND dedupe_key = $2
-          AND created_at > now() - interval '10 minutes'`,
-      [businessId, dedupeKey],
+          AND created_at > now() - $3::interval`,
+      [businessId, dedupeKey, window],
     );
     return result.rows[0]?.response ?? null;
   }
