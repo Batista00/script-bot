@@ -12,6 +12,7 @@ import {
   MAX_WHATSAPP_BUTTONS,
   pageCapacity,
   paginate,
+  renderNumberedMenu,
   renderPlainMessage,
   renderWhatsAppButtons,
 } from "./conversation.buttons.js";
@@ -148,6 +149,16 @@ export class ConversationService {
     const existing = await this.deps.repository.findSession(businessId, remoteJid);
     const session = existing ?? await this.startSession(businessId, remoteJid);
     const response = await this.transition(businessId, session, input);
+    if (response.lastOptions && response.lastOptions.length > 0) {
+      const current = await this.deps.repository.findSession(businessId, remoteJid);
+      if (current) {
+        await this.deps.repository.saveSession({
+          businessId, remoteJid, customerId: current.customerId, state: current.state,
+          payload: { ...current.payload, lastOptions: response.lastOptions },
+          page: current.page, handoff: current.handoff,
+        });
+      }
+    }
     await this.deps.repository.saveTurn(businessId, remoteJid, dedupeKey, response);
     return response;
   }
@@ -237,23 +248,31 @@ export class ConversationService {
   ): ConversationTurnResponse {
     const replies = options.replies ?? [];
     const urlButtons = options.urlButtons ?? [];
-    const hasButtons = replies.length > 0 || urlButtons.length > 0;
+    const offered = [...replies, ...urlButtons.map((button) => ({ id: button.url, label: button.label }))];
+    const hasButtons = offered.length > 0;
+    // El canal actual (Evolution 2.3.4 + el cliente de WhatsApp) no renderiza
+    // botones nativos, así que la experiencia se presenta como menú enumerado y
+    // el backend resuelve el número respondido. El markup de botones queda
+    // disponible en `buttonPayload` para cuando el canal pueda mostrarlo.
     let renderedMessage = renderPlainMessage(message);
+    let buttonPayload: string | undefined;
     if (hasButtons) {
-      const buttonsMarkup = renderWhatsAppButtons({
+      buttonPayload = renderWhatsAppButtons({
         title: options.title ?? message,
         description: options.description ?? message,
         ...(options.footer === undefined ? {} : { footer: options.footer }),
         replies,
         urlButtons,
       });
-      renderedMessage = `${options.title ?? message}\n\n${buttonsMarkup}`;
+      renderedMessage = renderNumberedMenu(message, offered);
     }
     return {
       state,
       view: (options.view ?? VIEW_BY_STATE[state] ?? state) as ConversationTurnResponse["view"],
       message,
       renderedMessage,
+      ...(buttonPayload === undefined ? {} : { buttonPayload }),
+      ...(hasButtons ? { lastOptions: offered } : {}),
       expect: options.expect ?? (hasButtons ? "button" : "text"),
     };
   }
@@ -276,8 +295,15 @@ export class ConversationService {
     // que aquí se reconoce el prefijo semántico y se trata como botón.
     const raw = (input.buttonId ?? input.text ?? "").trim();
     const isButton = /^(menu\.|help\.|category:|product:|quantity:|checkout\.|payment:|order|navigation\.)/.test(raw);
-    const buttonId = isButton ? raw : (input.buttonId?.trim() ?? "");
+    let buttonId = isButton ? raw : (input.buttonId?.trim() ?? "");
     const text = isButton ? (input.buttonId ? (input.text?.trim() ?? "") : "") : (input.text?.trim() ?? "");
+    // Respuesta numérica del menú: se resuelve con la última oferta presentada
+    // por el backend (nunca se confía en el número por sí solo).
+    if (buttonId === "" && /^[0-9]{1,2}$/.test(text)) {
+      const offered = session.payload.lastOptions ?? [];
+      const chosen = offered[Number(text) - 1];
+      if (chosen) return this.transition(businessId, session, { ...input, buttonId: chosen.id, text: undefined });
+    }
 
     // Navegación transversal: siempre disponible y siempre determinista.
     if (buttonId === "navigation.retry") {

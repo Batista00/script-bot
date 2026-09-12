@@ -36,6 +36,7 @@ const turnResponse = {
     view: { type: "string" },
     message: { type: "string" },
     renderedMessage: { type: "string" },
+    buttonPayload: { type: "string" },
     expect: { type: "string", enum: ["button", "text", "media", "none"] },
   },
 } as const;

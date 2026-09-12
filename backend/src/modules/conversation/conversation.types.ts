@@ -61,6 +61,8 @@ export interface ConversationPayload {
   checkoutUrl?: string;
   /** Listado paginado activo: qué colección está navegando el cliente. */
   listing?: "categories" | "products" | "orders" | "payment-methods";
+  /** Última oferta presentada: permite resolver la respuesta numérica. */
+  lastOptions?: Array<{ id: string; label: string }>;
 }
 
 export interface ConversationTurnResponse {
@@ -72,8 +74,12 @@ export interface ConversationTurnResponse {
   view: ConversationView;
   /** Texto humano, sin markup. */
   message: string;
-  /** Texto final listo para WhatsApp (con markup de botones si aplica). */
+  /** Texto final listo para WhatsApp (menú enumerado o markup de botones). */
   renderedMessage: string;
+  /** Markup de botones nativos, listo si el canal puede renderizarlos. */
+  buttonPayload?: string;
+  /** Opciones presentadas en este turno (para resolver la respuesta numérica). */
+  lastOptions?: Array<{ id: string; label: string }>;
   expect: ConversationExpectation;
 }
 

@@ -154,8 +154,9 @@ test("bienvenida por IA y menú principal con botones nativos", async () => {
   const response = await turn(service, { messageId: "m-welcome", text: "Hola" });
   assert.equal(response.state, "MAIN_MENU");
   assert.match(response.message, /Hola/);
-  assert.match(response.renderedMessage, /\[buttons\]/);
-  assert.match(response.renderedMessage, /id: menu\.buy/);
+  assert.match(response.renderedMessage, /1\. Comprar servicios/);
+  assert.match(response.buttonPayload ?? "", /\[buttons\]/);
+  assert.match(response.buttonPayload ?? "", /id: menu\.buy/);
   assert.equal(response.expect, "button");
   assert.equal(calls.ai, 1, "la IA participa en la bienvenida");
 });
@@ -164,10 +165,11 @@ test("menu.buy devuelve solo categorías padre y pagina con botones", async () =
   const { service } = setup();
   const response = await turn(service, { messageId: "m-buy", buttonId: "menu.buy" });
   assert.equal(response.state, "CATEGORY_SELECTION");
-  const ids = [...response.renderedMessage.matchAll(/id: (category:[a-z-]+)/g)].map((m) => m[1]);
+  const ids = [...(response.buttonPayload ?? "").matchAll(/id: (category:[a-z-]+)/g)].map((m) => m[1]);
   assert.ok(ids.includes("category:c-instagram"));
   assert.equal(ids.length, 2, "capacidad de página respetada (3 botones - 1 navegación)");
-  assert.match(response.renderedMessage, /id: navigation\.next/, "hay más categorías que botones: se pagina");
+  assert.match(response.buttonPayload ?? "", /id: navigation\.next/, "hay más categorías que botones: se pagina");
+  assert.match(response.renderedMessage, /3\. Más opciones/);
   assert.doesNotMatch(response.renderedMessage, /product:/, "nunca productos en el nivel padre");
   assert.equal(response.renderedMessage.includes("[list]"), false, "sin mensajes de lista");
   const replyIds = [...response.renderedMessage.matchAll(/id: (\S+)/g)].map((m) => m[1]);
@@ -178,23 +180,24 @@ test("categoría con hijos desciende y categoría hoja muestra productos", async
   const { service } = setup();
   const children = await turn(service, { messageId: "m-cat", buttonId: "category:c-instagram" });
   assert.equal(children.state, "SUBCATEGORY_SELECTION");
-  assert.match(children.renderedMessage, /id: category:c-likes/);
+  assert.match(children.buttonPayload ?? "", /id: category:c-likes/);
   assert.doesNotMatch(children.renderedMessage, /product:/);
 
   const grandchild = await turn(service, { messageId: "m-likes", buttonId: "category:c-likes" });
-  assert.match(grandchild.renderedMessage, /id: category:c-views/, "multinivel sin límite de profundidad");
+  assert.match(grandchild.buttonPayload ?? "", /id: category:c-views/, "multinivel sin límite de profundidad");
 
   const leaf = await turn(service, { messageId: "m-views", buttonId: "category:c-views" });
   assert.equal(leaf.state, "PRODUCT_SELECTION");
-  assert.match(leaf.renderedMessage, /id: product:p-1/);
-  assert.match(leaf.renderedMessage, /id: product:p-3/);
+  assert.match(leaf.buttonPayload ?? "", /id: product:p-1/);
+  assert.match(leaf.buttonPayload ?? "", /id: product:p-3/);
+  assert.match(leaf.renderedMessage, /Responde con el número/);
 });
 
 test("producto valida negocio/estado y ofrece cantidades por botón", async () => {
   const { service } = setup();
   const response = await turn(service, { messageId: "m-prod", buttonId: "product:p-1" });
   assert.equal(response.state, "QUANTITY_SELECTION");
-  assert.match(response.renderedMessage, /id: quantity:1000/);
+  assert.match(response.buttonPayload ?? "", /id: quantity:1000/);
   const unknown = await turn(service, { messageId: "m-prod-x", buttonId: "product:no-existe" });
   assert.doesNotMatch(unknown.renderedMessage, /id: quantity:/, "producto ajeno no habilita cantidades");
 });
@@ -203,7 +206,7 @@ test("cantidad fuera de las opciones del backend no se acepta", async () => {
   const { service } = setup();
   await turn(service, { messageId: "m-p", buttonId: "product:p-1" });
   const invalid = await turn(service, { messageId: "m-q-bad", buttonId: "quantity:999999" });
-  assert.match(invalid.renderedMessage, /id: quantity:1000/, "vuelve a ofrecer las opciones válidas");
+  assert.match(invalid.buttonPayload ?? "", /id: quantity:1000/, "vuelve a ofrecer las opciones válidas");
 });
 
 test("required inputs: se piden secuencialmente sin límite de 3 y el backend valida", async () => {
@@ -226,7 +229,8 @@ test("required inputs: se piden secuencialmente sin límite de 3 y el backend va
   assert.match(third.message, /tercer/);
   const review = await turn(service, { messageId: "m-u3", text: url(3) });
   assert.equal(review.state, "REVIEW");
-  assert.match(review.renderedMessage, /id: checkout\.confirm/);
+  assert.match(review.renderedMessage, /1\. Confirmar compra/);
+  assert.match(review.buttonPayload ?? "", /id: checkout\.confirm/);
   assert.equal(calls.quotes, 1);
   const order = await turn(service, { messageId: "m-u3", text: url(3) });
   assert.deepEqual(order, review, "mismo messageId: no se repite la operación");
@@ -241,31 +245,33 @@ test("confirmación crea un solo order y ofrece pagos con botones", async () => 
   await turn(service, { messageId: "c3", text: url(9) });
   const payments = await turn(service, { messageId: "c4", buttonId: "checkout.confirm" });
   assert.equal(payments.state, "PAYMENT_METHOD_SELECTION");
-  assert.match(payments.renderedMessage, /id: payment:pm-mp/);
-  assert.match(payments.renderedMessage, /id: payment:pm-bank/);
+  assert.match(payments.buttonPayload ?? "", /id: payment:pm-mp/);
+  assert.match(payments.buttonPayload ?? "", /id: payment:pm-bank/);
+  assert.match(payments.renderedMessage, /1\. Mercado Pago/);
+  assert.match(payments.renderedMessage, /2\. Transferencia/);
   assert.equal(calls.orders, 1);
 
   const mercadoPago = await turn(service, { messageId: "c5", buttonId: "payment:pm-mp" });
   assert.equal(mercadoPago.state, "PAYMENT_PENDING");
-  assert.match(mercadoPago.renderedMessage, /\[url\]/);
-  assert.match(mercadoPago.renderedMessage, /url: https:\/\/mercadopago\.cl/);
+  assert.match(mercadoPago.buttonPayload ?? "", /\[url\]/);
+  assert.match(mercadoPago.buttonPayload ?? "", /url: https:\/\/mercadopago\.cl/);
   assert.equal(calls.payments, 1);
 
   const bank = await turn(service, { messageId: "c6", buttonId: "payment:pm-bank" });
   assert.match(bank.message, /Banco Estado/);
   assert.match(bank.message, /Monto exacto/);
-  assert.match(bank.renderedMessage, /id: payment\.confirm_transfer/);
+  assert.match(bank.buttonPayload ?? "", /id: payment\.confirm_transfer/);
 });
 
 test("estado del pedido y handoff usan datos reales y no inventan estados", async () => {
   const { service } = setup();
   const orders = await turn(service, { messageId: "o1", buttonId: "menu.orders" });
   assert.equal(orders.state, "ORDER_STATUS");
-  assert.match(orders.renderedMessage, /id: order:order-1/);
+  assert.match(orders.buttonPayload ?? "", /id: order:order-1/);
 
   const detail = await turn(service, { messageId: "o2", buttonId: "order:order-1" });
   assert.match(detail.message, /Pagado|Pago confirmado/);
-  assert.match(detail.renderedMessage, /id: order\.refresh/);
+  assert.match(detail.buttonPayload ?? "", /id: order\.refresh/);
 
   const handoff = await turn(service, { messageId: "h1", buttonId: "help.human" });
   assert.equal(handoff.state, "HUMAN_HANDOFF");
@@ -280,7 +286,7 @@ test("FAQ conversa con IA y no inicia una venta", async () => {
   assert.equal(calls.ai, 1);
   assert.equal(answer.state, "FAQ");
   assert.equal(calls.quotes + calls.orders, 0, "la IA no ejecuta operaciones comerciales");
-  assert.match(answer.renderedMessage, /id: menu\.buy/);
+  assert.match(answer.buttonPayload ?? "", /id: menu\.buy/);
 });
 
 test("renderer de botones: formato Evolution, límite real y sin ids inseguros", () => {
@@ -310,4 +316,18 @@ test("renderer de botones: formato Evolution, límite real y sin ids inseguros",
     title: "x", description: "y",
     replies: [{ id: "id con espacios", label: "Malo" }],
   }), /invalid characters/);
+});
+
+test("respuesta numérica: el backend resuelve el número con la oferta presentada", async () => {
+  const { service } = setup();
+  const menu = await turn(service, { messageId: "n1", text: "hola" });
+  assert.equal(menu.expect, "button");
+  assert.match(menu.renderedMessage, /1\. Comprar servicios/);
+  // El cliente responde "1": debe equivaler a pulsar menu.buy.
+  const chosen = await turn(service, { messageId: "n2", text: "1" });
+  assert.equal(chosen.state, "CATEGORY_SELECTION");
+  assert.match(chosen.renderedMessage, /Responde con el número/);
+  // Un número fuera de la oferta no ejecuta nada comercial.
+  const out = await turn(service, { messageId: "n3", text: "9" });
+  assert.notEqual(out.state, "QUANTITY_SELECTION");
 });

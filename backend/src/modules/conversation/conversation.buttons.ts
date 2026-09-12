@@ -137,6 +137,19 @@ export function commercialButtonLabel(name: string, amount: number | null): stri
   return `${sanitizeText(name, room)} ${price}`;
 }
 
+/**
+ * Menú enumerado. Es el respaldo cuando el cliente de WhatsApp no puede mostrar
+ * botones nativos: el backend conserva los ids y resuelve el número que responde
+ * el cliente, así que la lógica comercial sigue siendo suya.
+ */
+export function renderNumberedMenu(
+  text: string,
+  options: Array<{ id: string; label: string }>,
+): string {
+  const lines = options.map((option, index) => `${index + 1}. ${option.label}`);
+  return `${text}\n\n${lines.join("\n")}\n\nResponde con el número de la opción.`;
+}
+
 /** Texto plano sin botones: un solo mensaje, una sola idea. */
 export function renderPlainMessage(text: string): string {
   return text.trim();
