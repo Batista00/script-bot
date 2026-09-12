@@ -64,15 +64,15 @@
  ],
  "groups": [
   {
-   "id": "grpturnA",
-   "title": "01 - Turno entrante",
+   "id": "grpturn",
+   "title": "00 - Turno conversacional",
    "graphCoordinates": {
     "x": 300,
     "y": 0
    },
    "blocks": [
     {
-     "id": "blkinputgrpturnA",
+     "id": "blkturninput",
      "type": "text input",
      "options": {
       "variableId": "vturn",
@@ -82,7 +82,7 @@
      }
     },
     {
-     "id": "blkwebhookgrpturnA",
+     "id": "blkturnwebhook",
      "type": "Webhook",
      "options": {
       "webhook": {
@@ -90,12 +90,12 @@
        "method": "POST",
        "headers": [
         {
-         "id": "hdrgrpturnA",
+         "id": "hdrthin",
          "key": "Authorization",
          "value": "Bearer {{backend_token}}"
         },
         {
-         "id": "hdrctgrpturnA",
+         "id": "hdrthin2",
          "key": "Content-Type",
          "value": "application/json"
         }
@@ -105,7 +105,7 @@
       "isCustomBody": true,
       "responseVariableMapping": [
        {
-        "id": "mapgrpturnA",
+        "id": "mapthin",
         "bodyPath": "data.renderedMessage",
         "variableId": "vrenderedmessage"
        }
@@ -113,80 +113,12 @@
      }
     },
     {
-     "id": "blkshowgrpturnA",
+     "id": "blkshow",
      "type": "text",
      "content": {
       "richText": [
        {
-        "id": "rtgrpturnA",
-        "type": "p",
-        "children": [
-         {
-          "text": "{{renderedMessage}}"
-         }
-        ]
-       }
-      ]
-     }
-    }
-   ]
-  },
-  {
-   "id": "grpturnB",
-   "title": "02 - Turno siguiente",
-   "graphCoordinates": {
-    "x": 700,
-    "y": 0
-   },
-   "blocks": [
-    {
-     "id": "blkinputgrpturnB",
-     "type": "text input",
-     "options": {
-      "variableId": "vturn",
-      "labels": {
-       "placeholder": "Escribe tu mensaje"
-      }
-     }
-    },
-    {
-     "id": "blkwebhookgrpturnB",
-     "type": "Webhook",
-     "options": {
-      "webhook": {
-       "url": "{{backend_base_url}}/bot/v1/conversation/turn",
-       "method": "POST",
-       "headers": [
-        {
-         "id": "hdrgrpturnB",
-         "key": "Authorization",
-         "value": "Bearer {{backend_token}}"
-        },
-        {
-         "id": "hdrctgrpturnB",
-         "key": "Content-Type",
-         "value": "application/json"
-        }
-       ],
-       "body": "{\n  \"remoteJid\": \"{{remoteJid}}\",\n  \"text\": \"{{turn}}\"\n}"
-      },
-      "isCustomBody": true,
-      "responseVariableMapping": [
-       {
-        "id": "mapgrpturnB",
-        "bodyPath": "data.renderedMessage",
-        "variableId": "vrenderedmessage"
-       }
-      ]
-     }
-    },
-    {
-     "id": "blkshowgrpturnB",
-     "type": "text",
-     "content": {
-      "richText": [
-       {
-        "id": "rtgrpturnB",
+        "id": "rtthin",
         "type": "p",
         "children": [
          {
@@ -207,27 +139,7 @@
     "eventId": "evtthinstart"
    },
    "to": {
-    "groupId": "grpturnA"
-   }
-  },
-  {
-   "id": "edgethinab",
-   "from": {
-    "blockId": "blkshowgrpturnA"
-   },
-   "to": {
-    "groupId": "grpturnB",
-    "blockId": "blkinputgrpturnB"
-   }
-  },
-  {
-   "id": "edgethinba",
-   "from": {
-    "blockId": "blkshowgrpturnB"
-   },
-   "to": {
-    "groupId": "grpturnA",
-    "blockId": "blkinputgrpturnA"
+    "groupId": "grpturn"
    }
   }
  ]
