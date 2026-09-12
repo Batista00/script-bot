@@ -314,16 +314,6 @@
         "variableId": "vproduct1name"
        },
        {
-        "id": "mapproduct1min",
-        "bodyPath": "data[0].minQuantity",
-        "variableId": "vproduct1min"
-       },
-       {
-        "id": "mapproduct1max",
-        "bodyPath": "data[0].maxQuantity",
-        "variableId": "vproduct1max"
-       },
-       {
         "id": "mapproduct2id",
         "bodyPath": "data[1].productId",
         "variableId": "vproduct2id"
@@ -332,16 +322,6 @@
         "id": "mapproduct2name",
         "bodyPath": "data[1].name",
         "variableId": "vproduct2name"
-       },
-       {
-        "id": "mapproduct2min",
-        "bodyPath": "data[1].minQuantity",
-        "variableId": "vproduct2min"
-       },
-       {
-        "id": "mapproduct2max",
-        "bodyPath": "data[1].maxQuantity",
-        "variableId": "vproduct2max"
        },
        {
         "id": "mapproduct3id",
@@ -354,16 +334,6 @@
         "variableId": "vproduct3name"
        },
        {
-        "id": "mapproduct3min",
-        "bodyPath": "data[2].minQuantity",
-        "variableId": "vproduct3min"
-       },
-       {
-        "id": "mapproduct3max",
-        "bodyPath": "data[2].maxQuantity",
-        "variableId": "vproduct3max"
-       },
-       {
         "id": "mapproduct4id",
         "bodyPath": "data[3].productId",
         "variableId": "vproduct4id"
@@ -374,16 +344,6 @@
         "variableId": "vproduct4name"
        },
        {
-        "id": "mapproduct4min",
-        "bodyPath": "data[3].minQuantity",
-        "variableId": "vproduct4min"
-       },
-       {
-        "id": "mapproduct4max",
-        "bodyPath": "data[3].maxQuantity",
-        "variableId": "vproduct4max"
-       },
-       {
         "id": "mapproduct5id",
         "bodyPath": "data[4].productId",
         "variableId": "vproduct5id"
@@ -392,16 +352,6 @@
         "id": "mapproduct5name",
         "bodyPath": "data[4].name",
         "variableId": "vproduct5name"
-       },
-       {
-        "id": "mapproduct5min",
-        "bodyPath": "data[4].minQuantity",
-        "variableId": "vproduct5min"
-       },
-       {
-        "id": "mapproduct5max",
-        "bodyPath": "data[4].maxQuantity",
-        "variableId": "vproduct5max"
        },
        {
         "id": "mapproducterror",
@@ -986,11 +936,6 @@
         "variableId": "vquotetotal"
        },
        {
-        "id": "mapquotestatus",
-        "bodyPath": "data.status",
-        "variableId": "vquotestatus"
-       },
-       {
         "id": "mapquoterrorcode",
         "bodyPath": "data.error.code",
         "variableId": "vbackenderrorcode"
@@ -1089,14 +1034,6 @@
      }
     },
     {
-     "id": "blkclearorderitemid",
-     "type": "Set variable",
-     "options": {
-      "variableId": "vorderitemid",
-      "expressionToEvaluate": ""
-     }
-    },
-    {
      "id": "blkclearordertotal",
      "type": "Set variable",
      "options": {
@@ -1168,11 +1105,6 @@
         "id": "maporderstatus",
         "bodyPath": "data.status",
         "variableId": "vorderstatus"
-       },
-       {
-        "id": "maporderitemid",
-        "bodyPath": "data.items[0].orderItemId",
-        "variableId": "vorderitemid"
        },
        {
         "id": "mapordertotal",
@@ -1274,14 +1206,6 @@
      }
     },
     {
-     "id": "blkclearpaymentexpires",
-     "type": "Set variable",
-     "options": {
-      "variableId": "vpaymentexpiresat",
-      "expressionToEvaluate": ""
-     }
-    },
-    {
      "id": "blkclearpaymenterror",
      "type": "Set variable",
      "options": {
@@ -1339,11 +1263,6 @@
         "id": "mapcheckouturl",
         "bodyPath": "data.checkoutUrl",
         "variableId": "vcheckouturl"
-       },
-       {
-        "id": "mappaymentexpires",
-        "bodyPath": "data.expiresAt",
-        "variableId": "vpaymentexpiresat"
        },
        {
         "id": "mappaymenterrorcode",
@@ -1686,11 +1605,6 @@
         "id": "mapgetcheckouturl",
         "bodyPath": "data.checkoutUrl",
         "variableId": "vcheckouturl"
-       },
-       {
-        "id": "mapgetpaymentexpires",
-        "bodyPath": "data.expiresAt",
-        "variableId": "vpaymentexpiresat"
        }
       ]
      },
@@ -2626,14 +2540,6 @@
      }
     },
     {
-     "id": "blkclearselectedmethodname",
-     "type": "Set variable",
-     "options": {
-      "variableId": "vselectedpaymentmethodname",
-      "expressionToEvaluate": ""
-     }
-    },
-    {
      "id": "blkclearmethod1id",
      "type": "Set variable",
      "options": {
@@ -2968,14 +2874,6 @@
      }
     },
     {
-     "id": "blkmethod1name",
-     "type": "Set variable",
-     "options": {
-      "variableId": "vselectedpaymentmethodname",
-      "expressionToEvaluate": "{{paymentMethod1Name}}"
-     }
-    },
-    {
      "id": "blkmethod1holder",
      "type": "Set variable",
      "options": {
@@ -3051,14 +2949,6 @@
      }
     },
     {
-     "id": "blkmethod2name",
-     "type": "Set variable",
-     "options": {
-      "variableId": "vselectedpaymentmethodname",
-      "expressionToEvaluate": "{{paymentMethod2Name}}"
-     }
-    },
-    {
      "id": "blkmethod2holder",
      "type": "Set variable",
      "options": {
@@ -3131,14 +3021,6 @@
      "options": {
       "variableId": "vselectedpaymentmethodtype",
       "expressionToEvaluate": "{{paymentMethod3Type}}"
-     }
-    },
-    {
-     "id": "blkmethod3name",
-     "type": "Set variable",
-     "options": {
-      "variableId": "vselectedpaymentmethodname",
-      "expressionToEvaluate": "{{paymentMethod3Name}}"
      }
     },
     {
@@ -3465,34 +3347,10 @@
      }
     },
     {
-     "id": "blkclearqueryfulfillmentid",
-     "type": "Set variable",
-     "options": {
-      "variableId": "vfulfillmentid",
-      "expressionToEvaluate": ""
-     }
-    },
-    {
      "id": "blkclearqueryfulfillmentstatus",
      "type": "Set variable",
      "options": {
       "variableId": "vfulfillmentstatus",
-      "expressionToEvaluate": ""
-     }
-    },
-    {
-     "id": "blkclearqueryfulfillmentsubmitted",
-     "type": "Set variable",
-     "options": {
-      "variableId": "vfulfillmentsubmittedat",
-      "expressionToEvaluate": ""
-     }
-    },
-    {
-     "id": "blkclearqueryfulfillmentcompleted",
-     "type": "Set variable",
-     "options": {
-      "variableId": "vfulfillmentcompletedat",
       "expressionToEvaluate": ""
      }
     },
@@ -3573,24 +3431,9 @@
       },
       "responseVariableMapping": [
        {
-        "id": "mapfulfillmentid",
-        "bodyPath": "data[0].fulfillmentId",
-        "variableId": "vfulfillmentid"
-       },
-       {
         "id": "mapfulfillmentstatus",
         "bodyPath": "data[0].status",
         "variableId": "vfulfillmentstatus"
-       },
-       {
-        "id": "mapfulfillmentsubmitted",
-        "bodyPath": "data[0].submittedAt",
-        "variableId": "vfulfillmentsubmittedat"
-       },
-       {
-        "id": "mapfulfillmentcompleted",
-        "bodyPath": "data[0].completedAt",
-        "variableId": "vfulfillmentcompletedat"
        }
       ]
      }
@@ -4941,21 +4784,6 @@
    "isSessionVariable": true
   },
   {
-   "id": "vinstancename",
-   "name": "instanceName",
-   "isSessionVariable": true
-  },
-  {
-   "id": "vownerjid",
-   "name": "ownerJid",
-   "isSessionVariable": true
-  },
-  {
-   "id": "vserverurl",
-   "name": "serverUrl",
-   "isSessionVariable": true
-  },
-  {
    "id": "vwhatsappnumber",
    "name": "whatsappNumber",
    "isSessionVariable": true
@@ -4991,16 +4819,6 @@
    "isSessionVariable": true
   },
   {
-   "id": "vproduct1min",
-   "name": "product1Min",
-   "isSessionVariable": true
-  },
-  {
-   "id": "vproduct1max",
-   "name": "product1Max",
-   "isSessionVariable": true
-  },
-  {
    "id": "vproduct2id",
    "name": "product2Id",
    "isSessionVariable": true
@@ -5008,16 +4826,6 @@
   {
    "id": "vproduct2name",
    "name": "product2Name",
-   "isSessionVariable": true
-  },
-  {
-   "id": "vproduct2min",
-   "name": "product2Min",
-   "isSessionVariable": true
-  },
-  {
-   "id": "vproduct2max",
-   "name": "product2Max",
    "isSessionVariable": true
   },
   {
@@ -5031,16 +4839,6 @@
    "isSessionVariable": true
   },
   {
-   "id": "vproduct3min",
-   "name": "product3Min",
-   "isSessionVariable": true
-  },
-  {
-   "id": "vproduct3max",
-   "name": "product3Max",
-   "isSessionVariable": true
-  },
-  {
    "id": "vproduct4id",
    "name": "product4Id",
    "isSessionVariable": true
@@ -5051,16 +4849,6 @@
    "isSessionVariable": true
   },
   {
-   "id": "vproduct4min",
-   "name": "product4Min",
-   "isSessionVariable": true
-  },
-  {
-   "id": "vproduct4max",
-   "name": "product4Max",
-   "isSessionVariable": true
-  },
-  {
    "id": "vproduct5id",
    "name": "product5Id",
    "isSessionVariable": true
@@ -5068,16 +4856,6 @@
   {
    "id": "vproduct5name",
    "name": "product5Name",
-   "isSessionVariable": true
-  },
-  {
-   "id": "vproduct5min",
-   "name": "product5Min",
-   "isSessionVariable": true
-  },
-  {
-   "id": "vproduct5max",
-   "name": "product5Max",
    "isSessionVariable": true
   },
   {
@@ -5131,11 +4909,6 @@
    "isSessionVariable": true
   },
   {
-   "id": "vquotestatus",
-   "name": "quoteStatus",
-   "isSessionVariable": true
-  },
-  {
    "id": "vorderid",
    "name": "orderId",
    "isSessionVariable": true
@@ -5143,11 +4916,6 @@
   {
    "id": "vorderstatus",
    "name": "orderStatus",
-   "isSessionVariable": true
-  },
-  {
-   "id": "vorderitemid",
-   "name": "orderItemId",
    "isSessionVariable": true
   },
   {
@@ -5168,11 +4936,6 @@
   {
    "id": "vcheckouturl",
    "name": "checkoutUrl",
-   "isSessionVariable": true
-  },
-  {
-   "id": "vpaymentexpiresat",
-   "name": "paymentExpiresAt",
    "isSessionVariable": true
   },
   {
@@ -5456,11 +5219,6 @@
    "isSessionVariable": true
   },
   {
-   "id": "vselectedpaymentmethodname",
-   "name": "selectedPaymentMethodName",
-   "isSessionVariable": true
-  },
-  {
    "id": "vbankaccountholder",
    "name": "bankAccountHolder",
    "isSessionVariable": true
@@ -5491,23 +5249,8 @@
    "isSessionVariable": true
   },
   {
-   "id": "vfulfillmentid",
-   "name": "fulfillmentId",
-   "isSessionVariable": true
-  },
-  {
    "id": "vfulfillmentstatus",
    "name": "fulfillmentStatus",
-   "isSessionVariable": true
-  },
-  {
-   "id": "vfulfillmentsubmittedat",
-   "name": "fulfillmentSubmittedAt",
-   "isSessionVariable": true
-  },
-  {
-   "id": "vfulfillmentcompletedat",
-   "name": "fulfillmentCompletedAt",
    "isSessionVariable": true
   },
   {

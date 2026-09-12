@@ -103,7 +103,7 @@ test("template reads fulfillment status through allowed read-only GET endpoints"
     type: "Webhook",
     options: {
       webhook: {
-        url: "{{backend_base_url}}/bot/v1/fulfillments/{{fulfillmentId}}",
+        url: "{{backend_base_url}}/bot/v1/orders/{{orderId}}/fulfillments",
         method: "GET",
         headers: [{
           id: "hdrsinglefulfillment",
