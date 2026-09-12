@@ -231,17 +231,21 @@ export async function buildApp(config: Env): Promise<FastifyInstance> {
     new CustomersService(customersRepository),
     whatsappRepository,
   );
+  // El orquestador y las cotizaciones comparten el mismo pricing core: el
+  // precio que ve el cliente en un botón es el que cobra la orden.
+  const conversationPricing = new PriceCalculatorService(productsRepository, pricingRepository);
   const conversationService = new ConversationService({
     repository: new PostgresConversationRepository(app.db),
     customers: new CustomersService(customersRepository),
     quotes: new QuotesService(
       new PostgresQuotesRepository(app.db),
-      new PriceCalculatorService(productsRepository, pricingRepository),
+      conversationPricing,
       customersRepository,
     ),
     orders: new OrdersService(new PostgresOrdersRepository(app.db), app.db),
     payments: paymentsService,
     paymentMethods: paymentMethodsService,
+    pricing: conversationPricing,
     ai: {
       // La IA conversa; nunca decide categoría, producto, cantidad ni pago.
       reply: async ({ businessId, message, customerId, conversationId, context }) => {

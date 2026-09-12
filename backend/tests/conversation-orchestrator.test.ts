@@ -127,6 +127,11 @@ function setup(calls: Calls = { quotes: 0, orders: 0, payments: 0, ai: 0 }) {
       },
       getById: async () => ({ id: "payment-1", amount: 4990, checkoutUrl: "https://mercadopago.cl/checkout/v1/redirect?pref_id=abc" }),
     } as never,
+    pricing: {
+      calculate: async (_b: string, productId: string, quantity: number) => ({
+        productId, quantity, unitPrice: 5, totalPrice: quantity * 5, currency: "CLP", pricingType: "unit",
+      }),
+    } as never,
     paymentMethods: {
       list: async () => ([
         { id: "pm-mp", type: "mercado_pago", name: "Mercado Pago", config: {} },

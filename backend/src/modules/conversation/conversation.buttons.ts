@@ -117,6 +117,21 @@ export function renderWhatsAppButtons(input: WhatsAppButtonsInput): string {
   return lines.join("\n").trimEnd();
 }
 
+/** Importe compacto para etiquetas de botón: "$4.990". */
+export function formatCompactAmount(amount: number): string {
+  return `$${new Intl.NumberFormat("es-CL", { maximumFractionDigits: 0 }).format(amount)}`;
+}
+
+/** Etiqueta de botón de venta: nombre corto y, si cabe, el precio. */
+export function commercialButtonLabel(name: string, amount: number | null): string {
+  const clean = sanitizeText(name, MAX_BUTTON_LABEL);
+  if (amount === null || amount <= 0) return clean;
+  const price = formatCompactAmount(amount);
+  const room = MAX_BUTTON_LABEL - price.length - 1;
+  if (room < 6) return clean;
+  return `${sanitizeText(name, room)} ${price}`;
+}
+
 /** Texto plano sin botones: un solo mensaje, una sola idea. */
 export function renderPlainMessage(text: string): string {
   return text.trim();

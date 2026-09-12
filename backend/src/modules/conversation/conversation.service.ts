@@ -7,12 +7,15 @@ import type { PaymentMethodsService } from "../payment-methods/payment-methods.s
 import type { PaymentsService } from "../payments/payments.service.js";
 import type { QuotesService } from "../quotes/quotes.service.js";
 import {
+  commercialButtonLabel,
+  formatCompactAmount,
   MAX_WHATSAPP_BUTTONS,
   pageCapacity,
   paginate,
   renderPlainMessage,
   renderWhatsAppButtons,
 } from "./conversation.buttons.js";
+import type { PriceCalculatorService } from "../pricing/price-calculator.service.js";
 import type { PostgresConversationRepository } from "./conversation.repository.js";
 import type {
   ConversationAiAssistant,
@@ -26,8 +29,8 @@ import type {
 
 const MAIN_MENU = {
   state: "MAIN_MENU" as ConversationState,
-  title: "¿Qué necesitas hoy?",
-  description: "Elige una opción para continuar.",
+  title: "¿Qué quieres hacer hoy?",
+  description: "Elige una opción para comenzar.",
 };
 
 /** Textos de negocio: una idea por mensaje, sin jerga técnica. */
@@ -111,6 +114,7 @@ export interface ConversationServiceDeps {
   orders: OrdersService;
   payments: PaymentsService;
   paymentMethods: PaymentMethodsService;
+  pricing: PriceCalculatorService;
   ai?: ConversationAiAssistant | undefined;
 }
 
@@ -176,6 +180,21 @@ export class ConversationService {
       page: 0,
       handoff: false,
     });
+  }
+
+  /** Precio real del pricing core; null si aún no hay precio publicado. */
+  private async priceFor(
+    businessId: string,
+    productId: string,
+    quantity: number,
+    currency: string,
+  ): Promise<number | null> {
+    try {
+      const calculation = await this.deps.pricing.calculate(businessId, productId, quantity, currency);
+      return calculation.totalPrice;
+    } catch {
+      return null;
+    }
   }
 
   private async persist(
@@ -407,9 +426,9 @@ export class ConversationService {
       { ...session.payload, listing: "categories" },
       { page },
     );
-    return this.response(state, "Selecciona una categoría 👇", {
-      title: "Selecciona una categoría",
-      description: "Elige la opción que quieres revisar.",
+    return this.response(state, "¿Qué quieres potenciar? 👇", {
+      title: "Elige una opción",
+      description: "Selecciona la red o el servicio que quieres potenciar.",
       replies,
       ...(hasNext ? { footer: `Página ${page + 1}` } : {}),
     });
@@ -459,9 +478,9 @@ export class ConversationService {
       { ...session.payload, categoryId: parentId, categoryName: parentName, categoryPath: path, listing: "categories" },
       { page },
     );
-    return this.response("SUBCATEGORY_SELECTION", `${parentName}: elige una opción 👇`, {
+    return this.response("SUBCATEGORY_SELECTION", `${parentName}: ¿qué necesitas? 👇`, {
       title: parentName.slice(0, 60),
-      description: "Selecciona la opción que necesitas.",
+      description: "Elige el servicio que quieres potenciar.",
       replies,
     });
   }
@@ -489,9 +508,15 @@ export class ConversationService {
         ],
       });
     }
-    const visible = products.slice(0, capacity);
-    const hasNext = total > offset + visible.length;
-    const replies = visible.map((product) => ({ id: `product:${product.id}`, label: product.name }));
+    const currency = (await this.deps.repository.findBusinessCurrency(businessId)) ?? "CLP";
+    const hasNext = total > offset + MAX_WHATSAPP_BUTTONS;
+    const visible = products.slice(0, hasNext ? MAX_WHATSAPP_BUTTONS - 1 : MAX_WHATSAPP_BUTTONS);
+    const replies: Array<{ id: string; label: string }> = [];
+    for (const product of visible) {
+      const base = product.minQuantity ?? 1;
+      const price = await this.priceFor(businessId, product.id, base, currency);
+      replies.push({ id: `product:${product.id}`, label: commercialButtonLabel(product.name, price) });
+    }
     replies.push(
       hasNext
         ? { id: "navigation.next", label: "Más opciones" }
@@ -503,9 +528,9 @@ export class ConversationService {
       { ...session.payload, categoryId, categoryName, categoryPath: path, listing: "products" },
       { page },
     );
-    return this.response("PRODUCT_SELECTION", `${categoryName}: elige tu servicio 👇`, {
+    return this.response("PRODUCT_SELECTION", `${categoryName}: elige tu paquete 👇`, {
       title: categoryName.slice(0, 60),
-      description: "Selecciona el servicio que quieres contratar.",
+      description: "Precios finales, sin sorpresas. Puedes cambiarlo antes de pagar.",
       replies,
     });
   }
@@ -520,17 +545,27 @@ export class ConversationService {
       return this.technicalError(session, "PRODUCT_SELECTION");
     }
     const options = quantityOptionsFor(product);
-    const replies = options
-      .slice(0, MAX_WHATSAPP_BUTTONS - 1)
-      .map((quantity) => ({ id: `quantity:${quantity}`, label: String(quantity) }));
+    const currency = (await this.deps.repository.findBusinessCurrency(businessId)) ?? "CLP";
+    const priced: Array<{ quantity: number; amount: number | null }> = [];
+    for (const quantity of options.slice(0, MAX_WHATSAPP_BUTTONS - 1)) {
+      priced.push({ quantity, amount: await this.priceFor(businessId, product.id, quantity, currency) });
+    }
+    const replies = priced.map((option) => ({
+      id: `quantity:${option.quantity}`,
+      label: option.amount === null
+        ? String(option.quantity)
+        : `${option.quantity} · ${formatCompactAmount(option.amount)}`,
+    }));
     replies.push({ id: "navigation.back", label: "Volver" });
+    const base = await this.priceFor(businessId, product.id, product.minQuantity ?? options[0]!, currency);
     const detail = [
       product.name,
       product.description ? `\n${product.description}` : "",
+      base === null ? "" : `\nPrecio: ${formatAmount(base, currency)}`,
       product.minQuantity !== null && product.maxQuantity !== null
-        ? `\nCantidades disponibles: ${product.minQuantity} a ${product.maxQuantity}`
+        ? `\nCantidades: ${product.minQuantity} a ${product.maxQuantity}`
         : "",
-      "\nElige la cantidad que necesitas.",
+      "\nElige la cantidad que necesitas 👇",
     ].join("");
     await this.persist(session, "QUANTITY_SELECTION", {
       ...session.payload,
