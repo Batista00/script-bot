@@ -50,6 +50,14 @@ const COPY = {
   cancelled: "Listo, cancelamos esta compra. Cuando quieras empezamos de nuevo.",
 } as const;
 
+/**
+ * Estado comercial -> experiencia a presentar. El router de Typebot enruta por
+ * `view`; el estado sigue siendo el del negocio.
+ */
+const VIEW_BY_STATE: Record<string, string> = {
+  COLLECTING_REQUIRED_INPUT: "REQUIRED_INPUT",
+};
+
 const STATUS_LABELS: Record<string, string> = {
   pending_payment: "🟡 Esperando tu pago",
   paid: "🟢 Pago confirmado",
@@ -243,7 +251,7 @@ export class ConversationService {
     }
     return {
       state,
-      view: (options.view ?? state) as ConversationTurnResponse["view"],
+      view: (options.view ?? VIEW_BY_STATE[state] ?? state) as ConversationTurnResponse["view"],
       message,
       renderedMessage,
       expect: options.expect ?? (hasButtons ? "button" : "text"),
